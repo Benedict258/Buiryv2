@@ -20,7 +20,10 @@ export default tseslint.config(
         'error',
         {
           patterns: [
-            { group: ['@grpc/*', '@mysten/*'], message: 'Chain/Walrus clients are confined to packages/chain/src/tatum* and packages/storage.' },
+            {
+              group: ['@grpc/*', '@mysten/*'],
+              message: 'Chain/Walrus clients are confined to packages/chain/src/tatum* and packages/storage.',
+            },
             { group: ['*memwal*'], message: 'Walrus Memory clients are confined to packages/storage.' },
           ],
         },
