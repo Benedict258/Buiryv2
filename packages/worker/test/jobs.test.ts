@@ -3,7 +3,6 @@ import { describe, expect, it } from 'vitest';
 import {
   FIXTURES_DIR,
   GrpcBackend,
-  JsonRpcBackend,
   MockTatum,
   TatumGateway,
   loadFixtures,
