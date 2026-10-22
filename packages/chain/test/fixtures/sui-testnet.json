@@ -1,0 +1,77 @@
+[
+  {
+    "kind": "transaction",
+    "network": "sui:testnet",
+    "key": "9eAj4oGq7iNHx5KaC8LFh2RnQ8vXkLm3sTu6YzP1cBdW",
+    "response": {
+      "digest": "9eAj4oGq7iNHx5KaC8LFh2RnQ8vXkLm3sTu6YzP1cBdW",
+      "checkpoint": "1200",
+      "timestamp": {
+        "seconds": "1792000000",
+        "nanos": 0
+      },
+      "effects": {
+        "status": {
+          "success": true
+        },
+        "epoch": "90",
+        "changedObjects": [
+          {
+            "objectId": "0x41bd0000000000000000000000000000000000000000000000000000000007aa",
+            "idOperation": "CREATED",
+            "outputState": "OUTPUT_OBJECT_STATE_PACKAGE_WRITE",
+            "outputVersion": "1"
+          }
+        ]
+      }
+    }
+  },
+  {
+    "kind": "object",
+    "network": "sui:testnet",
+    "key": "0x7700000000000000000000000000000000000000000000000000000000007e57",
+    "response": {
+      "objectId": "0x7700000000000000000000000000000000000000000000000000000000007e57",
+      "version": "5",
+      "digest": "Dg007e575",
+      "objectType": "0x2::example::Thing",
+      "owner": {
+        "kind": "SHARED"
+      }
+    }
+  },
+  {
+    "kind": "package_versions",
+    "network": "sui:testnet",
+    "key": "0x41bd0000000000000000000000000000000000000000000000000000000007aa",
+    "response": {
+      "versions": [
+        {
+          "packageId": "0x41bd0000000000000000000000000000000000000000000000000000000007aa",
+          "version": "5"
+        }
+      ]
+    }
+  },
+  {
+    "kind": "service_info",
+    "network": "sui:testnet",
+    "key": "current",
+    "response": {
+      "chainId": "4c78adac",
+      "chain": "testnet",
+      "epoch": "90",
+      "checkpointHeight": "1300",
+      "lowestAvailableCheckpoint": "0",
+      "server": "mock-sui"
+    }
+  },
+  {
+    "kind": "epoch",
+    "network": "sui:testnet",
+    "key": "current",
+    "response": {
+      "epoch": "90"
+    }
+  }
+]

@@ -14,7 +14,12 @@ export default tseslint.config(
   // Confinement: chain clients only in packages/chain tatum gateway; Walrus clients only in packages/storage.
   {
     files: ['packages/**/*.ts', 'scripts/**/*.ts'],
-    ignores: ['packages/chain/src/tatum.ts', 'packages/chain/src/tatum/**', 'packages/storage/**'],
+    ignores: [
+      'packages/chain/src/tatum.ts',
+      'packages/chain/src/tatum/**',
+      'packages/chain/test/**',
+      'packages/storage/**',
+    ],
     rules: {
       'no-restricted-imports': [
         'error',
