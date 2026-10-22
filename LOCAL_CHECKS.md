@@ -97,9 +97,33 @@ Expected: `{"ok":true,"data":{"status":"ok"}}`; MCP is served at `/mcp`. Paste b
 ## L-M2. `buiry connect` against each real tool (resolves A22)
 
 Per tool (Claude Code, OpenCode, Cursor, Codex), in a scratch repo with the server from L-A4 running:
+
 ```bash
 pnpm tsx packages/cli/src/bin.ts login --api http://localhost:8787 --email you@example.com
 pnpm tsx packages/cli/src/bin.ts init --name scratch
 pnpm tsx packages/cli/src/bin.ts connect <tool>
 ```
+
 Then restart the tool and ask it to list its MCP servers/tools. Expected: a `buiry` server with the 13 `buiry_*` tools. Paste back per tool: whether the config file path/shape was right (if not, the correct path and a working snippet), and the `buiry doctor` output.
+
+## L-D1. Live two-agent demo
+
+```bash
+export WALRUS_RELAYER_URL=... WALRUS_ACCOUNT_ID=... WALRUS_DELEGATE_KEY=... TATUM_API_KEY=...
+export DEMO_PACKAGE_ID=0x...   # a Mainnet package you control that has since been upgraded
+export DEMO_TX_DIGEST=...      # a successful publish/upgrade transaction digest
+pnpm demo --live
+```
+
+Expected: agent B is shown the failure first; the package check reports the upgrade and the memory goes stale; the corrected memory takes its evidence from the digest; the evidence section prints real blob ids and expiries. Paste back the full output. The mock run (`pnpm demo`) is not evidence of live behaviour.
+
+## L-D2. Write the demo memories (run this close to the deadline)
+
+Storage is leased for a limited number of epochs, so the memories must be written near the date by which they must still be readable. Do not run it early.
+
+```bash
+export WALRUS_RELAYER_URL=... WALRUS_ACCOUNT_ID=... WALRUS_DELEGATE_KEY=...
+pnpm tsx scripts/write-demo-memories.ts --valid-until <last date the memories must be readable>
+```
+
+Expected: 12 memories stored, a table of blob ids and expiry times, and exit code 0. Exit code 2 and a WARNING line mean a memory expires before the date given; renew or re-run later. Paste back the table.

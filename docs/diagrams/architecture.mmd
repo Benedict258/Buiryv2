@@ -1,0 +1,30 @@
+flowchart LR
+  subgraph Agents
+    A1[Claude Code]
+    A2[OpenCode]
+    A3[Cursor / Codex]
+  end
+  subgraph Buiry
+    MCP[MCP server<br/>stdio + Streamable HTTP]
+    API[REST API /v1<br/>auth, RBAC, SSE]
+    SVC[Memory service<br/>redaction, learning loop,<br/>briefing, idempotency]
+    Q[(Postgres<br/>events, write queue,<br/>RLS by workspace)]
+    W[Worker<br/>write drain, drift scan,<br/>expiry, snapshots, canary]
+    DASH[Dashboard]
+  end
+  subgraph External
+    WAL[Walrus Memory<br/>relayer, Mainnet]
+    TAT[Tatum<br/>Sui gateway: gRPC + JSON-RPC]
+    SUI[(Sui)]
+  end
+  A1 & A2 & A3 -->|13 tools| MCP
+  MCP --> SVC
+  API --> SVC
+  DASH --> API
+  SVC <--> Q
+  W <--> Q
+  W -->|signed writes, recall| WAL
+  SVC -->|recall| WAL
+  SVC -->|verify evidence| TAT
+  W -->|drift scan| TAT
+  TAT --> SUI
