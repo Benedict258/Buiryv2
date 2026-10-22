@@ -28,6 +28,7 @@ import {
 import { PgWriteQueue, WriteService, type IndexedMemory } from '@buiry/storage';
 import type { Tx } from '../db/db.js';
 import type { AgentPrincipal, Principal, ServiceDeps } from './types.js';
+import { publishEvent } from './events.js';
 import { actorOf, genId, loadMemories, logActivity, notFound, sha, type MemoryRow } from './util.js';
 
 export const MAX_EVIDENCE = 8;
@@ -149,6 +150,9 @@ export interface DurableArgs {
   type?: MemoryType;
   by?: string;
   ref?: string;
+  /** Snapshot events only: derived confidence and signal counts. */
+  conf?: string;
+  sig?: string;
   payload?: Record<string, unknown>;
   seq: number;
   force?: boolean;
@@ -172,6 +176,8 @@ export async function emitDurable(
       ...(a.type ? { type: a.type } : {}),
       ...(a.by ? { by: a.by } : {}),
       ...(a.ref ? { ref: a.ref } : {}),
+      ...(a.conf ? { conf: a.conf } : {}),
+      ...(a.sig ? { sig: a.sig } : {}),
     },
     body: red.text.replace(/\r/g, ''),
     evidence: a.evidence ?? [],
@@ -282,6 +288,13 @@ export async function raiseFlag(
       new Date(deps.now()),
     ],
   );
+  await publishEvent(deps, tx, {
+    workspaceId: a.workspaceId,
+    projectId: a.projectId,
+    type: 'flag.created',
+    severity: a.severity,
+    data: { kind: a.kind, ...(a.memoryId ? { memoryId: a.memoryId } : {}), detail: a.detail },
+  });
 }
 
 // ---------- learning state persistence ----------
@@ -397,6 +410,15 @@ export async function applyToMemory(
         force: true,
         payload: { before: change.before, after: change.after, reason: res.reason },
       });
+      if (s.status === 'stale' || s.status === 'contested') {
+        await publishEvent(deps, tx, {
+          workspaceId: p.workspaceId,
+          projectId: project.id,
+          type: s.status === 'stale' ? 'memory.stale' : 'memory.contested',
+          severity: s.status === 'stale' && row.type === 'deployment' ? 'critical' : 'warning',
+          data: { memoryId: row.id, detail: res.reason },
+        });
+      }
     }
   }
   return {
@@ -583,7 +605,15 @@ export async function createMemoryTx(
     type: input.type,
     body: red.text,
     evidence,
-    ...(input.relation?.kind === 'supersedes' ? { ref: input.relation.memoryId } : {}),
+    // Merge lineage keeps the source memory in `ref`; a supersede relation then moves to `by`.
+    ...(opts.mergedFrom
+      ? {
+          ref: opts.mergedFrom,
+          ...(input.relation?.kind === 'supersedes' ? { by: input.relation.memoryId } : {}),
+        }
+      : input.relation?.kind === 'supersedes'
+        ? { ref: input.relation.memoryId }
+        : {}),
     seq: 1,
     payload: { confidence: st.confidence, status: st.status },
   });
@@ -631,6 +661,12 @@ export async function createMemoryTx(
       detail: 'Memory text contains instruction-like patterns aimed at agents',
     });
   }
+  await publishEvent(deps, tx, {
+    workspaceId: p.workspaceId,
+    projectId,
+    type: evt === 'handoff.created' ? 'handoff.created' : 'memory.created',
+    data: { memoryId: id, type: input.type, branch: slug, agent: humanSlug(p), status: st.status },
+  });
   await logActivity(tx, deps, {
     workspaceId: p.workspaceId,
     projectId,
@@ -800,3 +836,38 @@ export async function resolveTx(
 
 export { deriveNamespace, decodeMemory, loadMemories };
 export type { IndexedMemory };
+
+/** For workers: emit a durable event on behalf of the system (snapshots). Subject to admission budgets. */
+export async function emitDurableForSystem(
+  deps: ServiceDeps,
+  workspaceId: string,
+  projectId: string,
+  memoryId: string,
+  branchSlug: string,
+  e: { evt: EventType; body: string; conf?: string; sig?: string },
+): Promise<void> {
+  const p: Principal = {
+    kind: 'user',
+    workspaceId,
+    userId: 'system',
+    displayName: 'Buiry',
+    role: 'admin',
+    projectScope: null,
+  };
+  await deps.db.tenant(workspaceId, async (tx) => {
+    const project = await loadProject(tx, p, projectId);
+    const branch = await loadBranch(tx, projectId, branchSlug);
+    const row = await loadMemoryRow(tx, projectId, memoryId);
+    await emitDurable(deps, tx, {
+      p,
+      project,
+      branch,
+      memoryId,
+      evt: e.evt,
+      body: e.body,
+      seq: row.seq + 1,
+      ...(e.conf ? { conf: e.conf } : {}),
+      ...(e.sig ? { sig: e.sig } : {}),
+    });
+  });
+}

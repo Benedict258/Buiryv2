@@ -287,7 +287,7 @@ create table webhooks (
 create table webhook_deliveries (
   id text primary key,
   workspace_id text not null references workspaces(id),
-  webhook_id text not null references webhooks(id),
+  webhook_id text not null references webhooks(id) on delete cascade,
   event_type text not null,
   payload jsonb not null,
   state text not null default 'pending' check (state in ('pending','delivered','failed')),
@@ -417,10 +417,46 @@ const rls = (): string => {
   return parts.join('\n');
 };
 
+const API_TOKENS = `
+create table api_tokens (
+  id text primary key,
+  workspace_id text not null references workspaces(id),
+  name text not null,
+  token_hash text not null unique,
+  prefix text not null,
+  scopes text[] not null default '{read}',
+  project_ids text[],
+  created_by text,
+  created_at timestamptz not null default now(),
+  last_used_at timestamptz,
+  expires_at timestamptz,
+  revoked_at timestamptz
+);
+create table job_leases (
+  name text primary key,
+  holder text not null,
+  leased_until timestamptz not null,
+  last_run_at timestamptz
+);
+create table magic_links (
+  token_hash text primary key,
+  email text not null,
+  expires_at timestamptz not null,
+  used_at timestamptz
+);
+alter table memories add column snapshot_at timestamptz;
+alter table memories add column snapshot_confidence real;
+grant select, insert, update, delete on api_tokens to buiry_app;
+alter table api_tokens enable row level security;
+alter table api_tokens force row level security;
+create policy tenant_isolation on api_tokens using (workspace_id = current_setting('app.workspace_id', true)) with check (workspace_id = current_setting('app.workspace_id', true));
+`;
+
 export const MIGRATIONS: Migration[] = [
   { id: '001_init', sql: INIT },
   { id: '002_write_jobs', sql: WRITE_JOBS_DDL },
   { id: '003_rls', sql: rls() },
+  { id: '004_api_tokens_leases', sql: API_TOKENS },
 ];
 
 export async function migrate(

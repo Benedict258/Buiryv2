@@ -12,6 +12,9 @@
     "build": "tsup src/index.ts --format esm --dts"
   },
   "dependencies": {
-    "@buiry/core": "workspace:*"
+    "@buiry/core": "workspace:*",
+    "@buiry/api": "workspace:*",
+    "@buiry/storage": "workspace:*",
+    "@buiry/chain": "workspace:*"
   }
 }

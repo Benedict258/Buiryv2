@@ -115,9 +115,18 @@ importers:
 
   packages/worker:
     dependencies:
+      '@buiry/api':
+        specifier: workspace:*
+        version: link:../api
+      '@buiry/chain':
+        specifier: workspace:*
+        version: link:../chain
       '@buiry/core':
         specifier: workspace:*
         version: link:../core
+      '@buiry/storage':
+        specifier: workspace:*
+        version: link:../storage
 
 packages:
 
