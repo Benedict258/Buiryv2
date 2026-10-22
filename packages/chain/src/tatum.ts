@@ -112,6 +112,11 @@ export class TatumGateway {
     for (const [chain, cfg] of Object.entries(o.evm ?? {})) this.evm.set(chain, new EvmRpc(cfg, o.evmFetch));
   }
 
+  /** Attach (or replace) the telemetry sink after construction, e.g. once the database exists. */
+  setSink(sink: CallSink): void {
+    this.o.sink = sink;
+  }
+
   get networks(): Network[] {
     return Object.keys(this.o.backends);
   }
