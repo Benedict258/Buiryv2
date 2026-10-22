@@ -1,0 +1,11 @@
+{
+  "name": "@buiry/cli",
+  "version": "0.0.0",
+  "type": "module",
+  "license": "Apache-2.0",
+  "main": "./src/index.ts",
+  "types": "./src/index.ts",
+  "files": ["dist"],
+  "scripts": { "build": "tsup src/index.ts --format esm --dts" },
+  "dependencies": { "@buiry/core": "workspace:*" }
+}

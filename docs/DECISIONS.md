@@ -1,0 +1,12 @@
+# Decisions made without asking
+
+| ID | Decision | Rationale |
+| --- | --- | --- |
+| BD1 | Root `LICENSE` (MIT, pre-existing) left untouched. Package-level licences follow rule 5. | Changing the repository licence is the owner's call; flagged in the hand-off summary. |
+| BD2 | TypeScript sources are consumed directly across workspace packages via `tsconfig` paths and vitest aliases; `tsup` builds exist for publishing. | Fast iteration, no build step before tests. |
+| BD3 | Test database: PGlite (real Postgres semantics incl. row-level security, in-process). | Lets schema, migrations and RLS be tested without a server. |
+| BD4 | HTTP framework for API: Hono. Validation: zod. | Small, typed, runs on node http. |
+| BD5 | Chain module layout: `packages/chain/src/tatum.ts` is the single gateway; transports live in `packages/chain/src/tatum/`. | Honours "single gateway file" while keeping transports testable. |
+| BD6 | Package name scope `@buiry/*`; CLI binary `buiry`. | Matches architecture proposals. |
+| BD7 | Initial confidence/decay/weights use architecture section 9 values verbatim and are exposed as `LearningConfig`. | Tunable defaults. |
+| BD8 | Token estimator: ceil(chars / 4) for prose. | Deterministic, no tokenizer dependency. |

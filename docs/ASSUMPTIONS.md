@@ -1,0 +1,28 @@
+# Assumptions register
+
+Format: what is assumed, source, how to verify, what changes if false. Starting list is Architecture section 19 (A1-A12). Status values: `open`, `resolved`, `contradicted`.
+
+## Step 0 status
+
+The sandbox network allowlist blocks `docs.wal.app` and `docs.tatum.io` (DNS/proxy refusal), so the live documentation could not be read in this environment. No fact below was resolved from live docs; every item stays `open` and carries a verification step in `LOCAL_CHECKS.md`. Facts quoted from the supplied design documents (read 2026-10-11 by the author) are treated as inputs, not as verified behaviour.
+
+Documentation pages to read when network is available (cite results here): Walrus Memory relayer api-reference, memory-read-api, production-readiness, manage-your-memory, self-hosting, sdk api-reference/usage, ownership-and-access, security-delete, versioned-datasets, funding-storage, tracking-agent-storage; core Walrus storage-costs, system-constraints, quilt, storage-pools; Tatum Sui RPC reference, Sui gRPC migration guide, pricing/credits, notifications supported chains.
+
+| ID | Assumption | Source | Verification | If false | Status |
+| --- | --- | --- | --- | --- | --- |
+| A1 | Relayer-written blobs have a known owner and lifetimes can be extended by the operator | none (docs conflict per whitepaper) | Ask Walrus; inspect a written blob's owner via the gateway | No renewal; expiry is the retention limit; renewal hook stays disabled | open |
+| A2 | Mainnet default epoch count is 2 or 3 | whitepaper section 11 | Write a test memory, read `expires_at` | Retention planning changes | open |
+| A3 | Memory Read API accepts delegate-key signed requests from third parties | PRD V4 | Call it with the delegate key | Expiry monitor falls back to recorded write-time data | open |
+| A4 | Memory text can be retrieved for enumerated blobs | PRD V5 | Prototype rebuild on testnet | Rebuild is best effort from write-time capture | open |
+| A5 | Permanent deletion covers current memories and is enabled | PRD V2 | Ask Walrus; test on testnet | Only tombstone and index removal offered | open |
+| A6 | Bulk remember weight: modelled as 5 points per item | arch section 6 | Measure against the limiter | Budget model adjusts (config `bulkWeightPerItem`) | open |
+| A7 | gRPC via Tatum satisfies the "Tatum Sui RPC" criterion | PRD V6 | Ask organisers | Emphasise JSON-RPC (path exists) | open |
+| A8 | Mainnet JSON-RPC at the Tatum gateway still works | PRD V11 | `LOCAL_CHECKS.md` L-T1 | JSON-RPC fallback unavailable | open |
+| A9 | JSON-RPC credit cost ~ gRPC (2 credits) | PRD section 11 | Measure usage | Credit budget model | open |
+| A10 | zkLogin can give Google users a Sui address usable as Walrus owner | arch section 5 | Sui/Walrus docs | Google users stay in managed mode | open |
+| A11 | Blob/account object field names allow expiry and delegate checks through the gateway | arch section 11 | Inspect objects on testnet | Use the read interface only | open |
+| A12 | A self-hosted relayer accepts a header-keyed gateway | PRD V12 | Test or ask | Relayer uses a public fullnode | open |
+| A13 | Relayer request signing: Ed25519 over a canonical string (method, path, timestamp, body hash) sent in headers; exact header names unknown | none | Read relayer api-reference; `LOCAL_CHECKS.md` L-W1 | Only the injectable `Signer` implementation changes | open |
+| A14 | Relayer endpoint paths/JSON shapes (`/remember`, `/remember/bulk`, `/recall`, `/jobs/:id`, `/health`, `/version`) | none | Read api-reference; contract tests against real relayer | Only the HTTP adapter changes | open |
+| A15 | Relayer health reports write state `ok|degraded|paused` | arch section 6 | `GET /health` | Adapter infers state from error rates | open |
+| A16 | Sui gRPC service/field names (Ledger, MovePackage, State, TransactionExecution, Name) match the public `sui-apis` protos | arch section 11 | Vendor protos from MystenLabs/sui-apis; `LOCAL_CHECKS.md` L-T2 | Regenerate stubs; JSON-RPC covers meanwhile | open |
