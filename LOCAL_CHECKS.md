@@ -51,3 +51,7 @@ The script prints, per call, the method, transport, latency, status and credit e
 ## L-T3. Hackathon criterion (resolves A7)
 
 Ask the organisers (or the Tatum community channel) whether Sui gRPC through the Tatum gateway satisfies "Tatum Sui RPC". Paste back the answer. Buiry keeps a JSON-RPC path either way.
+
+## L-M1. Real agent clients (measure, do not assume)
+
+For each of Claude Code, OpenCode, Cursor, Codex: run `buiry connect <tool>` in a scratch repo, start a session with a task prompt that does not mention Buiry, and note (a) whether the agent called `buiry_connect` and `buiry_check` unprompted, (b) whether it called `buiry_handoff` at the end. Paste back per tool: client version, yes/no for each, and any config issue. The generated BUIRY.md and the tool descriptions are the dependable path; this check tells us how dependable.

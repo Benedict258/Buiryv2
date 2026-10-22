@@ -14,12 +14,13 @@
     "format": "prettier --write .",
     "test": "vitest run",
     "test:cov": "vitest run --coverage",
-    "conformance": "tsx packages/mcp/scripts/conformance.ts",
+    "conformance": "tsx scripts/conformance.ts",
     "demo": "tsx scripts/demo/run.ts"
   },
   "devDependencies": {
     "@electric-sql/pglite": "^0.5.11",
     "@eslint/js": "^9.0.0",
+    "@modelcontextprotocol/sdk": "^1.32.1",
     "@types/node": "^20.14.0",
     "@vitest/coverage-v8": "^2.1.0",
     "eslint": "^9.0.0",
@@ -29,6 +30,7 @@
     "tsx": "^4.19.0",
     "typescript": "^5.6.0",
     "typescript-eslint": "^8.8.0",
-    "vitest": "^2.1.0"
+    "vitest": "^2.1.0",
+    "zod": "^4.6.7"
   }
 }

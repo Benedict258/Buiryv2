@@ -245,3 +245,14 @@ describe('conflict candidates and failure surfacing', () => {
     expect(r.map((x) => x.memory.id)).toEqual(['f1']);
   });
 });
+
+describe('delegated confirmation (agent token with the confirm scope)', () => {
+  it('lets another agent confirm but never the creator, and never without delegation', () => {
+    const s = initialState({ id: 'mem_1', type: 'decision', actor: agentA, at: T0 });
+    expect(applySignal(s, { kind: 'confirm', actor: agentB, delegated: true }, T0).state.status).toBe(
+      'confirmed',
+    );
+    expect(applySignal(s, { kind: 'confirm', actor: agentA, delegated: true }, T0).applied).toBe(false);
+    expect(applySignal(s, { kind: 'confirm', actor: agentB }, T0).applied).toBe(false);
+  });
+});
