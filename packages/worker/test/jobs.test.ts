@@ -1,12 +1,6 @@
 import { randomBytes } from 'node:crypto';
 import { describe, expect, it } from 'vitest';
-import {
-  FIXTURES_DIR,
-  GrpcBackend,
-  MockTatum,
-  TatumGateway,
-  loadFixtures,
-} from '@buiry/chain';
+import { FIXTURES_DIR, GrpcBackend, MockTatum, TatumGateway, loadFixtures } from '@buiry/chain';
 import { EPOCH_MS, Ed25519Signer, HttpWalrusAdapter, MockRelayer } from '@buiry/storage';
 import { createDrain, createStack, type UserPrincipal } from '@buiry/api';
 import {
