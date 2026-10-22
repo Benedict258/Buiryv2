@@ -20,6 +20,8 @@ import { StoragePage } from './pages/StoragePage';
 import { Settings } from './pages/Settings';
 import { Team, Integrations, ApiTokens, Billing, Account, Notifications } from './pages/WorkspacePages';
 import { Skeleton } from './components/ui';
+import { Showcase } from './pages/Showcase';
+import { AcceptInvite } from './pages/AcceptInvite';
 
 function Home() {
   const { me } = useApp();
@@ -40,10 +42,10 @@ export function App() {
       .finally(() => setReady(true));
   }, [refreshMe]);
   useEffect(() => {
-    if (ready && !me && !failure && loc.pathname !== '/signin')
+    if (ready && !me && !failure && loc.pathname !== '/signin' && !loc.pathname.startsWith('/showcase/'))
       nav(`/signin?next=${encodeURIComponent(loc.pathname + loc.search)}`, { replace: true });
   }, [ready, me, failure, loc.pathname, loc.search, nav]);
-  if (ready && failure && !me)
+  if (ready && failure && !me && !loc.pathname.startsWith('/showcase/'))
     return (
       <div className="auth-wrap">
         <div className="card auth-card col" role="alert">
@@ -64,6 +66,8 @@ export function App() {
   return (
     <Routes>
       <Route path="/signin" element={<SignIn />} />
+      <Route path="/showcase/:pid" element={<Showcase />} />
+      <Route path="/invite/:token" element={me ? <AcceptInvite /> : null} />
       <Route path="/onboarding" element={me ? <Onboarding /> : null} />
       <Route path="/" element={<Home />} />
       <Route path="/w/:ws" element={me ? <WorkspaceLayout /> : null}>

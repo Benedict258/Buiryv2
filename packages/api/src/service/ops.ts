@@ -23,13 +23,21 @@ import {
   type Signal,
   type Status,
   MEMORY_TYPES,
-  DEFAULT_LEARNING,
 } from '@buiry/core';
 import { PgWriteQueue, WriteService, type IndexedMemory } from '@buiry/storage';
 import type { Tx } from '../db/db.js';
 import type { AgentPrincipal, Principal, ServiceDeps } from './types.js';
 import { publishEvent } from './events.js';
-import { actorOf, genId, loadMemories, logActivity, notFound, sha, type MemoryRow } from './util.js';
+import {
+  actorOf,
+  genId,
+  learningFor,
+  loadMemories,
+  logActivity,
+  notFound,
+  sha,
+  type MemoryRow,
+} from './util.js';
 
 export const MAX_EVIDENCE = 8;
 const ROLE_RANK = { reader: 0, writer: 1, admin: 2, owner: 3 } as const;
@@ -358,7 +366,7 @@ export async function applyToMemory(
 ): Promise<Applied> {
   const at = deps.now();
   const before = { status: row.status, confidence: Number(row.confidence) };
-  const res = applySignal(stateFromRow(row), signal, at, deps.learning ?? DEFAULT_LEARNING);
+  const res = applySignal(stateFromRow(row), signal, at, learningFor(deps, project.settings));
   if (!res.applied) {
     return { applied: false, reason: res.reason, before, after: before, seq: row.seq };
   }
@@ -529,7 +537,7 @@ export async function createMemoryTx(
     candidates = findConflictCandidates(
       { text: red.text, type: input.type },
       pool.rows.map((r) => ({ id: r.id, text: r.text, type: r.type, status: r.status })),
-      deps.learning ?? DEFAULT_LEARNING,
+      learningFor(deps, project.settings),
     );
   }
 
@@ -556,7 +564,7 @@ export async function createMemoryTx(
       : { kind: 'agent', id: actor.id, ...(actor.sessionId ? { sessionId: actor.sessionId } : {}) },
     at: t0,
     evidenceVerified: pre?.verified ?? opts.evidenceVerified ?? false,
-    cfg: deps.learning ?? DEFAULT_LEARNING,
+    cfg: learningFor(deps, project.settings),
   });
   const flags: string[] = [];
   if (candidates.length && !input.relation) flags.push('possible_conflict');

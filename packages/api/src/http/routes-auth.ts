@@ -5,9 +5,12 @@ import {
   acceptInvitation,
   changeRole,
   createInvitation,
+  listInvitations,
+  revokeInvitation,
   listMembers,
   removeMember,
 } from '../service/members.js';
+import { showcaseFor } from '../service/showcase.js';
 import {
   SESSION_COOKIE,
   body,
@@ -32,6 +35,13 @@ function startSession(ctx: AppContext, c: Context, s: { token: string; expiresAt
 
 export const registerAuth: Registrar = (_app, ctx, r) => {
   r({ method: 'GET', path: '/v1/healthz', auth: 'public', scope: 'none' }, (c) => ok(c, { status: 'ok' }));
+
+  // The one public read of project data: only for projects whose owner enabled the showcase (see showcase.ts).
+  r({ method: 'GET', path: '/v1/public/showcase/:id', auth: 'public', scope: 'none' }, async (c) => {
+    const data = await showcaseFor(ctx.deps, ctx.deps.db, c.req.param('id')!);
+    c.header('cache-control', 'public, max-age=30');
+    return ok(c, data);
+  });
 
   r({ method: 'POST', path: '/v1/auth/wallet/challenge', auth: 'public', scope: 'none' }, async (c) =>
     ok(c, await ctx.auth.walletChallenge()),
@@ -165,6 +175,21 @@ export const registerAuth: Registrar = (_app, ctx, r) => {
         await ctx.deps.db.tenant(p.workspaceId, (tx) => createInvitation(ctx.deps, tx, p, b)),
         201,
       );
+    },
+  );
+  r(
+    { method: 'GET', path: '/v1/workspaces/:ws/invitations', auth: 'user', scope: 'workspace' },
+    async (c) => {
+      const p = await workspacePrincipal(ctx, await userCaller(ctx, c), c.req.param('ws')!);
+      return ok(c, await ctx.deps.db.tenant(p.workspaceId, (tx) => listInvitations(ctx.deps, tx, p)));
+    },
+  );
+  r(
+    { method: 'DELETE', path: '/v1/workspaces/:ws/invitations/:id', auth: 'user', scope: 'workspace' },
+    async (c) => {
+      const p = await workspacePrincipal(ctx, await userCaller(ctx, c), c.req.param('ws')!);
+      await ctx.deps.db.tenant(p.workspaceId, (tx) => revokeInvitation(ctx.deps, tx, p, c.req.param('id')!));
+      return ok(c, { revoked: true });
     },
   );
   r({ method: 'POST', path: '/v1/invitations/accept', auth: 'user', scope: 'self' }, async (c) => {

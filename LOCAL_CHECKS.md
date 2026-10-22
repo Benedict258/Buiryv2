@@ -142,3 +142,7 @@ Optional screenshot pass (needs Chromium; `CHROMIUM_PATH` overrides the default)
 ## L-U2. Dashboard against the real service
 
 With the real service from L-A4 and a real sign-in (L-A1 or the email link), repeat L-U1 using a real project. In addition check: the cookie session works after a page reload, `Origin` checks pass when the dashboard is served by the API (`DASHBOARD_DIR`), and a wallet sign-in (L-A2) completes. The browser wallet connector is not bundled in this build, so wallet sign-in is only exercised through the API.
+
+## L-U3. Public showcase and invitations in a browser
+
+With `pnpm dev:api` running (it enables the showcase and creates one invitation), open `http://localhost:8787/showcase/<project-id>` in a private window with no session. Expected: counts, confirmed memories with evidence chips, storage strip, and no agent names. Then in project settings turn the showcase off and reload the public page: it should say nothing is shared. In Team, open Invitations: the pending invite shows with Revoke; creating a new one shows its link once; opening `/invite/<token>` while signed in as a different account joins the workspace.

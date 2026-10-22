@@ -1,6 +1,5 @@
 import {
   BuiryError,
-  DEFAULT_LEARNING,
   ONBOARDING_BUDGET,
   buildBriefing,
   deriveNamespace,
@@ -32,7 +31,7 @@ import type { Tx } from '../db/db.js';
 import { createBranchRow } from './admin.js';
 import { activeBranch, assertAllowed, loadBranch, loadMemoryRow, loadProject } from './ops.js';
 import type { AgentPrincipal, Principal, ServiceDeps } from './types.js';
-import { actorOf, evidenceFor, iso, loadMemories, logActivity, type MemoryRow } from './util.js';
+import { actorOf, evidenceFor, iso, learningFor, loadMemories, logActivity, type MemoryRow } from './util.js';
 
 // ---------- index over Postgres (the rebuildable cache of Walrus) ----------
 
@@ -87,16 +86,17 @@ export async function recallOp(
   const slug: string =
     i.branch ??
     (p.kind === 'agent' ? await deps.db.tenant(p.workspaceId, (tx) => activeBranch(tx, p)) : 'main');
-  await deps.db.tenant(p.workspaceId, async (tx) => {
-    await loadProject(tx, p, projectId);
+  const cfg = await deps.db.tenant(p.workspaceId, async (tx) => {
+    const project = await loadProject(tx, p, projectId);
     await loadBranch(tx, projectId, slug);
     assertAllowed(p, 'read');
+    return learningFor(deps, project.settings);
   });
   if (!i.query?.trim()) throw new BuiryError('invalid_input', 'query is required');
   const svc = new RecallService(
     (deps.adapter ?? new OfflineAdapter()) as WalrusMemoryAdapter,
     new PgMemoryIndex(deps, p.workspaceId),
-    deps.learning ?? DEFAULT_LEARNING,
+    cfg,
   );
   const out = await svc.recall({
     projectId,
@@ -223,6 +223,14 @@ export async function connectTx(
 
 // ---------- check / briefing ----------
 
+/** Why an item is in a briefing: its score and the components behind it (weights: `BRIEFING_WEIGHTS`). */
+export interface ScoredItem {
+  memoryId: string;
+  section: string;
+  score: number;
+  components: { relevance: number; confidence: number; recency: number; typeWeight: number };
+}
+
 export async function briefingTx(
   deps: ServiceDeps,
   tx: Tx,
@@ -230,7 +238,7 @@ export async function briefingTx(
   projectId: string,
   i: CheckInput & { onboardingOverride?: boolean },
   slug: string,
-): Promise<CheckOutput & { items: { memoryId: string; section: string }[] }> {
+): Promise<CheckOutput & { items: ScoredItem[] }> {
   const project = await loadProject(tx, p, projectId);
   assertAllowed(p, 'read');
   await loadBranch(tx, projectId, slug);
@@ -293,7 +301,14 @@ export async function briefingTx(
     now: deps.now(),
     memories,
     ...(i.task ? { task: i.task } : {}),
-    ...(i.tokenBudget ? { tokenBudget: Math.min(8000, Math.max(200, i.tokenBudget)) } : {}),
+    ...(() => {
+      const b =
+        i.tokenBudget ??
+        (typeof project.settings.defaultTokenBudget === 'number'
+          ? project.settings.defaultTokenBudget
+          : undefined);
+      return b ? { tokenBudget: Math.min(8000, Math.max(200, b)) } : {};
+    })(),
     onboarding,
     project: { name: project.name, networks: project.networks },
     counts,
@@ -301,7 +316,7 @@ export async function briefingTx(
       ? { lastWriter: { agent: last.rows[0].agent_slug, at: new Date(last.rows[0].created_at).getTime() } }
       : {}),
     extraFlags,
-    cfg: deps.learning ?? DEFAULT_LEARNING,
+    cfg: learningFor(deps, project.settings),
   });
 
   const ne = await tx.query<{ n: string | number }>(
@@ -315,7 +330,12 @@ export async function briefingTx(
     generatedAt: new Date(deps.now()).toISOString(),
     onboarding,
     tokensUsed: b.tokensUsed,
-    items: b.items.map((x) => ({ memoryId: x.memoryId, section: x.section })),
+    items: b.items.map((x) => ({
+      memoryId: x.memoryId,
+      section: x.section,
+      score: x.score,
+      components: x.components,
+    })),
   };
 }
 

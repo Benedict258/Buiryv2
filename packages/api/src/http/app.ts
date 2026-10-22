@@ -16,6 +16,7 @@ export interface CreateAppOptions {
   agentCallsPerMinute?: number;
   /** Requests per minute per client address on /v1/auth (default 60). */
   authRequestsPerMinute?: number;
+  publicRequestsPerMinute?: number;
 }
 
 export interface BuiryApp {
@@ -64,6 +65,7 @@ export function createApp(o: CreateAppOptions): BuiryApp {
   const app = new Hono();
   const routes: RouteInfo[] = [];
   const authLimiter = new IpLimiter(o.authRequestsPerMinute ?? 60, 60_000, o.deps.now);
+  const publicLimiter = new IpLimiter(o.publicRequestsPerMinute ?? 120, 60_000, o.deps.now);
 
   app.use('*', async (c, next) => {
     const rid = c.req.header('x-request-id') ?? `req_${Math.random().toString(36).slice(2, 12)}`;
@@ -73,8 +75,16 @@ export function createApp(o: CreateAppOptions): BuiryApp {
     c.header('referrer-policy', 'no-referrer');
     await next();
   });
-  app.use('/v1/auth/*', async (c, next) => {
-    authLimiter.check(c.req.header('x-forwarded-for')?.split(',')[0]?.trim() ?? 'local');
+  const ipOf = (c: { req: { header: (n: string) => string | undefined } }) =>
+    c.req.header('x-forwarded-for')?.split(',')[0]?.trim() ?? 'local';
+  // Only the endpoints that take no credentials are limited per address; signed-in calls such as /auth/me are not.
+  for (const path of ['/v1/auth/wallet/*', '/v1/auth/oauth/*', '/v1/auth/email/*'])
+    app.use(path, async (c, next) => {
+      authLimiter.check(ipOf(c));
+      await next();
+    });
+  app.use('/v1/public/*', async (c, next) => {
+    publicLimiter.check(ipOf(c));
     await next();
   });
 

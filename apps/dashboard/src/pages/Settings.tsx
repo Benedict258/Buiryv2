@@ -1,5 +1,5 @@
 /* eslint-disable @typescript-eslint/no-explicit-any -- project settings are an open JSON object */
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { api } from '../lib/api';
 import { can, useApp, useQuery } from '../lib/app';
@@ -274,8 +274,8 @@ function MemoryRules({ p, admin, reload }: P) {
     >
       <div className="col">
         <Banner kind="info">
-          These values are saved with the project. The built-in learning loop currently applies its default
-          thresholds and half-lives; per-project overrides are recorded for when it is wired to read them.
+          These values apply to this project's scoring: decay, promotion and the needs-review threshold.
+          Invalid values are ignored.
         </Banner>
         <label className="check">
           <input
@@ -711,7 +711,6 @@ function Showcase({ p, admin, reload }: P) {
   const s = p.settings.publicShowcase ?? {};
   const [on, setOn] = useState<boolean>(s.enabled ?? false);
   const [show, setShow] = useState<string[]>(s.show ?? ['counts']);
-  useEffect(() => {}, []);
   return (
     <Card
       title="Public showcase"
@@ -727,19 +726,27 @@ function Showcase({ p, admin, reload }: P) {
       }
     >
       <div className="col">
-        <Banner kind="info">
-          The preference is saved with the project. The public viewer page is not part of this build, so
-          nothing is published yet.
-        </Banner>
+        {s.enabled ? (
+          <Banner kind="success">
+            Public page is live at{' '}
+            <a href={`/showcase/${p.id}`} target="_blank" rel="noreferrer">
+              /showcase/{p.id}
+            </a>
+            . Only the sections ticked below are shown, and only confirmed memories are listed. Agent names,
+            activity and tokens are never shared.
+          </Banner>
+        ) : (
+          <Banner kind="info">Private. Turn this on and save to publish a read-only page.</Banner>
+        )}
         <label className="check">
           <input type="checkbox" disabled={!admin} checked={on} onChange={(e) => setOn(e.target.checked)} />
           Allow a read-only public page
         </label>
         {[
           ['counts', 'Counts by type and status'],
-          ['memories', 'Selected memories'],
-          ['evidence', 'Evidence'],
-          ['storage', 'Storage links'],
+          ['memories', 'Confirmed memories'],
+          ['evidence', 'Evidence on those memories'],
+          ['storage', 'Storage (blob ids and expiry)'],
         ].map(([k, l]) => (
           <label key={k} className="check">
             <input

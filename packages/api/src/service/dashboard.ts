@@ -24,6 +24,7 @@ import {
   evidenceFor,
   genId,
   hmac,
+  learningFor,
   loadMemories,
   logActivity,
   notFound,
@@ -254,7 +255,8 @@ export async function listMemories(
   projectId: string,
   f: MemoryFilter,
 ) {
-  await loadProject(tx, p, projectId);
+  const project = await loadProject(tx, p, projectId);
+  const cfg = learningFor(deps, project.settings);
   assertAllowed(p, 'read');
   const w: string[] = ['m.project_id = $1'];
   const args: unknown[] = [projectId];
@@ -325,7 +327,7 @@ export async function listMemories(
         status: m.status,
         text: m.text,
         confidence: m.confidence,
-        effectiveConfidence: Math.round(effectiveConfidence(m, deps.now(), deps.learning) * 1000) / 1000,
+        effectiveConfidence: Math.round(effectiveConfidence(m, deps.now(), cfg) * 1000) / 1000,
         agent: m.agent,
         branch: m.branch,
         evidence: m.evidence,

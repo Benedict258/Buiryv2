@@ -4,7 +4,7 @@ import { Plus, Send, Trash2 } from 'lucide-react';
 import { api } from '../lib/api';
 import { can, useApp, useQuery } from '../lib/app';
 import { useWs } from '../lib/ctx';
-import { ago, plural } from '../lib/format';
+import { ago, plural, when } from '../lib/format';
 import type { Billing as BillingT, Flag, Member, Role } from '../lib/types';
 import {
   Async,
@@ -41,7 +41,8 @@ export function Team() {
   const q = useQuery(() => api<Member[]>(`/v1/workspaces/${wsId}/members`), [wsId]);
   const [invite, setInvite] = useState(false);
   const [matrix, setMatrix] = useState(false);
-  const [sent, setSent] = useState<{ invitee: string; role: string; token?: string }[]>([]);
+  const invites = useQuery(() => api<Invite[]>(`/v1/workspaces/${wsId}/invitations`), [wsId, tab]);
+  const [links, setLinks] = useState<Record<string, string>>({});
   const admin = can(role, 'admin');
   const changeRole = async (m: Member, r: string) => {
     try {
@@ -71,7 +72,7 @@ export function Team() {
         onChange={setTab}
         items={[
           { id: 'members', label: 'Members', n: q.data?.length },
-          { id: 'invitations', label: 'Invitations', n: sent.length },
+          { id: 'invitations', label: 'Invitations', n: invites.data?.length },
         ]}
       />
       {tab === 'members' ? (
@@ -154,33 +155,64 @@ export function Team() {
             )}
           </Async>
         </Card>
-      ) : sent.length === 0 ? (
-        <Empty text="No invitations created in this session. Pending invitations are not listed by the service yet." />
       ) : (
-        <div className="col">
-          {sent.map((s, i) => (
-            <Card key={i}>
-              <div className="spread">
-                <div>
-                  {s.invitee} <span className="chip">{s.role}</span>
-                </div>
+        <Async q={invites} rows={2}>
+          {(rows) =>
+            rows.length === 0 ? (
+              <Empty text="No open invitations." />
+            ) : (
+              <div className="col">
+                {rows.map((x) => (
+                  <Card key={x.id}>
+                    <div className="spread">
+                      <div>
+                        {x.invitee} <span className="chip">{x.role}</span>{' '}
+                        <span className="chip">
+                          {x.state === 'expired' ? 'expired' : `expires ${when(x.expires_at)}`}
+                        </span>
+                      </div>
+                      <Button
+                        size="sm"
+                        variant="danger"
+                        disabled={!admin}
+                        onClick={async () => {
+                          try {
+                            await api(`/v1/workspaces/${wsId}/invitations/${x.id}`, { method: 'DELETE' });
+                            toast('success', 'Invitation revoked.');
+                            invites.reload();
+                          } catch (e) {
+                            toast('error', (e as Error).message);
+                          }
+                        }}
+                      >
+                        Revoke
+                      </Button>
+                    </div>
+                    {links[x.id] ? (
+                      <div className="mt-s">
+                        <div className="label">Invite link (shown once, copy it now)</div>
+                        <CodeBlock value={`${window.location.origin}/invite/${links[x.id]}`} />
+                      </div>
+                    ) : (
+                      <p className="small faint mt-s">
+                        The link is only shown when the invitation is created. Revoke and invite again to get
+                        a new one.
+                      </p>
+                    )}
+                  </Card>
+                ))}
               </div>
-              {s.token && (
-                <div className="mt-s">
-                  <div className="label">Invite link</div>
-                  <CodeBlock value={`${window.location.origin}/signin?invite=${s.token}`} />
-                </div>
-              )}
-            </Card>
-          ))}
-        </div>
+            )
+          }
+        </Async>
       )}
       <InviteModal
         open={invite}
         onClose={() => setInvite(false)}
         onSent={(i) => {
-          setSent([i, ...sent]);
+          setLinks((l) => ({ ...l, [i.id]: i.token }));
           setTab('invitations');
+          invites.reload();
         }}
       />
       <Drawer open={matrix} onClose={() => setMatrix(false)} header={<strong>Role permissions</strong>}>
@@ -219,7 +251,7 @@ function InviteModal({
 }: {
   open: boolean;
   onClose: () => void;
-  onSent: (i: { invitee: string; role: string; token?: string }) => void;
+  onSent: (i: { id: string; token: string }) => void;
 }) {
   const { wsId } = useWs();
   const { toast } = useApp();
@@ -246,7 +278,7 @@ function InviteModal({
                   method: 'POST',
                   body: { invitee: invitee.trim(), role, expiresInHours: hours },
                 });
-                onSent({ invitee: invitee.trim(), role, token: r.token });
+                onSent({ id: r.id, token: r.token });
                 toast('success', 'Invitation created.');
                 setInvitee('');
                 onClose();
@@ -305,6 +337,14 @@ function InviteModal({
 }
 
 /* ---------------- Integrations ---------------- */
+interface Invite {
+  id: string;
+  invitee: string;
+  role: string;
+  state: 'pending' | 'expired';
+  expires_at: string;
+  created_at: string;
+}
 interface Hook {
   id: string;
   name: string;

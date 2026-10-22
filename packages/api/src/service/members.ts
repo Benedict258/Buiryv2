@@ -85,6 +85,52 @@ export async function createInvitation(
   return { id, token };
 }
 
+export interface InvitationRow {
+  id: string;
+  invitee: string;
+  role: Exclude<Role, 'owner'>;
+  state: 'pending' | 'expired';
+  expires_at: string;
+  created_at: string;
+  created_by: string | null;
+}
+
+/** Open invitations only (accepted ones are members now). The token is never returned: only its hash is stored. */
+export async function listInvitations(deps: ServiceDeps, tx: Tx, p: Principal): Promise<InvitationRow[]> {
+  assertManage(p);
+  const r = await tx.query<{
+    id: string;
+    invitee: string;
+    role: Exclude<Role, 'owner'>;
+    expires_at: Date;
+    created_at: Date;
+    created_by: string | null;
+  }>(
+    'select id, invitee, role, expires_at, created_at, created_by from invitations where accepted_at is null order by created_at desc',
+  );
+  return r.rows.map((x) => ({
+    ...x,
+    expires_at: new Date(x.expires_at).toISOString(),
+    created_at: new Date(x.created_at).toISOString(),
+    state: new Date(x.expires_at).getTime() < deps.now() ? 'expired' : 'pending',
+  }));
+}
+
+export async function revokeInvitation(deps: ServiceDeps, tx: Tx, p: Principal, id: string): Promise<void> {
+  assertManage(p);
+  const r = await tx.query('delete from invitations where id = $1 and accepted_at is null returning id', [
+    id,
+  ]);
+  if (!r.rows[0]) throw notFound('invitation');
+  await logActivity(tx, deps, {
+    workspaceId: p.workspaceId,
+    actor: actorOf(p),
+    operation: 'invitation.revoke',
+    target: { invitationId: id },
+    result: 'success',
+  });
+}
+
 /** Accepting is a system operation: the invitee has no workspace context yet. */
 export async function acceptInvitation(
   deps: ServiceDeps,

@@ -1,5 +1,14 @@
 import { createHash, createHmac, randomBytes } from 'node:crypto';
-import { BuiryError, newId, type Evidence, type IdPrefix, type MemoryType, type Status } from '@buiry/core';
+import {
+  BuiryError,
+  DEFAULT_LEARNING,
+  newId,
+  type Evidence,
+  type LearningConfig,
+  type IdPrefix,
+  type MemoryType,
+  type Status,
+} from '@buiry/core';
 import type { Tx } from '../db/db.js';
 import type { IndexedMemory } from '@buiry/storage';
 import type { Principal, ServiceDeps } from './types.js';
@@ -138,4 +147,43 @@ export function actorOf(p: Principal): ActivityInput['actor'] {
 
 export function notFound(what: string): BuiryError {
   return new BuiryError('not_found', `${what} not found in this project`);
+}
+
+const finite = (v: unknown, min: number, max: number): number | undefined =>
+  typeof v === 'number' && Number.isFinite(v) && v >= min && v <= max ? v : undefined;
+
+/**
+ * The learning configuration for one project: the service default overlaid with the project's saved
+ * settings (auto-promotion, per-type half-lives, review threshold). Invalid values are ignored, so a bad
+ * setting can never break scoring.
+ */
+export function learningFor(
+  deps: ServiceDeps,
+  settings: Record<string, unknown> | undefined,
+): LearningConfig {
+  const base = deps.learning ?? DEFAULT_LEARNING;
+  if (!settings) return base;
+  const out: LearningConfig = {
+    ...base,
+    promotion: { ...base.promotion },
+    halfLifeDays: { ...base.halfLifeDays },
+  };
+  const ap = settings.autoPromotion as Record<string, unknown> | undefined;
+  if (ap && typeof ap === 'object') {
+    if (typeof ap.enabled === 'boolean') out.promotion.enabled = ap.enabled;
+    const hr = finite(ap.helpfulReports, 1, 50);
+    if (hr !== undefined) out.promotion.helpfulReports = Math.round(hr);
+    const ds = finite(ap.distinctSessions, 1, 50);
+    if (ds !== undefined) out.promotion.distinctSessions = Math.round(ds);
+  }
+  const hl = settings.halfLives as Record<string, unknown> | undefined;
+  if (hl && typeof hl === 'object') {
+    for (const [type, v] of Object.entries(hl)) {
+      const d = finite(v, 1, 3650);
+      if (d !== undefined && type in out.halfLifeDays) (out.halfLifeDays as Record<string, number>)[type] = d;
+    }
+  }
+  const rt = finite(settings.reviewThreshold, 0, 1);
+  if (rt !== undefined) out.reviewThreshold = rt;
+  return out;
 }

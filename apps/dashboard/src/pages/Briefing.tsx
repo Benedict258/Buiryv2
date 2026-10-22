@@ -2,9 +2,17 @@ import { useState } from 'react';
 import { api, qs } from '../lib/api';
 import { useQuery } from '../lib/app';
 import { useProject } from '../lib/ctx';
-import { Async, Banner, Button, Card, CopyButton, Empty, Field, PageHead } from '../components/ui';
+import { Async, Banner, Button, Card, CopyButton, Empty, Field, PageHead, Popover } from '../components/ui';
 
+interface Item {
+  memoryId: string;
+  section: string;
+  score: number;
+  components: { relevance: number; confidence: number; recency: number; typeWeight: number };
+}
 interface BriefOut {
+  items: Item[];
+  weights: Record<string, number>;
   briefing: string;
   flags: unknown[];
   newEvents: number;
@@ -76,6 +84,7 @@ export function Briefing() {
           <Async q={q} rows={8}>
             {(b) => {
               const sections = parse(b.briefing);
+              const itemOf = new Map(b.items.map((x) => [x.memoryId, x]));
               return sections.items === 0 ? (
                 <Empty text="The briefing builds up as memories arrive. This project has none yet." />
               ) : (
@@ -112,6 +121,9 @@ export function Briefing() {
                               </button>
                             ) : null}
                             <span> {l.text}</span>
+                            {l.id && itemOf.get(l.id) && (
+                              <WhyItem item={itemOf.get(l.id)!} weights={b.weights} />
+                            )}
                           </li>
                         ))}
                       </ul>
@@ -127,6 +139,42 @@ export function Briefing() {
         </div>
       </div>
     </div>
+  );
+}
+
+const WHY: [keyof Item['components'], string][] = [
+  ['relevance', 'Relevance to the task'],
+  ['confidence', 'Confidence (after decay)'],
+  ['recency', 'Recency'],
+  ['typeWeight', 'Type weight'],
+];
+
+function WhyItem({ item, weights }: { item: Item; weights: Record<string, number> }) {
+  return (
+    <Popover
+      trigger={({ toggle }) => (
+        <button className="btn ghost sm" style={{ padding: '0 6px' }} onClick={toggle}>
+          Why this item?
+        </button>
+      )}
+    >
+      {() => (
+        <div style={{ padding: 8, minWidth: 260 }} className="col small">
+          <strong>
+            Score <span className="mono">{item.score.toFixed(3)}</span> · {item.section}
+          </strong>
+          {WHY.map(([k, label]) => (
+            <div key={k} className="spread">
+              <span className="muted">{label}</span>
+              <span className="mono">
+                {item.components[k].toFixed(2)} × {weights[k]?.toFixed(1)} ={' '}
+                {(item.components[k] * (weights[k] ?? 0)).toFixed(3)}
+              </span>
+            </div>
+          ))}
+        </div>
+      )}
+    </Popover>
   );
 }
 

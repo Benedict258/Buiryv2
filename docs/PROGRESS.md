@@ -26,3 +26,4 @@ Legend: **done** (implemented and tested), **mocked** (tested only against a moc
 - Checked in Chromium at 1440 px (dark and light) and 390 px with no console errors or failed API calls (`scripts/dashboard-shots.ts`).
 - Placeholders where the service has no data yet are listed in BD26 and BD27.
 - Live check: L-U1, L-U2.
+- Added after the first pass: per-project learning settings applied by the service (`learningFor`), briefing "why this item" scores, open-invitations list with revoke and an accept page, the public showcase page and endpoint, and a default briefing token budget per project. Tested in `packages/api/test/features.test.ts` and `learning-settings.test.ts`. Live check: L-U3.

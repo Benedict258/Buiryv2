@@ -1,6 +1,6 @@
 import { streamSSE } from 'hono/streaming';
 import { z } from 'zod';
-import { BuiryError, MEMORY_TYPES, STATUSES, type Evidence } from '@buiry/core';
+import { BRIEFING_WEIGHTS, BuiryError, MEMORY_TYPES, STATUSES, type Evidence } from '@buiry/core';
 import {
   activitySince,
   archiveProject,
@@ -362,7 +362,7 @@ export const registerProject: Registrar = (_app, ctx, r) => {
       branch: q.branch ?? 'main',
       onboarding: q.onboarding === 'true',
     });
-    return ok(c, out);
+    return ok(c, { ...out, weights: BRIEFING_WEIGHTS });
   });
   r({ method: 'GET', path: '/v1/projects/:id/replay', auth: 'user', scope: 'project' }, async (c) => {
     const { p, id } = await proj(c);

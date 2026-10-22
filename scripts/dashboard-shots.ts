@@ -40,6 +40,7 @@ const screens = [
   ['billing', `/w/${ws}/billing`],
   ['account', `/w/${ws}/account`],
   ['notifications', `/w/${ws}/notifications`],
+  ['showcase', `/showcase/${pid}`],
   ['onboarding', '/onboarding'],
 ] as const;
 
@@ -74,6 +75,17 @@ async function pass(theme: 'dark' | 'light', width: number, height: number, tag:
     await page.waitForTimeout(350);
     await page.screenshot({ path: `${out}/${tag}-${name}.png`, fullPage: false });
   }
+  // briefing "why this item" popover and the invitations tab
+  await page.goto(`${base}/w/${ws}/p/${pid}/briefing`, { waitUntil: 'load' });
+  await settled(page);
+  await page.getByRole('button', { name: 'Why this item?' }).first().click();
+  await page.waitForTimeout(250);
+  await page.screenshot({ path: `${out}/${tag}-briefing-why.png` });
+  await page.goto(`${base}/w/${ws}/team`, { waitUntil: 'load' });
+  await settled(page);
+  await page.getByRole('tab', { name: /^Invitations/ }).click();
+  await page.waitForTimeout(400);
+  await page.screenshot({ path: `${out}/${tag}-team-invitations.png` });
   // memory drawer with each tab, and the editor
   await page.goto(`${base}/w/${ws}/p/${pid}/memory`, { waitUntil: 'load' });
   await settled(page);

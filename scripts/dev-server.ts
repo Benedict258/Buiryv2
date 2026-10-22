@@ -51,6 +51,17 @@ async function enrich(
     next: ['decide expiry handling', 'update the middleware'],
     reliedOn: [m.internal!, m.gas!],
   });
+  await fetch(`${url}/v1/projects/${seeded.projectId}`, {
+    method: 'PATCH',
+    headers: { authorization: `Bearer ${token}`, 'content-type': 'application/json' },
+    body: JSON.stringify({
+      settings: { publicShowcase: { enabled: true, show: ['counts', 'memories', 'evidence', 'storage'] } },
+    }),
+  });
+  await call(`/v1/workspaces/${seeded.workspaceId}/invitations`, {
+    invitee: 'sam@northwind.dev',
+    role: 'writer',
+  });
   void stack;
 }
 
