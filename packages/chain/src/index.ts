@@ -3,3 +3,7 @@ export * from './tatum.js';
 export * from './verifiers.js';
 export { TtlCache, POLICY } from './tatum/cache.js';
 export { TokenBucket, CreditBudget } from './tatum/limits.js';
+export { MockTatum, loadFixtures, type FixtureRecord } from './tatum/mock-server.js';
+export { GrpcBackend } from './tatum/grpc.js';
+export { JsonRpcBackend } from './tatum/jsonrpc.js';
+export const FIXTURES_DIR = new URL('../fixtures/', import.meta.url).pathname;

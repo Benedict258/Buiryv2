@@ -3,11 +3,11 @@ import { loadFixtures, MockTatum } from '../src/tatum/mock-server.js';
 import { GrpcBackend } from '../src/tatum/grpc.js';
 import { JsonRpcBackend } from '../src/tatum/jsonrpc.js';
 import { TatumGateway, type CallRecord, type GatewayOptions } from '../src/tatum.js';
-import ids from './ids.json' with { type: 'json' };
+import ids from '../fixtures/_ids.json' with { type: 'json' };
 
 export { ids };
 export const KEY = 'test-key-not-secret';
-const FIX = fileURLToPath(new URL('./fixtures', import.meta.url));
+const FIX = fileURLToPath(new URL('../fixtures', import.meta.url));
 
 export class Clock {
   t = 1_792_000_000_000;

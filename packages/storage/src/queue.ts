@@ -9,6 +9,8 @@ export interface WriteJob {
   projectId: string;
   agentId: string;
   text: string;
+  /** Caller-defined reference (the memory event id) so completion can be mapped back. */
+  ref: string | null;
   state: JobState;
   attempts: number;
   /** Next submit time (queued) or next poll time (submitted). */
@@ -26,6 +28,7 @@ export type NewWriteJob = Pick<
   WriteJob,
   'id' | 'memoryId' | 'idempotencyKey' | 'namespace' | 'projectId' | 'agentId' | 'text'
 > & {
+  ref?: string;
   at: number;
 };
 
@@ -86,6 +89,7 @@ export class InMemoryWriteQueue implements WriteQueue {
       projectId: n.projectId,
       agentId: n.agentId,
       text: n.text,
+      ref: n.ref ?? null,
       state: 'queued',
       attempts: 0,
       nextAttemptAt: n.at,

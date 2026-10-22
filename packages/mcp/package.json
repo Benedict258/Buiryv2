@@ -12,6 +12,8 @@
     "build": "tsup src/index.ts --format esm --dts"
   },
   "dependencies": {
-    "@buiry/core": "workspace:*"
+    "@buiry/core": "workspace:*",
+    "@modelcontextprotocol/sdk": "^1.32.1",
+    "zod": "^4.6.7"
   }
 }

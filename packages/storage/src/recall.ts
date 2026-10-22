@@ -88,7 +88,8 @@ export class RecallService {
     for (const o of ok) {
       for (const r of o.results) {
         const d = decodeMemory(r.text);
-        if (!d.ok || d.value.header.evt !== 'memory.created') continue;
+        if (!d.ok || (d.value.header.evt !== 'memory.created' && d.value.header.evt !== 'handoff.created'))
+          continue;
         const id = d.value.header.id;
         const score = r.score ?? relevance(i.query, d.value.body);
         relayerScore.set(id, Math.max(relayerScore.get(id) ?? 0, score));
@@ -119,8 +120,16 @@ export class RecallService {
     const merged = new Map<string, IndexedMemory>();
     for (const id of new Set(ids)) merged.set(id, indexed.get(id) ?? unindexed.get(id)!);
     // Just-written memories the relayer cannot recall yet (or everything, when serving from cache).
-    for (const m of local)
-      if (!merged.has(m.id) && (servedFromCache || m.writeState !== 'stored')) merged.set(m.id, m);
+    // Local-only additions must still be about the query; the index search can return recents as filler.
+    for (const m of local) {
+      if (
+        !merged.has(m.id) &&
+        (servedFromCache || m.writeState !== 'stored') &&
+        relevance(i.query, m.text) > 0
+      ) {
+        merged.set(m.id, m);
+      }
+    }
 
     const shadowed = new Set(
       [...merged.values()].filter((m) => m.branch !== 'main' && m.supersedesId).map((m) => m.supersedesId!),

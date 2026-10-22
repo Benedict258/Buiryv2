@@ -35,7 +35,7 @@ export interface FixtureRecord {
 
 export function loadFixtures(dir: string): FixtureRecord[] {
   return readdirSync(dir)
-    .filter((f) => f.endsWith('.json'))
+    .filter((f) => f.endsWith('.json') && !f.startsWith('_'))
     .flatMap((f) => {
       const parsed = JSON.parse(readFileSync(join(dir, f), 'utf8')) as FixtureRecord | FixtureRecord[];
       return Array.isArray(parsed) ? parsed : [parsed];

@@ -14,6 +14,7 @@ create table if not exists write_jobs (
   project_id text not null,
   agent_id text not null,
   text text not null,
+  ref text,
   state text not null check (state in ('queued','submitting','submitted','stored','dead')),
   attempts int not null default 0,
   next_attempt_at bigint not null,
@@ -38,6 +39,7 @@ interface Row {
   project_id: string;
   agent_id: string;
   text: string;
+  ref: string | null;
   state: JobState;
   attempts: number;
   next_attempt_at: string | number;
@@ -58,6 +60,7 @@ const toJob = (r: Row): WriteJob => ({
   projectId: r.project_id,
   agentId: r.agent_id,
   text: r.text,
+  ref: r.ref,
   state: r.state,
   attempts: Number(r.attempts),
   nextAttemptAt: Number(r.next_attempt_at),
@@ -75,10 +78,10 @@ export class PgWriteQueue implements WriteQueue {
 
   async enqueue(n: NewWriteJob): Promise<{ job: WriteJob; created: boolean }> {
     const ins = await this.db.query<Row>(
-      `insert into write_jobs (id, memory_id, idempotency_key, namespace, project_id, agent_id, text, state, attempts, next_attempt_at, created_at, updated_at)
-       values ($1,$2,$3,$4,$5,$6,$7,'queued',0,$8,$8,$8)
+      `insert into write_jobs (id, memory_id, idempotency_key, namespace, project_id, agent_id, text, ref, state, attempts, next_attempt_at, created_at, updated_at)
+       values ($1,$2,$3,$4,$5,$6,$7,$9,'queued',0,$8,$8,$8)
        on conflict (idempotency_key) do nothing returning *`,
-      [n.id, n.memoryId, n.idempotencyKey, n.namespace, n.projectId, n.agentId, n.text, n.at],
+      [n.id, n.memoryId, n.idempotencyKey, n.namespace, n.projectId, n.agentId, n.text, n.at, n.ref ?? null],
     );
     if (ins.rows[0]) return { job: toJob(ins.rows[0]), created: true };
     const ex = await this.db.query<Row>('select * from write_jobs where idempotency_key = $1', [

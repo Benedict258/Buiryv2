@@ -89,7 +89,8 @@ export interface ScoreChange {
 }
 
 export type Signal =
-  | { kind: 'confirm'; actor: Actor }
+  /** `delegated`: an agent token explicitly granted the confirm scope; never for the memory's own creator. */
+  | { kind: 'confirm'; actor: Actor; delegated?: boolean }
   | { kind: 'contest'; actor: Actor }
   | { kind: 'report'; actor: Actor; outcome: ReportOutcome }
   | { kind: 'verify'; result: 'pass' | 'fail' }
@@ -176,7 +177,10 @@ export function applySignal(
   }
   switch (signal.kind) {
     case 'confirm': {
-      if (signal.actor.kind === 'agent') return refuse(s, 'agents cannot confirm memories');
+      if (signal.actor.kind === 'agent') {
+        if (!signal.delegated) return refuse(s, 'agents cannot confirm memories');
+        if (signal.actor.id === s.createdByAgent) return refuse(s, 'an agent cannot confirm its own memory');
+      }
       if (signal.actor.kind === 'system') return refuse(s, 'system cannot confirm memories');
       return commit(
         s,

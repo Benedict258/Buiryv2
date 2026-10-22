@@ -11,6 +11,8 @@ export interface AcceptInput {
   header: string;
   /** Full encoded text (header + body + evidence). */
   text: string;
+  /** Memory event id, echoed back on the queue job. */
+  ref?: string;
 }
 
 export type AcceptResult =
@@ -26,17 +28,15 @@ export class WriteService {
     private readonly budgets: AdmissionBudgets = deriveBudgets(),
   ) {}
 
-  async accept(i: AcceptInput): Promise<AcceptResult> {
+  /** `force` skips admission budgets for system-derived events (stale, confirmed, merged) that must not be dropped. */
+  async accept(i: AcceptInput, opts: { force?: boolean } = {}): Promise<AcceptResult> {
     const key = computeKey(i.namespace, i.header, i.text);
     const existing = await this.queue.findByKey(key);
     if (existing) return { ok: true, jobId: existing.id, state: existing.state, duplicate: true };
     const at = this.now();
-    const adm = await checkAdmission(
-      this.queue,
-      this.budgets,
-      { agentId: i.agentId, projectId: i.projectId },
-      at,
-    );
+    const adm = opts.force
+      ? ({ ok: true } as const)
+      : await checkAdmission(this.queue, this.budgets, { agentId: i.agentId, projectId: i.projectId }, at);
     if (!adm.ok)
       return {
         ok: false,
@@ -53,6 +53,7 @@ export class WriteService {
       projectId: i.projectId,
       agentId: i.agentId,
       text: i.text,
+      ...(i.ref ? { ref: i.ref } : {}),
       at,
     });
     return { ok: true, jobId: job.id, state: job.state, duplicate: !created };

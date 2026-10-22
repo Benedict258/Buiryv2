@@ -9,3 +9,4 @@ export * from './similarity.js';
 export * from './learning.js';
 export * from './briefing.js';
 export * from './buirymd.js';
+export * from './protocol.js';

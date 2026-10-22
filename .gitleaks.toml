@@ -3,4 +3,4 @@ title = "buiry"
 useDefault = true
 [allowlist]
 description = "test fixtures with obviously fake values"
-paths = ['''packages/core/test/fixtures/.*''', '''packages/chain/test/fixtures/.*''']
+paths = ['''packages/core/test/fixtures/.*''', '''packages/chain/fixtures/.*''']
