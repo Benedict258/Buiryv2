@@ -18,6 +18,7 @@
     "demo": "tsx scripts/demo/run.ts"
   },
   "devDependencies": {
+    "@electric-sql/pglite": "^0.5.11",
     "@eslint/js": "^9.0.0",
     "@types/node": "^20.14.0",
     "@vitest/coverage-v8": "^2.1.0",

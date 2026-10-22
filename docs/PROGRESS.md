@@ -2,7 +2,9 @@
 
 Legend: **done** (implemented and tested), **mocked** (tested only against a mock/fixture), **live check** (needs a real-network run, see `LOCAL_CHECKS.md`).
 
-| Area                        | Done                                         | Mocked | Needs live check           |
-| --------------------------- | -------------------------------------------- | ------ | -------------------------- |
-| Repo setup, CI, secret scan | yes                                          | n/a    | gitleaks run on GitHub     |
-| Step 0 live docs study      | blocked: docs hosts unreachable from sandbox |        | all of it, see ASSUMPTIONS |
+| Area                        | Done                                                                                                                                                                               | Mocked                                                                         | Needs live check                 |
+| --------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------ | -------------------------------- |
+| Repo setup, CI, secret scan | yes                                                                                                                                                                                | n/a                                                                            | gitleaks run on GitHub           |
+| Step 0 live docs study      | blocked: docs hosts unreachable from sandbox                                                                                                                                       |                                                                                | all of it, see ASSUMPTIONS       |
+| 1. core                     | codec, namespaces, idempotency, redaction (+corpus), learning loop, briefing, BUIRY.md, injection scanner; >97% line coverage                                                      | n/a                                                                            | none (pure)                      |
+| 2. storage                  | adapter interface, signed HTTP client, durable queue (memory + Postgres/PGlite), lease worker, budgets, backoff, dead letter, crash/chaos recovery, recall merge, expiry reconcile | MockRelayer (async jobs, 429/503, paused, lag, duplicates, pagination, expiry) | L-W1, L-W2 (A2, A3, A6, A13-A15) |
