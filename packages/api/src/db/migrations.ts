@@ -452,11 +452,18 @@ alter table api_tokens force row level security;
 create policy tenant_isolation on api_tokens using (workspace_id = current_setting('app.workspace_id', true)) with check (workspace_id = current_setting('app.workspace_id', true));
 `;
 
+const ACTIVITY_SEQ = `
+alter table activity_log add column n bigserial;
+create index activity_n_idx on activity_log (project_id, n);
+grant usage, select on sequence activity_log_n_seq to buiry_app;
+`;
+
 export const MIGRATIONS: Migration[] = [
   { id: '001_init', sql: INIT },
   { id: '002_write_jobs', sql: WRITE_JOBS_DDL },
   { id: '003_rls', sql: rls() },
   { id: '004_api_tokens_leases', sql: API_TOKENS },
+  { id: '005_activity_seq', sql: ACTIVITY_SEQ },
 ];
 
 export async function migrate(

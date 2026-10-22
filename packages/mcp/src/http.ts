@@ -37,47 +37,64 @@ const deny = (res: ServerResponse, status: number, message: string) => {
   res.end(JSON.stringify({ jsonrpc: '2.0', error: { code: -32000, message }, id: null }));
 };
 
-/** Streamable HTTP endpoint. Each MCP session is bound to the bearer token that opened it. */
+export type McpRequestHandler = (req: IncomingMessage, res: ServerResponse) => Promise<void>;
+
+/** Request handler for a Streamable HTTP MCP endpoint. Each MCP session is bound to the bearer token that opened it. */
+export function createMcpHandler(o: Pick<HttpOptions, 'authenticate'>): {
+  handle: McpRequestHandler;
+  closeAll: () => Promise<void>;
+} {
+  const sessions = new Map<string, Session>();
+  const handle: McpRequestHandler = async (req, res) => {
+    const token = bearer(req);
+    if (!token) return deny(res, 401, 'missing bearer token');
+    const sid = req.headers['mcp-session-id'] as string | undefined;
+    try {
+      if (sid) {
+        const s = sessions.get(sid);
+        if (!s) return deny(res, 404, 'unknown session');
+        if (s.token !== token) return deny(res, 403, 'session belongs to a different token');
+        return await s.transport.handleRequest(
+          req,
+          res,
+          req.method === 'POST' ? await readJson(req) : undefined,
+        );
+      }
+      if (req.method !== 'POST') return deny(res, 400, 'session id required');
+      const body = await readJson(req);
+      if (!isInitializeRequest(body)) return deny(res, 400, 'first request must initialize');
+      const id = randomUUID();
+      const backend = await o.authenticate(token, id);
+      const transport = new StreamableHTTPServerTransport({
+        sessionIdGenerator: () => id,
+        onsessioninitialized: (s) => void sessions.set(s, { transport, token }),
+      });
+      transport.onclose = () => void sessions.delete(id);
+      await createBuiryMcpServer({ backend }).connect(transport);
+      await transport.handleRequest(req, res, body);
+    } catch (e) {
+      if (res.headersSent) return;
+      if (e instanceof BuiryError && e.code === 'unauthorized') return deny(res, 401, e.message);
+      deny(res, 500, e instanceof Error ? e.message : 'internal error');
+    }
+  };
+  return {
+    handle,
+    closeAll: async () => {
+      for (const s of sessions.values()) await s.transport.close().catch(() => {});
+    },
+  };
+}
+
+/** Standalone Streamable HTTP endpoint (used by tests and `buiry-mcp --http`). */
 export async function startHttpServer(
   o: HttpOptions,
 ): Promise<{ server: Server; url: string; close: () => Promise<void> }> {
-  const sessions = new Map<string, Session>();
   const path = o.path ?? '/mcp';
+  const h = createMcpHandler(o);
   const server = createServer((req, res) => {
-    void (async () => {
-      if (!req.url?.startsWith(path)) return deny(res, 404, 'not found');
-      const token = bearer(req);
-      if (!token) return deny(res, 401, 'missing bearer token');
-      const sid = req.headers['mcp-session-id'] as string | undefined;
-      try {
-        if (sid) {
-          const s = sessions.get(sid);
-          if (!s) return deny(res, 404, 'unknown session');
-          if (s.token !== token) return deny(res, 403, 'session belongs to a different token');
-          return await s.transport.handleRequest(
-            req,
-            res,
-            req.method === 'POST' ? await readJson(req) : undefined,
-          );
-        }
-        if (req.method !== 'POST') return deny(res, 400, 'session id required');
-        const body = await readJson(req);
-        if (!isInitializeRequest(body)) return deny(res, 400, 'first request must initialize');
-        const id = randomUUID();
-        const backend = await o.authenticate(token, id);
-        const transport = new StreamableHTTPServerTransport({
-          sessionIdGenerator: () => id,
-          onsessioninitialized: (s) => void sessions.set(s, { transport, token }),
-        });
-        transport.onclose = () => void sessions.delete(id);
-        await createBuiryMcpServer({ backend }).connect(transport);
-        await transport.handleRequest(req, res, body);
-      } catch (e) {
-        if (res.headersSent) return;
-        if (e instanceof BuiryError && e.code === 'unauthorized') return deny(res, 401, e.message);
-        deny(res, 500, e instanceof Error ? e.message : 'internal error');
-      }
-    })();
+    if (!req.url?.startsWith(path)) return deny(res, 404, 'not found');
+    void h.handle(req, res);
   });
   await new Promise<void>((r) => server.listen(o.port ?? 0, o.host ?? '127.0.0.1', r));
   const port = (server.address() as AddressInfo).port;
@@ -85,7 +102,7 @@ export async function startHttpServer(
     server,
     url: `http://${o.host ?? '127.0.0.1'}:${port}${path}`,
     close: async () => {
-      for (const s of sessions.values()) await s.transport.close().catch(() => {});
+      await h.closeAll();
       await new Promise<void>((r) => server.close(() => r()));
     },
   };

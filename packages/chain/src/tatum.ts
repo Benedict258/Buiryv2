@@ -587,3 +587,11 @@ export function createGatewayFromEnv(env: EnvLike, extra: Partial<GatewayOptions
     ...extra,
   });
 }
+
+/** Like createGatewayFromEnv, but returns undefined when no Tatum key is configured (keeps the key read inside this module). */
+export function createGatewayIfConfigured(
+  env: EnvLike,
+  extra: Partial<GatewayOptions> = {},
+): TatumGateway | undefined {
+  return env.TATUM_API_KEY ? createGatewayFromEnv(env, extra) : undefined;
+}

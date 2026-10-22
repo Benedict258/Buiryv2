@@ -55,3 +55,41 @@ Ask the organisers (or the Tatum community channel) whether Sui gRPC through the
 ## L-M1. Real agent clients (measure, do not assume)
 
 For each of Claude Code, OpenCode, Cursor, Codex: run `buiry connect <tool>` in a scratch repo, start a session with a task prompt that does not mention Buiry, and note (a) whether the agent called `buiry_connect` and `buiry_check` unprompted, (b) whether it called `buiry_handoff` at the end. Paste back per tool: client version, yes/no for each, and any config issue. The generated BUIRY.md and the tool descriptions are the dependable path; this check tells us how dependable.
+
+## L-A1. OAuth sign-in with real apps (resolves A21)
+
+Register a GitHub OAuth app and a Google OAuth client with redirect URI `<BUIRY_BASE_URL>/v1/auth/oauth/<github|google>/callback`. Set `GITHUB_CLIENT_ID/SECRET`, `GOOGLE_CLIENT_ID/SECRET`, `BUIRY_BASE_URL`, then start the server (L-A4) and open `<BUIRY_BASE_URL>/v1/auth/oauth/github/start` in a browser. Expected: after consent you land on the callback and receive JSON with a session token; `GET /v1/auth/me` with `Authorization: Bearer <token>` lists a workspace. Paste back: HTTP status/body of the callback (token redacted) and any provider error text.
+
+## L-A2. Wallet sign-in with a real Sui wallet (resolves A20)
+
+```bash
+curl -sS -X POST "$BUIRY_BASE_URL/v1/auth/wallet/challenge"
+```
+
+Sign the returned `message` with a Sui wallet's "sign personal message" (Ed25519 account), then:
+
+```bash
+curl -sS -X POST "$BUIRY_BASE_URL/v1/auth/wallet/verify" -H 'content-type: application/json' \
+  -d '{"nonce":"<nonce>","address":"<0x address>","signature":"<base64 signature from the wallet>"}'
+```
+
+Expected: `{"ok":true,"data":{"session":...}}`. If you get 401, paste back the wallet's signature output and the address; only `packages/api/src/auth/wallet.ts` needs to change.
+
+## L-A3. Real Postgres (not PGlite)
+
+```bash
+export DATABASE_URL=postgres://user:pass@localhost:5432/buiry   # an empty database you can discard
+pnpm tsx scripts/db-smoke.ts
+```
+
+Expected: migrations 001-005 apply, a tenant transaction under role `buiry_app` sees only its own workspace, and the script prints `OK`. Paste back the output. (Requires the role-creation privilege for `buiry_app`.)
+
+## L-A4. Server smoke test
+
+```bash
+export BUIRY_SECRET_KEY=$(openssl rand -hex 32) BUIRY_BASE_URL=http://localhost:8787 BUIRY_MAILER=memory
+pnpm tsx packages/worker/src/bin.ts
+curl -sS localhost:8787/v1/healthz
+```
+
+Expected: `{"ok":true,"data":{"status":"ok"}}`; MCP is served at `/mcp`. Paste back any startup error.

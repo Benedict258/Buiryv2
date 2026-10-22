@@ -233,6 +233,7 @@ export async function briefingTx(
 ): Promise<CheckOutput & { items: { memoryId: string; section: string }[] }> {
   const project = await loadProject(tx, p, projectId);
   assertAllowed(p, 'read');
+  await loadBranch(tx, projectId, slug);
   const branches = slug === 'main' ? ['main'] : [slug, 'main'];
   const rows = await tx.query<MemoryRow>(
     `select * from memories where project_id = $1 and branch_slug = any($2) and status not in ('superseded','tombstoned') and expired = false order by updated_at desc limit 500`,
