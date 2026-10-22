@@ -6,13 +6,14 @@ import {
   JsonRpcBackend,
   MockTatum,
   TatumGateway,
-  createGatewayFromEnv,
+  createGatewayIfConfigured,
   loadFixtures,
 } from '../../packages/chain/src/index.js';
 import {
   Ed25519Signer,
   HttpWalrusAdapter,
   MockRelayer,
+  type AdmissionBudgets,
   type WalrusMemoryAdapter,
 } from '../../packages/storage/src/index.js';
 import {
@@ -54,8 +55,8 @@ export interface World {
 const rand = (n: number) => new Uint8Array(randomBytes(n));
 
 /** Everything on mocks: MockRelayer (async jobs, recall lag off) and MockTatum over real gRPC. */
-export async function mockWorld(): Promise<World> {
-  const clock = fakeClock(Date.parse('2026-10-20T10:00:00Z'));
+export async function mockWorld(o: { realTime?: boolean; budgets?: AdmissionBudgets } = {}): Promise<World> {
+  const clock = o.realTime ? realClock() : fakeClock(Date.parse('2026-10-20T10:00:00Z'));
   const mockRelayer = await MockRelayer.start({ now: clock.now, autoCompleteMs: 0, defaultEpochs: 3 });
   const signer = new Ed25519Signer(randomBytes(32).toString('hex'));
   const adapter = new HttpWalrusAdapter({
@@ -86,7 +87,14 @@ export async function mockWorld(): Promise<World> {
     requestsPerSecond: 1000,
     maxRetries: 0,
   });
-  const stack = await createStack({ now: clock.now, random: rand, adapter, gateway, reverifyAfterMs: 1000 });
+  const stack = await createStack({
+    now: clock.now,
+    random: rand,
+    adapter,
+    gateway,
+    reverifyAfterMs: 1000,
+    ...(o.budgets ? { budgets: o.budgets } : {}),
+  });
   gateway.setSink(tatumCallSink(stack.deps));
   return {
     mode: 'mock',
@@ -108,7 +116,7 @@ export async function mockWorld(): Promise<World> {
 
 /** Live services from env: WALRUS_RELAYER_URL/ACCOUNT_ID/DELEGATE_KEY, TATUM_*; DATABASE_URL optional (else in-memory). */
 export async function liveWorld(env: Record<string, string | undefined> = process.env): Promise<World> {
-  for (const k of ['WALRUS_RELAYER_URL', 'WALRUS_ACCOUNT_ID', 'WALRUS_DELEGATE_KEY', 'TATUM_API_KEY']) {
+  for (const k of ['WALRUS_RELAYER_URL', 'WALRUS_ACCOUNT_ID', 'WALRUS_DELEGATE_KEY']) {
     if (!env[k]) throw new Error(`live mode needs ${k} (see .env.example and LOCAL_CHECKS.md)`);
   }
   let db: Db;
@@ -125,7 +133,9 @@ export async function liveWorld(env: Record<string, string | undefined> = proces
   });
   const clock = realClock();
   const stack = await createStack({ db, now: clock.now, random: rand, adapter });
-  const gateway = createGatewayFromEnv(env, { sink: tatumCallSink(stack.deps) });
+  const gateway = createGatewayIfConfigured(env, { sink: tatumCallSink(stack.deps) });
+  if (!gateway)
+    throw new Error('live mode needs the Tatum gateway configured (see .env.example and LOCAL_CHECKS.md)');
   stack.deps.gateway = gateway;
   return {
     mode: 'live',

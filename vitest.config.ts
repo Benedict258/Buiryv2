@@ -15,7 +15,7 @@ export default defineConfig({
     },
   },
   test: {
-    include: ['packages/*/test/**/*.test.ts', 'scripts/**/*.test.ts'],
+    include: ['packages/*/test/**/*.test.ts', 'scripts/**/*.test.ts', 'apps/*/src/**/*.test.ts'],
     testTimeout: 20000,
     coverage: {
       provider: 'v8',

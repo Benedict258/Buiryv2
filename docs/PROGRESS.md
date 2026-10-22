@@ -18,3 +18,11 @@ Legend: **done** (implemented and tested), **mocked** (tested only against a moc
 - `pnpm demo`: scripted two-agent scenario on mocks (failure shown first to a second tool identity, drift to stale, correction from a digest, evidence report); `--live` uses real services (L-D1). Tested.
 - `scripts/write-demo-memories.ts`: writes 12 typed memories, drains the queue, prints blob ids and expiry, warns when expiry precedes `--valid-until` (L-D2). Tested on mocks.
 - `README.md`, `docs/BLOG_OUTLINE.md`, `docs/diagrams/architecture.mmd`.
+
+## 7. Dashboard
+
+- `apps/dashboard`: shell (sidebar with workspace switcher and project navigation, breadcrumb with branch switcher, command palette, live indicator, degraded banners, toasts, mobile tab bar), sign-in (email link, session token, OAuth and wallet entry points), five-step onboarding, projects list, project overview, memory explorer (filters, saved views, table and review queue, bulk actions, live highlight), memory drawer (overview, evidence with re-verify, lineage with diff, provenance, history), memory editor (redaction preview, evidence builder with fetch and verify, conflict candidates, supersede), timeline and replay, branches with merge wizard, agents with token reveal, activity log with live stream and pause, alerts and rules, verification, handoffs, briefing preview, packs (export, import preview and report), storage health, project settings (eight sections), team, integrations and webhooks, API tokens, billing, account, notifications.
+- Served by the API when `DASHBOARD_DIR` is set; `pnpm dev:api` runs the real API on mocks with the spec's sample project.
+- Checked in Chromium at 1440 px (dark and light) and 390 px with no console errors or failed API calls (`scripts/dashboard-shots.ts`).
+- Placeholders where the service has no data yet are listed in BD26 and BD27.
+- Live check: L-U1, L-U2.

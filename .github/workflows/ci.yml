@@ -16,6 +16,7 @@ jobs:
       - run: pnpm typecheck
       - run: pnpm lint
       - run: pnpm test
+      - run: pnpm --filter @buiry/dashboard build
   secret-scan:
     runs-on: ubuntu-latest
     steps:

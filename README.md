@@ -17,7 +17,14 @@ pnpm demo                  # two-agent scenario on mocks, nothing external neede
 pnpm conformance           # 30 checks over the MCP surface
 ```
 
-Run the service (REST on `/v1`, MCP on `/mcp`):
+Try the dashboard on mocks (real API and MCP endpoint, seeded sample project, prints a session token to paste on the sign-in page):
+
+```bash
+pnpm --filter @buiry/dashboard build
+pnpm dev:api               # http://localhost:8787
+```
+
+Run the service (REST on `/v1`, MCP on `/mcp`; set `DASHBOARD_DIR=apps/dashboard/dist` to serve the dashboard too):
 
 ```bash
 cp .env.example .env       # fill in values; never commit .env

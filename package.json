@@ -8,14 +8,17 @@
     "node": ">=20"
   },
   "scripts": {
-    "build": "pnpm -r --filter './packages/*' run build",
-    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "build": "pnpm -r --filter './packages/*' run build && pnpm --filter @buiry/dashboard build",
+    "typecheck": "tsc -p tsconfig.json --noEmit && pnpm --filter @buiry/dashboard typecheck",
     "lint": "eslint . && prettier --check .",
     "format": "prettier --write .",
     "test": "vitest run",
     "test:cov": "vitest run --coverage",
     "conformance": "tsx scripts/conformance.ts",
-    "demo": "tsx scripts/demo/run.ts"
+    "demo": "tsx scripts/demo/run.ts",
+    "dev:api": "DASHBOARD_DIR=apps/dashboard/dist tsx scripts/dev-server.ts",
+    "dev:dashboard": "pnpm --filter @buiry/dashboard dev",
+    "dashboard:shots": "tsx scripts/dashboard-shots.ts"
   },
   "devDependencies": {
     "@electric-sql/pglite": "^0.5.11",
@@ -25,6 +28,7 @@
     "@vitest/coverage-v8": "^2.1.0",
     "eslint": "^9.0.0",
     "fast-check": "^3.22.0",
+    "playwright-core": "^1.64.1",
     "prettier": "^3.3.0",
     "tsup": "^8.3.0",
     "tsx": "^4.19.0",

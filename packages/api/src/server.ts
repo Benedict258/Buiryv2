@@ -1,5 +1,7 @@
 import { randomBytes } from 'node:crypto';
+import { createReadStream, existsSync, statSync } from 'node:fs';
 import { createServer, type Server } from 'node:http';
+import { extname, join, normalize, resolve } from 'node:path';
 import { getRequestListener } from '@hono/node-server';
 import { createMcpHandler } from '@buiry/mcp';
 import { createGatewayIfConfigured } from '@buiry/chain';
@@ -116,6 +118,37 @@ export function buildApp(rt: Runtime): BuiryApp {
   });
 }
 
+const MIME: Record<string, string> = {
+  '.html': 'text/html; charset=utf-8',
+  '.js': 'text/javascript; charset=utf-8',
+  '.css': 'text/css; charset=utf-8',
+  '.svg': 'image/svg+xml',
+  '.json': 'application/json',
+  '.woff2': 'font/woff2',
+  '.woff': 'font/woff',
+  '.png': 'image/png',
+  '.ico': 'image/x-icon',
+};
+
+/** Serves the built dashboard; unknown paths fall back to index.html so client-side routes work. */
+function serveStatic(root: string, url: string, res: import('node:http').ServerResponse): void {
+  const path = normalize(decodeURIComponent(url.split('?')[0]!)).replace(/^([/\\]\.\.)+/, '');
+  let file = join(root, path);
+  if (!file.startsWith(root) || !existsSync(file) || statSync(file).isDirectory())
+    file = join(root, 'index.html');
+  if (!existsSync(file)) {
+    res.writeHead(404).end('dashboard not built');
+    return;
+  }
+  const immutable = file.includes(`${join(root, 'assets')}`);
+  res.writeHead(200, {
+    'content-type': MIME[extname(file)] ?? 'application/octet-stream',
+    'cache-control': immutable ? 'public, max-age=31536000, immutable' : 'no-cache',
+    'x-content-type-options': 'nosniff',
+  });
+  createReadStream(file).pipe(res);
+}
+
 /** One HTTP server: REST under /v1, MCP Streamable HTTP under /mcp. */
 export async function startHttp(
   rt: Runtime,
@@ -131,8 +164,11 @@ export async function startHttp(
         app.ctx.limiter,
       ),
   });
+  const staticDir = rt.env.DASHBOARD_DIR ? resolve(rt.env.DASHBOARD_DIR) : undefined;
   const server = createServer((req, res) => {
     if (req.url?.startsWith('/mcp')) void mcp.handle(req, res);
+    else if (staticDir && req.method === 'GET' && !req.url?.startsWith('/v1/'))
+      serveStatic(staticDir, req.url ?? '/', res);
     else void rest(req, res);
   });
   await new Promise<void>((r) => server.listen(port, r));

@@ -127,3 +127,18 @@ pnpm tsx scripts/write-demo-memories.ts --valid-until <last date the memories mu
 ```
 
 Expected: 12 memories stored, a table of blob ids and expiry times, and exit code 0. Exit code 2 and a WARNING line mean a memory expires before the date given; renew or re-run later. Paste back the table.
+
+## L-U1. Dashboard in your browser against the development server
+
+```bash
+pnpm --filter @buiry/dashboard build
+pnpm dev:api          # prints a workspace id, project id and a session token
+```
+
+Open `http://localhost:8787`, choose "Use a session token" and paste the token. Expected: the Northwind Labs workspace with the orbit-api project, memories with confirmed, proposed and stale statuses, a critical alert for the upgraded package, a handoff, and the sidebar live indicator green. Try: confirm a proposed memory (the row updates without a reload), open a memory (all five tabs), create a memory, open the command palette (Ctrl K), switch theme, narrow the window below 768 px. Paste back anything that looks wrong, with the browser and window size.
+
+Optional screenshot pass (needs Chromium; `CHROMIUM_PATH` overrides the default): `pnpm dashboard:shots <token> <workspace-id> <project-id>`.
+
+## L-U2. Dashboard against the real service
+
+With the real service from L-A4 and a real sign-in (L-A1 or the email link), repeat L-U1 using a real project. In addition check: the cookie session works after a page reload, `Origin` checks pass when the dashboard is served by the API (`DASHBOARD_DIR`), and a wallet sign-in (L-A2) completes. The browser wallet connector is not bundled in this build, so wallet sign-in is only exercised through the API.

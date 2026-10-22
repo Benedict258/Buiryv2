@@ -1,0 +1,63 @@
+/* Design tokens (UI spec section 2). Components reference tokens, never raw values. */
+:root,
+:root[data-theme='dark'] {
+  --bg-canvas: #0b0f14;
+  --bg-surface: #11171e;
+  --bg-raised: #18202a;
+  --border-subtle: #1f2935;
+  --border-default: #2b3948;
+  --text-primary: #e8edf2;
+  --text-secondary: #9aa7b5;
+  --text-tertiary: #6b7887;
+  --brand: #2dd4bf;
+  --brand-subtle: #0f2b2a;
+  --on-brand: #04201d;
+  --s-proposed: #60a5fa;
+  --s-confirmed: #34d399;
+  --s-contested: #fbbf24;
+  --s-stale: #f87171;
+  --s-superseded: #94a3b8;
+  --s-tombstoned: #64748b;
+  --s-expired: #a78bfa;
+  --s-verified: #2dd4bf;
+  --shadow-pop: none;
+  color-scheme: dark;
+}
+:root[data-theme='light'] {
+  --bg-canvas: #f7f9fb;
+  --bg-surface: #ffffff;
+  --bg-raised: #f0f3f7;
+  --border-subtle: #e3e8ee;
+  --border-default: #d0d7e0;
+  --text-primary: #0f1720;
+  --text-secondary: #4a5766;
+  --text-tertiary: #5f6c7b;
+  --brand: #0d9488;
+  --brand-subtle: #e0f5f2;
+  --on-brand: #ffffff;
+  --s-proposed: #2563eb;
+  --s-confirmed: #059669;
+  --s-contested: #b45309;
+  --s-stale: #dc2626;
+  --s-superseded: #64748b;
+  --s-tombstoned: #64748b;
+  --s-expired: #7c3aed;
+  --s-verified: #0d9488;
+  --shadow-pop: 0 8px 24px rgba(15, 23, 32, 0.12);
+  color-scheme: light;
+}
+:root {
+  --font-ui: 'Inter Variable', Inter, system-ui, -apple-system, 'Segoe UI', sans-serif;
+  --font-mono: 'JetBrains Mono Variable', 'JetBrains Mono', ui-monospace, 'SFMono-Regular', Menlo, monospace;
+  --r-sm: 6px;
+  --r-md: 8px;
+  --r-lg: 12px;
+  --sp-1: 4px;
+  --sp-2: 8px;
+  --sp-3: 12px;
+  --sp-4: 16px;
+  --sp-5: 24px;
+  --sp-6: 32px;
+  --sp-7: 48px;
+  --t-fast: 140ms;
+}
