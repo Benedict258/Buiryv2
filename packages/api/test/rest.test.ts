@@ -619,3 +619,72 @@ describe('activity, live feed, panels, replay and evidence', () => {
   });
 });
 void ORIGIN;
+
+describe('repository evidence (computed client-side, results only)', () => {
+  it('flags a memory for review when its cited file changed, without marking it stale', async () => {
+    const o = await owner();
+    const base = `/v1/projects/${o.projectId}`;
+    const mk = async (text: string, path: string) =>
+      (
+        await w.req('POST', `${base}/memories`, {
+          token: o.token,
+          body: {
+            text,
+            type: 'decision',
+            status: 'confirmed',
+            evidence: [{ kind: 'file', path, commit: 'a1b2c3d' }],
+          },
+        })
+      ).json.data.memoryId as string;
+    const changed = await mk('Use pnpm workspaces for the build.', 'packages/api/package.json');
+    const same = await mk('Prefer small pull requests under 300 lines.', 'CONTRIBUTING.md');
+    const gone = await mk('Auth refresh logic lives in the middleware.', 'src/auth/refresh.ts');
+    const res = await w.req('POST', `${base}/verify-repo`, {
+      token: o.token,
+      body: {
+        results: {
+          'packages/api/package.json': { exists: true, changed: true, currentCommit: 'ffff000' },
+          'CONTRIBUTING.md': { exists: true, changed: false },
+          'src/auth/refresh.ts': { exists: false, changed: true },
+        },
+      },
+    });
+    expect(res.json.data).toMatchObject({ checked: 3, unchanged: 1 });
+    expect(res.json.data.changed.map((c: { memoryId: string }) => c.memoryId).sort()).toEqual(
+      [changed, gone].sort(),
+    );
+    const flags = await w.req('GET', `${base}/flags`, { token: o.token });
+    expect(
+      flags.json.data
+        .filter((f: { kind: string }) => f.kind === 'needs_review')
+        .map((f: { memory_id: string }) => f.memory_id)
+        .sort(),
+    ).toEqual([changed, gone].sort());
+    for (const id of [changed, gone, same])
+      expect((await w.req('GET', `/v1/memories/${id}`, { token: o.token })).json.data.status).toBe(
+        'confirmed',
+      );
+    expect(
+      (
+        await w.req('POST', `${base}/verify-repo`, {
+          token: o.token,
+          body: { results: { x: { exists: 'yes' } } },
+        })
+      ).status,
+    ).toBe(400);
+    const wi = await w.req('GET', '/v1/auth/whoami', { token: o.token });
+    expect(wi.json.data).toMatchObject({
+      type: 'session',
+      workspaces: [{ id: o.workspaceId, role: 'owner' }],
+    });
+    const pat = (
+      await w.req('POST', `/v1/workspaces/${o.workspaceId}/api-tokens`, {
+        token: o.token,
+        body: { name: 'ci', scopes: ['read'] },
+      })
+    ).json.data.token;
+    expect((await w.req('GET', '/v1/auth/whoami', { token: pat })).json.data).toMatchObject({
+      type: 'api_token',
+    });
+  });
+});

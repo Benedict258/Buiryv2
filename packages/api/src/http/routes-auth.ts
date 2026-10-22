@@ -85,6 +85,24 @@ export const registerAuth: Registrar = (_app, ctx, r) => {
     if (who.type !== 'session') throw new BuiryError('forbidden', 'this endpoint needs a signed-in user');
     return ok(c, await ctx.auth.me(who.userId));
   });
+  // Works for sessions and API tokens: lets the CLI validate whatever credential it was given.
+  r({ method: 'GET', path: '/v1/auth/whoami', auth: 'user', scope: 'self' }, async (c) => {
+    const who = await userCaller(ctx, c);
+    if (who.type === 'api_token') {
+      return ok(c, {
+        type: 'api_token',
+        workspaces: [{ id: who.principal.workspaceId, role: who.principal.role }],
+        projectScope: who.principal.projectScope,
+      });
+    }
+    const me = await ctx.auth.me(who.userId);
+    return ok(c, {
+      type: 'session',
+      userId: me.id,
+      email: me.email,
+      workspaces: me.workspaces.map((w) => ({ id: w.id, name: w.name, role: w.role })),
+    });
+  });
   r({ method: 'GET', path: '/v1/auth/sessions', auth: 'user', scope: 'session' }, async (c) => {
     const who = await userCaller(ctx, c);
     if (who.type !== 'session') throw new BuiryError('forbidden', 'this endpoint needs a signed-in user');

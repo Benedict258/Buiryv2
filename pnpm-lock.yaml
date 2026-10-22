@@ -104,6 +104,9 @@ importers:
       '@buiry/core':
         specifier: workspace:*
         version: link:../core
+      '@buiry/mcp':
+        specifier: workspace:*
+        version: link:../mcp
 
   packages/core: {}
 

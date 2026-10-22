@@ -197,7 +197,20 @@ export async function verifyOp(
       const failed = definite.filter((x) => x.o.result === 'fail');
       const passed = definite.filter((x) => x.o.result === 'pass');
       const sysP: Principal = opts.auto || p.kind === 'agent' ? p : p;
-      if (
+      const repoOnly = failed.length > 0 && failed.every((x) => x.t.ev.kind === 'file');
+      if (repoOnly) {
+        // A changed file means "review this memory", not "this memory is false": flag, never stale.
+        if (!['superseded', 'tombstoned'].includes(locked.status)) {
+          await raiseFlag(deps, tx, {
+            workspaceId: p.workspaceId,
+            projectId,
+            memoryId: locked.id,
+            kind: 'needs_review',
+            severity: 'warning',
+            detail: failed.map((x) => x.o.detail).join('; '),
+          });
+        }
+      } else if (
         failed.length &&
         locked.status !== 'stale' &&
         locked.status !== 'superseded' &&
@@ -449,3 +462,44 @@ export async function chainSimulateOp(
 
 export { notFound };
 export type { Tx };
+
+/** Repository evidence: the CLI computes hashes locally and sends only results (path -> exists/changed). */
+export async function verifyRepoEvidence(
+  deps: ServiceDeps,
+  p: Principal,
+  projectId: string,
+  repo: NonNullable<VerifyContext['repo']>,
+): Promise<{
+  checked: number;
+  changed: { memoryId: string; path: string; detail: string }[];
+  unchanged: number;
+  unknown: number;
+}> {
+  const mems = await deps.db.tenant(p.workspaceId, async (tx) => {
+    await loadProject(tx, p, projectId);
+    assertAllowed(p, 'write');
+    const r = await tx.query<{ id: string }>(
+      `select distinct m.id from memories m join evidence e on e.memory_id = m.id
+        where m.project_id = $1 and e.kind = 'file' and m.status in ('proposed','confirmed','contested') and m.expired = false`,
+      [projectId],
+    );
+    return r.rows;
+  });
+  const out = {
+    checked: 0,
+    changed: [] as { memoryId: string; path: string; detail: string }[],
+    unchanged: 0,
+    unknown: 0,
+  };
+  for (const m of mems) {
+    const v = await verifyOp(deps, p, projectId, { memoryId: m.id }, { repo, auto: true });
+    out.checked++;
+    for (const r of v.results.filter((x) => x.evidence.kind === 'file')) {
+      if (r.result === 'fail')
+        out.changed.push({ memoryId: m.id, path: (r.evidence as { path: string }).path, detail: r.detail });
+      else if (r.result === 'pass') out.unchanged++;
+      else out.unknown++;
+    }
+  }
+  return out;
+}

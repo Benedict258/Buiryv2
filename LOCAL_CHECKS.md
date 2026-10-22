@@ -93,3 +93,13 @@ curl -sS localhost:8787/v1/healthz
 ```
 
 Expected: `{"ok":true,"data":{"status":"ok"}}`; MCP is served at `/mcp`. Paste back any startup error.
+
+## L-M2. `buiry connect` against each real tool (resolves A22)
+
+Per tool (Claude Code, OpenCode, Cursor, Codex), in a scratch repo with the server from L-A4 running:
+```bash
+pnpm tsx packages/cli/src/bin.ts login --api http://localhost:8787 --email you@example.com
+pnpm tsx packages/cli/src/bin.ts init --name scratch
+pnpm tsx packages/cli/src/bin.ts connect <tool>
+```
+Then restart the tool and ask it to list its MCP servers/tools. Expected: a `buiry` server with the 13 `buiry_*` tools. Paste back per tool: whether the config file path/shape was right (if not, the correct path and a working snippet), and the `buiry doctor` output.

@@ -28,6 +28,7 @@ import {
 } from '../service/dashboard.js';
 import { listFlags, listHandoffs, mergeBranchTx, replayAt, setFlagState } from '../service/collab.js';
 import { loadProject } from '../service/ops.js';
+import { verifyRepoEvidence } from '../service/verification.js';
 import { body, entityPrincipal, ok, parse, type Registrar } from './context.js';
 import type { Context } from 'hono';
 
@@ -290,6 +291,25 @@ export const registerProject: Registrar = (_app, ctx, r) => {
       await body(c),
     );
     return ok(c, await ctx.service.verify(p, id, b as never));
+  });
+  r({ method: 'POST', path: '/v1/projects/:id/verify-repo', auth: 'user', scope: 'project' }, async (c) => {
+    const { p, id } = await proj(c);
+    const b = parse(
+      z.object({
+        results: z
+          .record(
+            z.string().max(500),
+            z.object({
+              exists: z.boolean(),
+              changed: z.boolean(),
+              currentCommit: z.string().max(64).optional(),
+            }),
+          )
+          .refine((r) => Object.keys(r).length <= 2000, 'too many files'),
+      }),
+      await body(c),
+    );
+    return ok(c, await verifyRepoEvidence(ctx.deps, p, id, b.results));
   });
   r({ method: 'GET', path: '/v1/projects/:id/storage', auth: 'user', scope: 'project' }, async (c) => {
     const { p, id } = await proj(c);
