@@ -1,5 +1,6 @@
 // Walrus Memory access is confined to this package (architecture principle 4).
-// Endpoint paths and JSON shapes are ASSUMED (docs/ASSUMPTIONS.md A13-A15).
+// Endpoint paths, headers and JSON shapes follow the relayer docs read 2026-10-28 (docs/ASSUMPTIONS.md A13-A15);
+// fields the docs leave unspecified are called out where they are parsed and are settled by LOCAL_CHECKS L-W1/L-W2.
 
 export type WriteState = 'ok' | 'degraded' | 'paused';
 
@@ -50,6 +51,7 @@ export interface RecallRequest {
   query: string;
   /** Relayer caps at 100. */
   limit?: number;
+  /** An explicit sort makes the relayer ignore `weights`. */
   sort?: 'relevance' | 'recent';
   weights?: { semantic?: number; recency?: number };
   deadlineMs?: number;
@@ -58,9 +60,22 @@ export interface RecallRequest {
 export interface RecalledMemory {
   blobId: string;
   text: string;
+  /** Present only when the relayer computed a combined score (recency or importance weights). */
   score?: number;
+  /** Cosine distance from the relayer; lower is closer. */
+  distance?: number;
   createdAt?: number;
   agentId?: string;
+}
+
+/** `/api/restore` rebuilds the relayer's index server-side and returns counts only, never memory text. */
+export interface RestoreResult {
+  restored: number;
+  skipped: number;
+  failed: number;
+  total: number;
+  /** True means the call was incomplete and is worth retrying. */
+  truncated: boolean;
 }
 
 export interface MemoryListItem {
@@ -83,19 +98,23 @@ export interface WalrusMemoryAdapter {
   /** Throws RelayerError('client') when the relayer version is unsupported. */
   checkCompatibility(): Promise<RelayerVersion>;
   health(): Promise<RelayerHealth>;
-  remember(namespace: string, text: string): Promise<{ jobId: string }>;
+  /** A repeated idempotency key collapses onto the existing relayer job. */
+  remember(namespace: string, text: string, opts?: WriteOptions): Promise<{ jobId: string }>;
   /** Up to 20 items; returns one job id per item, in order. */
-  rememberBulk(namespace: string, texts: string[]): Promise<{ jobIds: string[] }>;
+  rememberBulk(namespace: string, texts: string[], opts?: WriteOptions): Promise<{ jobIds: string[] }>;
   getJob(jobId: string): Promise<JobStatus>;
   recall(req: RecallRequest): Promise<{ results: RecalledMemory[] }>;
-  /** Memories never recalled (candidates for cleanup). ASSUMED endpoint. */
-  analyzeUnused(namespace: string): Promise<{ results: RecalledMemory[] }>;
-  /** Newest first, no cursor, not proof of completeness. */
-  restore(namespace: string, limit?: number): Promise<{ results: RecalledMemory[] }>;
-  /** Memory read API listing (A3 ASSUMED to accept the delegate key). */
+  /** Re-indexes owned blobs the relayer lacks. Newest first, limit 1..100, no cursor; counts only. */
+  restore(namespace: string, limit?: number): Promise<RestoreResult>;
+  /** Memory Read API listing: a signed GET with the delegate key (A3). */
   list(opts: { namespace?: string; cursor?: string; limit?: number }): Promise<MemoryListPage>;
   /** Index removal only: blobs remain on Walrus. */
   forget(namespace: string): Promise<void>;
+}
+
+export interface WriteOptions {
+  /** At most 255 UTF-8 bytes. Reusing a key with different text is a conflict (409). */
+  idempotencyKey?: string;
 }
 
 export const MAX_BULK = 20;

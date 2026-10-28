@@ -1,3 +1,4 @@
+import { createHash } from 'node:crypto';
 import { RelayerError, MAX_BULK, type WalrusMemoryAdapter, type WriteState } from './adapter.js';
 import { PointsLimiter, PUBLIC_RELAYER_LIMITS, writePoints, type RelayerLimits } from './budget.js';
 import type { WriteJob, WriteQueue } from './queue.js';
@@ -192,12 +193,19 @@ export class WriteWorker {
     let jobIds: string[];
     try {
       if (batch.length === 1) {
-        jobIds = [(await this.w.adapter.remember(batch[0]!.namespace, batch[0]!.text)).jobId];
+        jobIds = [
+          (
+            await this.w.adapter.remember(batch[0]!.namespace, batch[0]!.text, {
+              idempotencyKey: relayerKey(batch[0]!),
+            })
+          ).jobId,
+        ];
       } else {
         jobIds = (
           await this.w.adapter.rememberBulk(
             batch[0]!.namespace,
             batch.map((j) => j.text),
+            { idempotencyKey: bulkKey(batch) },
           )
         ).jobIds;
       }
@@ -209,4 +217,18 @@ export class WriteWorker {
       await this.w.queue.markSubmitted(j.id, jobIds[i]!, pollAt, this.w.now());
     report.submitted += batch.length;
   }
+}
+
+/**
+ * Key sent to the relayer, which collapses a repeated key onto the existing job. The first attempt uses the
+ * plain key so a lost acceptance is deduplicated; later attempts get a suffix so a retry after a FAILED relayer
+ * job is a new job instead of returning the failed one.
+ */
+function relayerKey(j: WriteJob): string {
+  return j.attempts === 0 ? j.idempotencyKey : `${j.idempotencyKey}.a${j.attempts}`;
+}
+
+/** One relayer key for a bulk submit, derived from the ordered per-item keys so a retry of the same batch collapses. */
+function bulkKey(batch: WriteJob[]): string {
+  return 'bulk-' + createHash('sha256').update(batch.map(relayerKey).join('\n')).digest('hex');
 }

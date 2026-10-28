@@ -47,8 +47,19 @@ export function verifyEd25519(publicKeyHex: string, message: Uint8Array, signatu
   return edVerify(null, message, key, signature);
 }
 
-/** Canonical signed string (ASSUMED, A13). */
-export function canonicalRequest(timestamp: string, method: string, path: string, body: string): string {
+/**
+ * Canonical signed string, as documented for the Walrus Memory relayer (A13, docs.wal.app relayer
+ * api-reference): `{timestamp}.{method}.{path_and_query}.{body_sha256}.{nonce}.{account_id}`.
+ * `pathAndQuery` includes the query string. An empty body (GET) hashes the empty string.
+ */
+export function canonicalRequest(
+  timestamp: string,
+  method: string,
+  pathAndQuery: string,
+  body: string,
+  nonce: string,
+  accountId: string,
+): string {
   const bodyHash = createHash('sha256').update(body).digest('hex');
-  return `${timestamp}.${method.toUpperCase()}.${path}.${bodyHash}`;
+  return `${timestamp}.${method.toUpperCase()}.${pathAndQuery}.${bodyHash}.${nonce}.${accountId}`;
 }

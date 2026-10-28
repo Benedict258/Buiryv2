@@ -1,6 +1,8 @@
+import { createHash } from 'node:crypto';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import {
   Ed25519Signer,
+  verifyEd25519,
   HttpWalrusAdapter,
   MockRelayer,
   RelayerError,
@@ -121,9 +123,11 @@ describe.each(targets)('WalrusMemoryAdapter contract: $name', (t) => {
     for (const id of jobIds) expect(await waitDone(id)).toBeTruthy();
   });
 
-  it('restore returns newest first', async () => {
+  it('restore reports counts only and never fails the blobs it inspects', async () => {
     const r = await ctx.adapter.restore(ctx.namespace, 5);
-    expect(r.results.length).toBeGreaterThan(0);
+    expect(r.total).toBeGreaterThan(0);
+    expect(r.restored + r.skipped + r.failed).toBeLessThanOrEqual(r.total);
+    expect(r).not.toHaveProperty('results');
   });
 
   it('rejects oversized bulk locally', async () => {
@@ -150,10 +154,11 @@ describe('MockRelayer behaviours the adapter must handle', () => {
   };
 
   it('rejects bad signatures and maps 401 to a non-retryable auth error', async () => {
-    const { mock } = await setup({ verifyAuth: true });
+    const { mock, clock } = await setup({ verifyAuth: true });
     const bad = new HttpWalrusAdapter({
       baseUrl: mock.url,
       accountId: '0xacct',
+      now: clock.now,
       signer: { publicKeyHex: new Ed25519Signer(seed).publicKeyHex, sign: async () => new Uint8Array(64) },
     });
     const e = await bad.remember('ns', 'x').catch((x: RelayerError) => x);
@@ -232,6 +237,195 @@ describe('MockRelayer behaviours the adapter must handle', () => {
     expect([p1, p2, p3].flatMap((p) => p.items)).toHaveLength(5);
     expect(p3.nextCursor).toBeUndefined();
     await mock.close();
+  });
+
+  // Regression tests encoding the relayer behaviour documented at docs.wal.app (A13, A14), read 2026-10-28.
+  describe('documented wire format', () => {
+    const NONCE = '3b241101-e2bb-4255-8caf-4136c566a962';
+    const capture = () => {
+      const seen: { url: string; method: string; headers: Record<string, string>; body?: string }[] = [];
+      const f = (async (url: string, init: RequestInit) => {
+        seen.push({
+          url,
+          method: String(init.method),
+          headers: init.headers as Record<string, string>,
+          ...(typeof init.body === 'string' ? { body: init.body } : {}),
+        });
+        const path = new URL(url).pathname;
+        const json = path.endsWith('/stats')
+          ? { owner: '0x' + 'b'.repeat(64) }
+          : path.startsWith('/v1/owners')
+            ? { memories: [], deleted: [], has_more: false }
+            : { job_id: 'j1', status: 'running' };
+        return new Response(JSON.stringify(json), { status: 200 });
+      }) as unknown as typeof fetch;
+      return { seen, f };
+    };
+    const make = (f: typeof fetch) =>
+      new HttpWalrusAdapter({
+        baseUrl: 'https://relayer.example/',
+        accountId: '0xacct',
+        signer: new Ed25519Signer(seed),
+        fetch: f,
+        now: () => 1_700_000_000_000,
+        nonce: () => NONCE,
+      });
+
+    it('signs {ts}.{METHOD}.{path+query}.{sha256(body)}.{nonce}.{account} and sends the documented headers', async () => {
+      const { seen, f } = capture();
+      await make(f).remember('ns', 'hello', { idempotencyKey: 'k1' });
+      const r = seen[0]!;
+      expect(r.url).toBe('https://relayer.example/api/remember');
+      expect(
+        Object.keys(r.headers)
+          .filter((h) => h.startsWith('x-'))
+          .sort(),
+      ).toEqual(['x-account-id', 'x-nonce', 'x-public-key', 'x-signature', 'x-timestamp']);
+      expect(r.headers['x-delegate-key']).toBeUndefined();
+      expect(r.headers['x-timestamp']).toBe('1700000000');
+      expect(r.headers['x-nonce']).toBe(NONCE);
+      expect(JSON.parse(r.body!)).toEqual({ text: 'hello', namespace: 'ns', idempotency_key: 'k1' });
+      const bodyHash = createHash('sha256').update(r.body!).digest('hex');
+      const message = `1700000000.POST./api/remember.${bodyHash}.${NONCE}.0xacct`;
+      expect(
+        verifyEd25519(
+          new Ed25519Signer(seed).publicKeyHex,
+          new TextEncoder().encode(message),
+          Buffer.from(r.headers['x-signature']!, 'hex'),
+        ),
+      ).toBe(true);
+    });
+
+    it('signs the query string with a GET and hashes the empty body', async () => {
+      const { seen, f } = capture();
+      await make(f).list({ namespace: 'ns', cursor: '7', limit: 2 });
+      const stats = seen[0]!;
+      const get = seen[1]!;
+      expect(stats.url).toBe('https://relayer.example/api/stats');
+      expect(get.url).toBe(
+        `https://relayer.example/v1/owners/0x${'b'.repeat(64)}/memories?updated_after=7&limit=2`,
+      );
+      const emptyHash = createHash('sha256').update('').digest('hex');
+      const message = `1700000000.GET./v1/owners/0x${'b'.repeat(64)}/memories?updated_after=7&limit=2.${emptyHash}.${NONCE}.0xacct`;
+      expect(
+        verifyEd25519(
+          new Ed25519Signer(seed).publicKeyHex,
+          new TextEncoder().encode(message),
+          Buffer.from(get.headers['x-signature']!, 'hex'),
+        ),
+      ).toBe(true);
+    });
+
+    it('uses a fresh nonce per request and the relayer rejects a replayed one', async () => {
+      const { mock, adapter, clock } = await setup({ verifyAuth: true });
+      await expect(adapter.remember('ns', 'a')).resolves.toBeTruthy();
+      await expect(adapter.remember('ns', 'b')).resolves.toBeTruthy();
+      const replay = new HttpWalrusAdapter({
+        baseUrl: mock.url,
+        accountId: '0xacct',
+        signer: new Ed25519Signer(seed),
+        now: clock.now,
+        nonce: () => NONCE,
+      });
+      await expect(replay.remember('ns', 'c')).resolves.toBeTruthy();
+      await expect(replay.remember('ns', 'd')).rejects.toMatchObject({ kind: 'auth' });
+      await mock.close();
+    });
+
+    it('rejects a request carrying the deprecated private-key header', async () => {
+      const { mock } = await setup({ verifyAuth: true });
+      const res = await fetch(mock.url + '/api/stats', {
+        method: 'POST',
+        headers: { 'x-delegate-key': 'deadbeef' },
+        body: '{}',
+      });
+      expect(res.status).toBe(401);
+      await mock.close();
+    });
+
+    it('collapses a repeated idempotency key onto one job and refuses key reuse with other text', async () => {
+      const { mock, adapter } = await setup();
+      const a = await adapter.remember('ns', 'same', { idempotencyKey: 'k' });
+      const b = await adapter.remember('ns', 'same', { idempotencyKey: 'k' });
+      expect(b.jobId).toBe(a.jobId);
+      await expect(adapter.remember('ns', 'different', { idempotencyKey: 'k' })).rejects.toMatchObject({
+        kind: 'client',
+        status: 409,
+      });
+      const bulk1 = await adapter.rememberBulk('ns', ['x', 'y'], { idempotencyKey: 'bk' });
+      const bulk2 = await adapter.rememberBulk('ns', ['x', 'y'], { idempotencyKey: 'bk' });
+      expect(bulk2.jobIds).toEqual(bulk1.jobIds);
+      await mock.close();
+    });
+
+    it('treats the intermediate "uploaded" status as not done, and reads the blob id only from "done"', async () => {
+      const { mock, adapter, clock } = await setup({ autoCompleteMs: 5_000 });
+      const { jobId } = await adapter.remember('ns', 'slow');
+      expect(await adapter.getJob(jobId)).toEqual({ state: 'running' });
+      clock.advance(5_000);
+      expect((await adapter.getJob(jobId)).state).toBe('done');
+      await mock.close();
+    });
+
+    it('takes the retry delay from retry_after_seconds in the body when there is no header', async () => {
+      const f = (async () =>
+        new Response(JSON.stringify({ error: 'slow down', retry_after_seconds: 12 }), {
+          status: 429,
+        })) as unknown as typeof fetch;
+      expect(
+        await make(f)
+          .remember('ns', 'a')
+          .catch((e: RelayerError) => e),
+      ).toMatchObject({
+        kind: 'rate_limited',
+        retryAfterMs: 12_000,
+      });
+    });
+
+    it('maps a recall deadline to a timeout and reads distance, not score', async () => {
+      const timeout = (async () =>
+        new Response(JSON.stringify({ error: 'x', code: 'RECALL_TIMEOUT', stage: 'embed' }), {
+          status: 504,
+        })) as unknown as typeof fetch;
+      expect(
+        await make(timeout)
+          .recall({ namespace: 'ns', query: 'q' })
+          .catch((e: RelayerError) => e),
+      ).toMatchObject({
+        kind: 'timeout',
+      });
+      const ok = (async () =>
+        new Response(
+          JSON.stringify({
+            results: [{ blob_id: 'b1', text: 't', distance: 0.25, created_at: '2026-10-28T10:00:00Z' }],
+            total: 1,
+          }),
+        )) as unknown as typeof fetch;
+      const r = await make(ok).recall({ namespace: 'ns', query: 'q' });
+      expect(r.results[0]).toEqual({
+        blobId: 'b1',
+        text: 't',
+        distance: 0.25,
+        createdAt: Date.parse('2026-10-28T10:00:00Z'),
+      });
+    });
+
+    it('accepts expires_at as epoch ms, epoch seconds or an RFC 3339 string', async () => {
+      const page = (v: unknown) =>
+        (async (url: string) =>
+          new Response(
+            JSON.stringify(
+              url.endsWith('/api/stats')
+                ? { owner: '0xo' }
+                : { memories: [{ blob_id: 'b', namespace_id: 'ns', expires_at: v }], has_more: false },
+            ),
+          )) as unknown as typeof fetch;
+      const ms = 1_800_000_000_000;
+      for (const v of [ms, ms / 1000, new Date(ms).toISOString()]) {
+        const out = await make(page(v)).list({ namespace: 'ns' });
+        expect(out.items[0]!.expiresAt).toBe(ms);
+      }
+    });
   });
 
   it('simulated limiter issues 429 beyond the documented budget', async () => {
