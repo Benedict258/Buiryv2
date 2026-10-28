@@ -29,3 +29,11 @@ Legend: **done** (implemented and tested), **mocked** (tested only against a moc
 - Added after the first pass: per-project learning settings applied by the service (`learningFor`), briefing "why this item" scores, open-invitations list with revoke and an accept page, the public showcase page and endpoint, and a default briefing token budget per project. Tested in `packages/api/test/features.test.ts` and `learning-settings.test.ts`. Live check: L-U3.
 
 - Baseline (`pnpm typecheck && pnpm lint && pnpm test`) also passes on Windows. The 0600 credentials-file test is skipped there (NTFS has no POSIX modes) and still runs on Linux and macOS.
+
+## Live verification (2026-10-28)
+
+- Step 0 live docs study: done; results in `docs/ASSUMPTIONS.md` (A4, A8, A13, A14 wrong).
+- Walrus relayer: unsigned endpoints verified live. The HTTP adapter, signer and mock were rewritten to the documented API (headers, signed message, `/api/*` paths, job `status`, counts-only restore, idempotency keys). Signed calls are blocked until the delegate private key is supplied.
+- Tatum: gRPC verified live against `sui-mainnet-grpc.gateway.tatum.io:443`. JSON-RPC is not served at the documented hosts, so there is no working fallback transport today.
+- Fixes found by live runs: gRPC endpoint normalization (URL to host:443), mainnet chain id fixture, delegate key parsing for `suiprivkey1...`.
+- Details and commands: `LOCAL_CHECKS.md`, section "Live results".
