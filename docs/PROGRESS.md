@@ -27,3 +27,5 @@ Legend: **done** (implemented and tested), **mocked** (tested only against a moc
 - Placeholders where the service has no data yet are listed in BD26 and BD27.
 - Live check: L-U1, L-U2.
 - Added after the first pass: per-project learning settings applied by the service (`learningFor`), briefing "why this item" scores, open-invitations list with revoke and an accept page, the public showcase page and endpoint, and a default briefing token budget per project. Tested in `packages/api/test/features.test.ts` and `learning-settings.test.ts`. Live check: L-U3.
+
+- Baseline (`pnpm typecheck && pnpm lint && pnpm test`) also passes on Windows. The 0600 credentials-file test is skipped there (NTFS has no POSIX modes) and still runs on Linux and macOS.
