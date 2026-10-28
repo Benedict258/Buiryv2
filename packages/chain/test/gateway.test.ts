@@ -175,7 +175,7 @@ describe('gateway over real gRPC (MockTatum)', () => {
     ]);
     expect((await gateway.getEpoch()).value.epoch).toBe('800');
     expect((await gateway.getServiceInfo()).value).toMatchObject({
-      chainId: '35834a8a',
+      chainId: '4btiuiMPvEENsttpZC7CZ53DruC3MAgfznDbASZ7DR6S',
       lowestAvailableCheckpoint: '51000000',
     });
     const sim = (await gateway.simulate({ bcsBase64: 'AAEC' })).value;

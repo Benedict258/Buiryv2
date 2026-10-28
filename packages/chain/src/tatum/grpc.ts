@@ -68,6 +68,21 @@ export function mapGrpcError(e: unknown): ChainError {
   }
 }
 
+/**
+ * Accepts `host`, `host:port` or a URL (`https://host/`) and returns a gRPC target. Tatum's gRPC endpoint is
+ * TLS on 443 (non-TLS connections are rejected), so the port defaults to 443 and `insecure` is only implied
+ * by an explicit `http://` scheme.
+ */
+export function normalizeGrpcEndpoint(input: string): { target: string; insecure: boolean } {
+  const raw = input.trim();
+  const insecure = /^http:\/\//i.test(raw);
+  const noScheme = raw.replace(/^[a-z][a-z0-9+.-]*:\/\//i, '');
+  const hostPort = noScheme.split(/[/?#]/, 1)[0] ?? '';
+  if (!hostPort) throw new ChainError('config', 'TATUM_GRPC_ENDPOINT is empty');
+  const hasPort = /:\d+$/.test(hostPort);
+  return { target: hasPort ? hostPort : `${hostPort}:${insecure ? 80 : 443}`, insecure };
+}
+
 export interface GrpcOptions {
   /** host:port, TLS on 443 unless `insecure`. */
   endpoint: string;
@@ -154,13 +169,14 @@ export class GrpcBackend implements ChainBackend {
 
   constructor(private readonly o: GrpcOptions) {
     const proto = loadSuiProtos();
-    const creds = o.insecure ? credentials.createInsecure() : credentials.createSsl();
+    const { target, insecure } = normalizeGrpcEndpoint(o.endpoint);
+    const creds = o.insecure || insecure ? credentials.createInsecure() : credentials.createSsl();
     this.clients = {
-      ledger: new proto.LedgerService(o.endpoint, creds),
-      state: new proto.StateService(o.endpoint, creds),
-      pkg: new proto.MovePackageService(o.endpoint, creds),
-      exec: new proto.TransactionExecutionService(o.endpoint, creds),
-      name: new proto.NameService(o.endpoint, creds),
+      ledger: new proto.LedgerService(target, creds),
+      state: new proto.StateService(target, creds),
+      pkg: new proto.MovePackageService(target, creds),
+      exec: new proto.TransactionExecutionService(target, creds),
+      name: new proto.NameService(target, creds),
     };
   }
 
