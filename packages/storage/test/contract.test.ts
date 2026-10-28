@@ -79,11 +79,13 @@ describe.each(targets)('WalrusMemoryAdapter contract: $name', (t) => {
   afterAll(async () => ctx.close());
 
   async function waitDone(jobId: string) {
-    for (let i = 0; i < 60; i++) {
+    // A real write is Seal-encrypted and uploaded to Walrus, so it needs seconds, not the mock's milliseconds.
+    const real = t.name.startsWith('REAL');
+    for (let i = 0; i < (real ? 90 : 60); i++) {
       const st = await ctx.adapter.getJob(jobId);
       if (st.state === 'done') return st.blobId;
       if (st.state === 'failed') throw new Error(st.error);
-      await new Promise((r) => setTimeout(r, 200));
+      await new Promise((r) => setTimeout(r, real ? 2000 : 200));
     }
     throw new Error('job did not finish');
   }
