@@ -145,7 +145,8 @@ describe('login', () => {
     expect(await sb.run('login', '--api', API, '--email', 'cli-login@example.com')).toBe(0);
     const credFile = join(sb.home, '.config', 'buiry', 'credentials.json');
     expect(JSON.parse(readFileSync(credFile, 'utf8')).apiUrl).toBe(API);
-    expect(statSync(credFile).mode & 0o777).toBe(0o600);
+    // NTFS has no POSIX permission bits, so the mode is only meaningful off Windows.
+    if (process.platform !== 'win32') expect(statSync(credFile).mode & 0o777).toBe(0o600);
     expect(await sb.run('doctor')).toBeGreaterThanOrEqual(0);
     const bad = sandbox();
     expect(await bad.run('login', '--api', API, '--token', 'bry_ses_nope')).toBe(3);

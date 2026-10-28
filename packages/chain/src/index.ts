@@ -1,3 +1,4 @@
+import { fileURLToPath } from 'node:url';
 export * from './types.js';
 export * from './tatum.js';
 export * from './verifiers.js';
@@ -6,4 +7,4 @@ export { TokenBucket, CreditBudget } from './tatum/limits.js';
 export { MockTatum, loadFixtures, type FixtureRecord } from './tatum/mock-server.js';
 export { GrpcBackend } from './tatum/grpc.js';
 export { JsonRpcBackend } from './tatum/jsonrpc.js';
-export const FIXTURES_DIR = new URL('../fixtures/', import.meta.url).pathname;
+export const FIXTURES_DIR = fileURLToPath(new URL('../fixtures/', import.meta.url));
