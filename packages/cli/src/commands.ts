@@ -31,6 +31,7 @@ import {
   pointerFileFor,
   readBuiryServerEnv,
   serverSpec,
+  launchFromEnv,
   targetFor,
   writeToolConfig,
   type Tool,
@@ -146,7 +147,7 @@ const connect: Cmd = async (a, rt) => {
     permissions: perms,
     ...(str(a.flags, 'branch') ? { branchScope: str(a.flags, 'branch') } : {}),
   });
-  const spec = serverSpec(made.token as string, c.apiUrl);
+  const spec = serverSpec(made.token as string, c.apiUrl, launchFromEnv(rt.env.BUIRY_MCP_COMMAND));
   const target = targetFor(tool, rt.home);
   out(rt, `Issued a token for agent ${made.slug} (shown once; stored only in the tool config below).`);
   if (a.flags.print === true || target.format === 'none') {

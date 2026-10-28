@@ -9,7 +9,7 @@
     "dist"
   ],
   "scripts": {
-    "build": "tsup src/index.ts src/bin.ts --format esm --dts"
+    "build": "tsup"
   },
   "dependencies": {
     "@buiry/core": "workspace:*",

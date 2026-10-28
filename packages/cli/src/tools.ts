@@ -14,11 +14,29 @@ export interface McpServerSpec {
   env: Record<string, string>;
 }
 
-export const serverSpec = (token: string, apiUrl: string): McpServerSpec => ({
-  command: 'npx',
-  args: ['-y', '@buiry/mcp'],
+/**
+ * `launch` replaces the default `npx -y @buiry/mcp` (for example to run a local build). The npm name `@buiry/mcp`
+ * currently resolves to the Buiry v1 package, so a v2 install must override it until v2 is published.
+ */
+export const serverSpec = (token: string, apiUrl: string, launch?: string[]): McpServerSpec => ({
+  command: launch?.[0] ?? 'npx',
+  args: launch ? launch.slice(1) : ['-y', '@buiry/mcp'],
   env: { BUIRY_TOKEN: token, BUIRY_API_URL: apiUrl },
 });
+
+/** Parses BUIRY_MCP_COMMAND, a JSON array of strings such as ["node","/path/to/bin.js"]. */
+export function launchFromEnv(raw: string | undefined): string[] | undefined {
+  if (!raw) return undefined;
+  let v: unknown;
+  try {
+    v = JSON.parse(raw);
+  } catch {
+    throw new Error('BUIRY_MCP_COMMAND must be a JSON array of strings');
+  }
+  if (!Array.isArray(v) || v.length === 0 || v.some((x) => typeof x !== 'string'))
+    throw new Error('BUIRY_MCP_COMMAND must be a JSON array of strings');
+  return v as string[];
+}
 
 export interface ToolTarget {
   /** Absolute path of the user-level config file. */

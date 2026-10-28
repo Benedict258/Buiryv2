@@ -217,6 +217,16 @@ describe('init', () => {
 });
 
 describe('connect', () => {
+  it('launches a local build when BUIRY_MCP_COMMAND is set, and rejects a malformed override', async () => {
+    const { sb } = await ready();
+    sb.rt.env.BUIRY_MCP_COMMAND = JSON.stringify(['node', '/opt/buiry/mcp/dist/bin.js']);
+    expect(await sb.run('connect', 'cursor')).toBe(0);
+    const entry = JSON.parse(readFileSync(join(sb.home, '.cursor', 'mcp.json'), 'utf8')).mcpServers.buiry;
+    expect(entry).toMatchObject({ command: 'node', args: ['/opt/buiry/mcp/dist/bin.js'] });
+    sb.rt.env.BUIRY_MCP_COMMAND = 'node bin.js';
+    expect(await sb.run('connect', 'cursor')).not.toBe(0);
+  });
+
   it("writes each tool's user-level config with a working token, merges, backs up, and adds a pointer file", async () => {
     const { sb, projectId } = await ready();
     // Claude Code: existing user config must survive

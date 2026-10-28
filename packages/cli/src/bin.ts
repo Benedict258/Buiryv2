@@ -31,4 +31,5 @@ const code = await run(process.argv.slice(2), {
     }
   },
 });
-process.exit(code);
+// Setting exitCode (instead of process.exit) lets pending handles close; on Windows an early exit aborts with a libuv assertion and a non-zero status.
+process.exitCode = code;
