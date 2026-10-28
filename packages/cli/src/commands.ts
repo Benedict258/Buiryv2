@@ -283,7 +283,11 @@ const doctor: Cmd = async (a, rt) => {
       );
       line(
         st.gateway.state === 'ok' ? 'ok' : 'warn',
-        `chain gateway: ${st.gateway.state}${st.gateway.state === 'unconfigured' ? ' (chain verification disabled)' : ''}`,
+        st.gateway.state === 'unconfigured'
+          ? 'chain gateway: unconfigured (chain verification disabled)'
+          : st.gateway.state === 'ok'
+            ? 'chain gateway: ok (chain checks run over gRPC only)'
+            : `chain gateway: ${st.gateway.state}. Chain checks run over gRPC only; while it is down, evidence is reported unknown, never a stale pass`,
       );
       if (st.queue.dead > 0)
         line('FAIL', `${st.queue.dead} writes failed after retries (see Storage health)`);

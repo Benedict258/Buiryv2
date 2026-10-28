@@ -105,9 +105,14 @@ export function VerificationPage() {
               )}
               {g.configured && g.state !== 'ok' && (
                 <Banner kind="warning">
-                  Chain checks are unavailable. Existing results are shown with their age.
+                  Chain checks run over gRPC only and the gateway is unavailable. Evidence is reported as
+                  unknown, never as passing. Earlier results are shown with their age.
                 </Banner>
               )}
+              <p className="muted mt">
+                Chain checks run over gRPC only (Tatum does not serve Sui JSON-RPC). If gRPC is unreachable, a
+                check is reported as unknown, never as a pass.
+              </p>
               <div className="grid g4 mt">
                 <Stat
                   label="Gateway"

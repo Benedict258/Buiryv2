@@ -10,3 +10,8 @@ export function signedOutRedirect(pathname: string, search: string): string | nu
   if (pathname === '/auth/email') return `/signin${search}`;
   return `/signin?next=${encodeURIComponent(pathname + search)}`;
 }
+
+/** The public showcase API answers 404 for a project that is private or does not exist; that is not an error to retry. */
+export function isNotShared(error: { status: number } | undefined, hasData: boolean): boolean {
+  return !hasData && error?.status === 404;
+}

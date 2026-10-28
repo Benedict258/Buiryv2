@@ -579,6 +579,30 @@ describe('evidence report (hackathon proofs)', () => {
 });
 
 describe('doctor', () => {
+  it.each([
+    ['ok', /ok\s+chain gateway: ok \(chain checks run over gRPC only\)/],
+    [
+      'degraded',
+      /warn\s+chain gateway: degraded\. Chain checks run over gRPC only; while it is down, evidence is reported unknown, never a stale pass/,
+    ],
+  ])(
+    'says chain checks are gRPC-only, and unknown (never a stale pass) when down: gateway %s',
+    async (state, pattern) => {
+      const { sb } = await ready();
+      const real = sb.rt.fetch;
+      sb.rt.fetch = (async (url: Parameters<typeof fetch>[0], init?: RequestInit) => {
+        const res = await real(url, init);
+        if (!String(url).endsWith('/status')) return res;
+        const body = (await res.json()) as { data: Record<string, unknown> };
+        body.data.gateway = { state, transportMix: {}, latencyP95: 0 };
+        return new Response(JSON.stringify(body), { status: res.status, headers: res.headers });
+      }) as typeof fetch;
+      sb.out.length = 0;
+      await sb.run('doctor');
+      expect(sb.text()).toMatch(pattern);
+    },
+  );
+
   it('passes when healthy, warns about competing memory tools, and fails on a revoked token', async () => {
     const { sb, projectId, session } = await ready();
     await sb.run('connect', 'cursor', '--no-pointer');
@@ -588,6 +612,7 @@ describe('doctor', () => {
     expect(t).toMatch(/ok\s+API reachable/);
     expect(t).toMatch(/ok\s+cursor: Buiry MCP configured, token valid/);
     expect(t).toMatch(/warn\s+storage relayer: unknown/);
+    expect(t).toMatch(/warn\s+chain gateway: unconfigured \(chain verification disabled\)/);
     expect(t).toContain('All checks passed.');
 
     const cursorCfg = join(sb.home, '.cursor', 'mcp.json');

@@ -179,6 +179,16 @@ describe('degradation: an outage never marks anything stale', () => {
       expect(out.degraded, ev.kind).toBe(true);
     }
   });
+  it('an expired cached pass is not reused when gRPC goes down (gRPC only, no stale pass)', async () => {
+    const { ctx, mainnet, clock } = await ctxFor({ jsonrpc: false });
+    const ev = { kind: 'object' as const, id: ids.OBJ_REG, network: 'sui:mainnet' };
+    const first = await verifyEvidence(ev, ctx);
+    expect(first.result).toBe('pass');
+    clock.t += 5 * 60_000; // well past the 60 s cache lifetime of a current-object read
+    mainnet.failNext(1000, status.UNAVAILABLE);
+    const out = await verifyEvidence(ev, ctx);
+    expect(out).toMatchObject({ result: 'unknown', degraded: true });
+  });
   it('bad API key -> unknown with a configuration message', async () => {
     const { ctx } = await ctxFor({ apiKey: 'wrong' });
     const out = await verifyEvidence(evidence[1]!, ctx);

@@ -459,7 +459,9 @@ export function ProjectLayout() {
   if (s && ['degraded', 'paused', 'unreachable'].includes(s.relayer.state))
     degraded.push('Storage is slow or unavailable. New memories are queued and reads come from cache.');
   if (s && s.gateway.state === 'degraded')
-    degraded.push('Chain checks are unavailable. Existing results are shown with their age.');
+    degraded.push(
+      'Chain checks run over gRPC only and the gateway is unavailable: evidence is reported unknown, never as passing. Earlier results are shown with their age.',
+    );
   return (
     <ProjContext.Provider value={value}>
       {degraded.map((d) => (
