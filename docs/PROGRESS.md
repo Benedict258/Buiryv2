@@ -37,3 +37,6 @@ Legend: **done** (implemented and tested), **mocked** (tested only against a moc
 - Tatum: gRPC verified live against `sui-mainnet-grpc.gateway.tatum.io:443`. JSON-RPC is not served at the documented hosts, so there is no working fallback transport today.
 - Fixes found by live runs: gRPC endpoint normalization (URL to host:443), mainnet chain id fixture, delegate key parsing for `suiprivkey1...`.
 - Details and commands: `LOCAL_CHECKS.md`, section "Live results".
+- Real Postgres (L-A3) and server smoke (L-A4) verified. Real clients: Claude Code, OpenCode and Codex accepted the generated MCP config; Claude Code called check and handoff unprompted in 3 of 3 runs with the pointer file.
+- Bugs found only by live runs and fixed: the emailed sign-in link never signed anyone in (token lost in the signed-out redirect); built `dist` of cli and mcp imported unbuilt workspace source (now bundled); the CLI exited non-zero after every network command on Windows; `connect` wrote `npx -y @buiry/mcp`, which resolves to the v1 package (`BUIRY_MCP_COMMAND` override added; publishing v2 is an open decision).
+- Not run or blocked: L-W1 signed calls, L-W2, L-D1 (delegate private key), L-A1 (OAuth apps), L-T3 (organisers), Cursor.
