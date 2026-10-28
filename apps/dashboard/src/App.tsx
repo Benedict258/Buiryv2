@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { Navigate, Route, Routes, useLocation, useNavigate } from 'react-router-dom';
 import { useApp } from './lib/app';
+import { signedOutRedirect } from './lib/guard';
 import { WorkspaceLayout, ProjectLayout } from './components/Shell';
 import { SignIn } from './pages/SignIn';
 import { Onboarding } from './pages/Onboarding';
@@ -42,8 +43,9 @@ export function App() {
       .finally(() => setReady(true));
   }, [refreshMe]);
   useEffect(() => {
-    if (ready && !me && !failure && loc.pathname !== '/signin' && !loc.pathname.startsWith('/showcase/'))
-      nav(`/signin?next=${encodeURIComponent(loc.pathname + loc.search)}`, { replace: true });
+    if (!ready || me || failure) return;
+    const to = signedOutRedirect(loc.pathname, loc.search);
+    if (to) nav(to, { replace: true });
   }, [ready, me, failure, loc.pathname, loc.search, nav]);
   if (ready && failure && !me && !loc.pathname.startsWith('/showcase/'))
     return (
@@ -66,6 +68,7 @@ export function App() {
   return (
     <Routes>
       <Route path="/signin" element={<SignIn />} />
+      <Route path="/auth/email" element={<Navigate to={`/signin${loc.search}`} replace />} />
       <Route path="/showcase/:pid" element={<Showcase />} />
       <Route path="/invite/:token" element={me ? <AcceptInvite /> : null} />
       <Route path="/onboarding" element={me ? <Onboarding /> : null} />
