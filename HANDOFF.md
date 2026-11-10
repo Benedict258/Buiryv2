@@ -94,7 +94,7 @@ Everything in section 3.
 
 ### Not verified
 
-- Every signed Walrus call: remember, recall, bulk, restore, expiry listing (A1, A2, A3, A6, A13 signing). Blocked on the delegate private key.
+- Signed Walrus recall on fresh memories: the relayer answers `degraded: true` with every candidate dropped (A23); whether and when it clears is open. Bulk rate limits and weight (A6) and operator renewal (A1) are also open.
 - The live demo (L-D1). Also needs an upgraded Mainnet package and its publish/upgrade digest.
 - OAuth sign-in with real apps (L-A1, A21).
 - Cursor config; OpenCode and Codex behaviour (need a model login).
@@ -124,7 +124,7 @@ Everything in section 3.
 
 ## 5. Blockers that need a human
 
-1. **Walrus delegate private key.** The value held so far is the public key. Signing needs the private half (64 hex or `suiprivkey1...`). If lost, add a new delegate in the Walrus Memory dashboard and remove the old one. Set `WALRUS_DELEGATE_KEY` in the gitignored `.env`.
+1. **Walrus delegate private key:** supplied in `.env`; the relayer accepts its signatures. Rotate it when the live checks are done.
 2. **npm name.** `@buiry/mcp` resolves to the v1 package (0.1.8) per LOCAL_CHECKS (unverified this session). Decide: publish v2 as a new major and deprecate v1, or use a new name. Until then `BUIRY_MCP_COMMAND` overrides what `buiry connect` launches.
 3. **Demo inputs.** `DEMO_PACKAGE_ID` (an upgraded Mainnet package) and `DEMO_TX_DIGEST`.
 4. **OAuth apps** for GitHub and Google, if wanted.
@@ -211,7 +211,7 @@ Plan: keep it, do not expand it, decide after the prototype works. To decide, re
 
 ## 10. Prioritised next steps (each with an acceptance check)
 
-1. Get the delegate private key into `.env`. Run L-W1 and L-W2. Accept when a signed `remember` is stored, recalled and its expiry is read back, and every mock-versus-real difference is fixed with a regression test and logged in ASSUMPTIONS.
+1. Finish L-W1: re-run the REAL contract suite until recall returns the stored memory, or establish why the relayer drops fresh candidates (A23). Signed remember, bulk, restore and the listing already pass; L-W2 (expiry) is verified: 15 epochs, about 210 days, filled about 4 minutes after the write.
 2. Run the live demo (L-D1). Accept when agent B is shown agent A's failure first, the package upgrade marks the deployment stale, the corrected memory is created from the digest, and the evidence report shows real blob ids and expiries.
 3. Done: hackathon framing stripped (section 8); CLAUDE.md rule 4 kept.
 4. Retention and renewal story for Walrus expiry. Accept when a memory near expiry can be exported or rewritten, and the dashboard says exactly what will happen.
@@ -240,7 +240,7 @@ Then open `LOCAL_CHECKS.md` for the next live check.
 - Remote branch `ccr-e0e1030c-5n01et` deleted after confirming it was an ancestor of `main`.
 - History rewrite (approved): author and committer of the 15 AI-identity commits set to `ISAAC BENEDICT`; trees, messages and dates verified identical; force-pushed with lease. Local backup tag `backup-before-author-rewrite`.
 - Checked: `packages/core`, `packages/mcp` and `packages/cli` each still have the Apache-2.0 `LICENSE` file (identical in all three), `"license": "Apache-2.0"` in `package.json`, and an `SPDX-License-Identifier: Apache-2.0` header in every `src/*.ts` file (26 files).
-- No signed Walrus call has been made; that waits for the delegate private key in `.env`.
+- Live signed Walrus calls (2026-11-10): signatures accepted; remember, bulk, restore and the listing pass; expiry read (L-W2). Recall returned `degraded` with candidates dropped; the adapter and the recall merge now handle that (served from the index, flagged), with regression tests (377 tests).
 
 ## Corrections made
 
