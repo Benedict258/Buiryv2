@@ -6,8 +6,8 @@
  *   pnpm dev:api        # http://localhost:8787
  *   pnpm dev:dashboard  # http://localhost:5173 (proxies /v1 to the API)
  */
-import { writeFileSync } from 'node:fs';
-import { pathToFileURL } from 'node:url';
+import { existsSync, writeFileSync } from 'node:fs';
+import { fileURLToPath, pathToFileURL } from 'node:url';
 import {
   AuthService,
   MemoryMailer,
@@ -19,6 +19,8 @@ import { expiryScan, relayerProbe } from '../packages/worker/src/index.js';
 import ids from '../packages/chain/fixtures/_ids.json' with { type: 'json' };
 import { mockWorld } from './lib/world.js';
 import { seedOrbitApi } from './lib/seed.js';
+
+const DEFAULT_DASHBOARD_DIR = fileURLToPath(new URL('../apps/dashboard/dist/', import.meta.url));
 
 /** Gives the sample project a lived-in history: confirmations, reports, a stale deployment and a handoff. */
 async function enrich(
@@ -148,5 +150,10 @@ export async function startDevServer(
 }
 
 if (import.meta.url === pathToFileURL(process.argv[1] ?? '').href) {
-  await startDevServer(process.env.DASHBOARD_DIR ? { dashboardDir: process.env.DASHBOARD_DIR } : {});
+  // Serve the built dashboard by default (no inline env var needed, so this works on Windows shells too).
+  const dashboardDir =
+    process.env.DASHBOARD_DIR ?? (existsSync(DEFAULT_DASHBOARD_DIR) ? DEFAULT_DASHBOARD_DIR : undefined);
+  if (!dashboardDir)
+    console.log('Dashboard not built; run `pnpm --filter @buiry/dashboard build` to serve it at /.');
+  await startDevServer(dashboardDir ? { dashboardDir } : {});
 }

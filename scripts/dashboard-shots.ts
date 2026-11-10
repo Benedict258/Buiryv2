@@ -3,7 +3,7 @@
  * and light themes, plus a phone-width pass. It also fails on console errors and failed API requests.
  *
  *   pnpm --filter @buiry/dashboard build
- *   DASHBOARD_DIR=apps/dashboard/dist pnpm tsx scripts/dev-server.ts     # in another terminal; prints the ids
+ *   pnpm dev:api     # in another terminal; serves apps/dashboard/dist and prints the ids
  *   pnpm tsx scripts/dashboard-shots.ts <session-token> <workspace-id> <project-id> [outDir]
  */
 import { mkdirSync } from 'node:fs';

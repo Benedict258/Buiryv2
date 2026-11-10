@@ -9,14 +9,14 @@
   },
   "scripts": {
     "build": "pnpm -r --filter './packages/*' run build && pnpm --filter @buiry/dashboard build",
-    "typecheck": "tsc -p tsconfig.json --noEmit && pnpm --filter @buiry/dashboard typecheck",
+    "typecheck": "tsc -p tsconfig.json --noEmit && tsc -p apps/dashboard/tsconfig.json --noEmit",
     "lint": "eslint . && prettier --check .",
     "format": "prettier --write .",
     "test": "vitest run",
     "test:cov": "vitest run --coverage",
     "conformance": "tsx scripts/conformance.ts",
     "demo": "tsx scripts/demo/run.ts",
-    "dev:api": "DASHBOARD_DIR=apps/dashboard/dist tsx scripts/dev-server.ts",
+    "dev:api": "tsx scripts/dev-server.ts",
     "dev:dashboard": "pnpm --filter @buiry/dashboard dev",
     "dashboard:shots": "tsx scripts/dashboard-shots.ts"
   },
