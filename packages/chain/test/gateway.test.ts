@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, it } from 'vitest';
 import { status } from '@grpc/grpc-js';
-import { ChainError } from '../src/index.js';
-import { ids, rig } from './helpers.js';
+import { ChainError, createGatewayFromEnv, FIXTURES_DIR, loadFixtures, MockTatum } from '../src/index.js';
+import { ids, KEY, rig } from './helpers.js';
 
 const open: Awaited<ReturnType<typeof rig>>[] = [];
 const make = async (...a: Parameters<typeof rig>) => {
@@ -82,7 +82,7 @@ describe('gateway over real gRPC (MockTatum)', () => {
   });
 
   it('retries code 14 with backoff, then falls back to JSON-RPC on mainnet and records both attempts', async () => {
-    const { gateway, mainnet, records, clock } = await make();
+    const { gateway, mainnet, records, clock } = await make({ jsonrpc: true });
     mainnet.failNext(3, status.UNAVAILABLE, 503); // 3 gRPC attempts fail; JSON-RPC call is the 4th request
     const t0 = clock.t;
     const r = await gateway.getObject(ids.OBJ_REG);
@@ -103,7 +103,7 @@ describe('gateway over real gRPC (MockTatum)', () => {
   });
 
   it('reports degraded after consecutive failures and recovers on success', async () => {
-    const { gateway, mainnet } = await make({ jsonrpc: false });
+    const { gateway, mainnet } = await make();
     mainnet.failNext(100);
     for (let i = 0; i < 2; i++) await gateway.getObject(ids.OBJ_REG).catch(() => {});
     expect(gateway.status().state).toBe('degraded');
@@ -193,7 +193,7 @@ describe('gateway over real gRPC (MockTatum)', () => {
   });
 
   it('serves the JSON-RPC subset when gRPC is not configured, and reports gRPC-only methods as unsupported', async () => {
-    const { gateway } = await make({ grpc: false });
+    const { gateway } = await make({ grpc: false, jsonrpc: true });
     const tx = await gateway.getTransaction(ids.D_PUBLISH);
     expect(tx.prov.transport).toBe('jsonrpc');
     expect(tx.value!.changed.some((c) => c.outputKind === 'package' && c.objectId === ids.PKG_V3)).toBe(true);
@@ -213,5 +213,53 @@ describe('gateway over real gRPC (MockTatum)', () => {
     expect(s.creditsEstimated).toBe(4);
     expect(s.errorRate).toBe(0);
     expect(s.lastSuccessAt).toBeDefined();
+  });
+});
+
+describe('gateway built from env (createGatewayFromEnv)', () => {
+  const started: MockTatum[] = [];
+  afterEach(async () => {
+    while (started.length) await started.pop()!.close();
+  });
+  const start = async () => {
+    const m = await MockTatum.start(
+      { apiKey: KEY },
+      loadFixtures(FIXTURES_DIR).filter((f) => f.network === 'sui:mainnet'),
+    );
+    started.push(m);
+    return m;
+  };
+  const fast = { sleep: async () => {}, requestsPerSecond: 1000 };
+
+  it('is gRPC only when TATUM_JSONRPC_URL is unset: a gRPC outage never reaches JSON-RPC', async () => {
+    const m = await start();
+    const g = createGatewayFromEnv(
+      { TATUM_API_KEY: KEY, TATUM_GRPC_ENDPOINT: `http://${m.grpcEndpoint}` },
+      fast,
+    );
+    expect((await g.getObject(ids.OBJ_REG)).prov.transport).toBe('grpc');
+    m.failNext(10, status.UNAVAILABLE, 503);
+    // a different (uncached) object, so the call must reach a transport
+    await expect(g.getObject(ids.OBJ_CAP)).rejects.toBeInstanceOf(ChainError);
+    expect(m.count('jsonrpc')).toBe(0);
+  });
+
+  it('adds the JSON-RPC backend only when TATUM_JSONRPC_URL is explicitly set', async () => {
+    const m = await start();
+    const g = createGatewayFromEnv(
+      {
+        TATUM_API_KEY: KEY,
+        TATUM_GRPC_ENDPOINT: `http://${m.grpcEndpoint}`,
+        TATUM_JSONRPC_URL: m.jsonrpcUrl,
+      },
+      fast,
+    );
+    m.failNext(3, status.UNAVAILABLE, 503);
+    expect((await g.getObject(ids.OBJ_REG)).prov.transport).toBe('jsonrpc');
+  });
+
+  it('refuses to start without a gRPC endpoint or an API key', () => {
+    expect(() => createGatewayFromEnv({ TATUM_API_KEY: KEY })).toThrow(/TATUM_GRPC_ENDPOINT/);
+    expect(() => createGatewayFromEnv({ TATUM_GRPC_ENDPOINT: 'h:443' })).toThrow(/TATUM_API_KEY/);
   });
 });

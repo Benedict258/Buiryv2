@@ -1,12 +1,5 @@
 import { randomBytes } from 'node:crypto';
-import {
-  FIXTURES_DIR,
-  GrpcBackend,
-  JsonRpcBackend,
-  MockTatum,
-  TatumGateway,
-  loadFixtures,
-} from '@buiry/chain';
+import { FIXTURES_DIR, GrpcBackend, MockTatum, TatumGateway, loadFixtures } from '@buiry/chain';
 import { Ed25519Signer, HttpWalrusAdapter, MockRelayer } from '@buiry/storage';
 import { createStack, createDrain, type Stack } from '../src/index.js';
 import ids from '../../chain/fixtures/_ids.json' with { type: 'json' };
@@ -34,7 +27,6 @@ export async function startGateway(clock: Clock, apiKey = KEY) {
   );
   const mk = (m: MockTatum) => [
     new GrpcBackend({ endpoint: m.grpcEndpoint, apiKey, insecure: true, deadlineMs: 2000 }),
-    new JsonRpcBackend({ url: m.jsonrpcUrl, apiKey }),
   ];
   const gateway = new TatumGateway({
     backends: { 'sui:mainnet': mk(mainnet), 'sui:testnet': mk(testnet) },

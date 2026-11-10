@@ -38,7 +38,8 @@ export async function rig(
     ...(o.grpc === false
       ? []
       : [new GrpcBackend({ endpoint: m.grpcEndpoint, apiKey: key, insecure: true, deadlineMs: 3000 })]),
-    ...(o.jsonrpc === false ? [] : [new JsonRpcBackend({ url: m.jsonrpcUrl, apiKey: key })]),
+    // gRPC only by default, as in production; JSON-RPC is an explicit opt-in (A8).
+    ...(o.jsonrpc === true ? [new JsonRpcBackend({ url: m.jsonrpcUrl, apiKey: key })] : []),
   ];
   const gateway = new TatumGateway({
     backends: { 'sui:mainnet': mk(mainnet), 'sui:testnet': mk(testnet) },

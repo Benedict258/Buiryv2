@@ -66,7 +66,7 @@ export interface Result<T> {
 }
 
 export interface GatewayOptions {
-  /** Ordered per network: first entry is primary (gRPC), later entries are fallbacks (JSON-RPC). */
+  /** Ordered per network: first entry is primary (gRPC); a later JSON-RPC entry is an opt-in fallback (A8). */
   backends: Record<Network, ChainBackend[]>;
   defaultNetwork: Network;
   evm?: Record<string, EvmChainConfig>;
@@ -574,8 +574,9 @@ export function suiNetwork(name: string): Network {
 /**
  * Builds a gateway from TATUM_* variables. Endpoints are never defaulted: they come from Tatum's docs
  * (LOCAL_CHECKS L-T0) so no hostname is invented here.
- *   TATUM_API_KEY, TATUM_NETWORK (mainnet|testnet|devnet), TATUM_GRPC_ENDPOINT (host:port),
- *   TATUM_JSONRPC_URL (mainnet fallback), TATUM_FREE_RPS
+ *   TATUM_API_KEY, TATUM_NETWORK (mainnet|testnet|devnet), TATUM_GRPC_ENDPOINT (host:port), TATUM_FREE_RPS
+ * The gateway is gRPC only. Tatum does not serve Sui JSON-RPC (A8: live 404), so the JSON-RPC backend is
+ * added only when TATUM_JSONRPC_URL is explicitly set. Leave it unset.
  */
 export function createGatewayFromEnv(env: EnvLike, extra: Partial<GatewayOptions> = {}): TatumGateway {
   const apiKey = env.TATUM_API_KEY;
@@ -584,7 +585,7 @@ export function createGatewayFromEnv(env: EnvLike, extra: Partial<GatewayOptions
   const list: ChainBackend[] = [];
   if (env.TATUM_GRPC_ENDPOINT) list.push(new GrpcBackend({ endpoint: env.TATUM_GRPC_ENDPOINT, apiKey }));
   if (env.TATUM_JSONRPC_URL) list.push(new JsonRpcBackend({ url: env.TATUM_JSONRPC_URL, apiKey }));
-  if (list.length === 0) throw new ChainError('config', 'set TATUM_GRPC_ENDPOINT and/or TATUM_JSONRPC_URL');
+  if (list.length === 0) throw new ChainError('config', 'TATUM_GRPC_ENDPOINT is not set');
   return new TatumGateway({
     backends: { [network]: list },
     defaultNetwork: network,

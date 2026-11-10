@@ -119,7 +119,7 @@ describe('package verifier (upgrade detection)', () => {
     ).toMatchObject({ foundOn: ['sui:testnet'] });
   });
   it('is unknown (not fail) when only JSON-RPC is available, since version history is gRPC-only', async () => {
-    const { ctx } = await ctxFor({ grpc: false });
+    const { ctx } = await ctxFor({ grpc: false, jsonrpc: true });
     const out = await verifyEvidence({ kind: 'package', id: ids.PKG_V3, network: 'sui:mainnet' }, ctx);
     expect(out).toMatchObject({ result: 'unknown', degraded: true });
   });
@@ -180,7 +180,7 @@ describe('degradation: an outage never marks anything stale', () => {
     }
   });
   it('an expired cached pass is not reused when gRPC goes down (gRPC only, no stale pass)', async () => {
-    const { ctx, mainnet, clock } = await ctxFor({ jsonrpc: false });
+    const { ctx, mainnet, clock } = await ctxFor();
     const ev = { kind: 'object' as const, id: ids.OBJ_REG, network: 'sui:mainnet' };
     const first = await verifyEvidence(ev, ctx);
     expect(first.result).toBe('pass');
@@ -202,7 +202,7 @@ describe('degradation: an outage never marks anything stale', () => {
     expect(out.detail).toMatch(/budget/);
   });
   it('rate limiting from the gateway -> unknown', async () => {
-    const { ctx, mainnet } = await ctxFor({ jsonrpc: false });
+    const { ctx, mainnet } = await ctxFor();
     mainnet.failNext(1000, status.RESOURCE_EXHAUSTED);
     expect((await verifyEvidence(evidence[0]!, ctx)).degraded).toBe(true);
   });

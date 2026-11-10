@@ -489,7 +489,7 @@ Walrus provides its own Memory MCP server and plugins that instruct agents to pr
 
 ### The gateway module
 
-All chain access goes through one module, `chain/tatum.ts`. No other code holds the Tatum key or imports a chain client. It exposes a small typed interface and records every call.
+All chain access goes through one module, `chain/tatum.ts`, with its transports in `chain/tatum/` (BD5). No other code holds the Tatum key or imports a chain client. It exposes a small typed interface and records every call.
 
 | Method | Purpose | gRPC service |
 | --- | --- | --- |
@@ -503,7 +503,7 @@ All chain access goes through one module, `chain/tatum.ts`. No other code holds 
 | `getBalance(address, coin)` | Gas and storage-token balances for self-hosted relayer monitoring | State |
 | `lookupName`, `reverseLookupName` | Name resolution | Name |
 
-**Transports.** gRPC is primary: TLS on port 443, API key in request metadata, field masks on every read, numbers returned as strings and parsed as big integers. A JSON-RPC client over HTTPS with the key in a header is retained for mainnet. Endpoint configuration: mainnet gRPC, testnet gRPC, devnet gRPC (all at the Tatum gateway) and the mainnet JSON-RPC URL. The caller never chooses a transport; the module does, and records which it used. Whether the hackathon accepts gRPC as the expected "Tatum Sui RPC" is open **\[ASSUME\]**, which is why the JSON-RPC path exists.
+**Transports.** gRPC is primary: TLS on port 443, API key in request metadata, field masks on every read, numbers returned as strings and parsed as big integers. gRPC is also the only transport in the default configuration: Tatum's documented Sui JSON-RPC hosts return 404 and public fullnodes reject Sui JSON-RPC as deprecated (A8, checked live), so there is no working fallback. When gRPC is unavailable, rate limited or over budget, a check returns `unknown` and the gateway reports degraded; it never returns a pass, and an expired cached pass is not reused. A JSON-RPC client over HTTPS (key in a header) remains in code behind an explicit opt-in: it is added after gRPC only when `TATUM_JSONRPC_URL` is set, and that variable stays unset while Tatum does not serve Sui JSON-RPC. Endpoints come from the environment with no defaults (`TATUM_GRPC_ENDPOINT`, `TATUM_NETWORK`); a gateway built from the environment serves one Sui network. The caller never chooses a transport; the module does, and records which it used.
 
 **Error mapping.** Unauthenticated (code 16) is a configuration error and is not retried. Not found (code 5) may mean the node pruned old data, so history older than the node's retention is reported as `unknown`, not `false`. Unavailable (code 14) and timeouts are retried with backoff and trigger the degraded state. Tatum documents Sui in a tier without an uptime guarantee, so degraded mode is expected.
 
@@ -517,7 +517,7 @@ All chain access goes through one module, `chain/tatum.ts`. No other code holds 
 | Not found | Very short negative cache |
 | Names | Longer time-to-live |
 
-Reads for many memories are batched into batch object calls with field masks. A token bucket enforces the plan's request rate (three per second on the free plan) across the whole process, and a per-workspace credit budget prevents one tenant from consuming the shared key. gRPC calls and streamed messages are documented at 2 credits each, with the first request and response free; the JSON-RPC cost is not confirmed **\[ASSUME\]**.
+Reads for many memories are batched into batch object calls with field masks. A token bucket enforces the plan's request rate (three per second on the free plan) across the whole process, and a per-workspace credit budget prevents one tenant from consuming the shared key. gRPC calls and streamed messages are documented at 2 credits each, with the first request and response free; actual credit use has not been measured (A9) **\[ASSUME\]**.
 
 **Streaming.** Checkpoint subscription exists but is not used by default: every message costs credits and Sui checkpoints are frequent. Verification is on demand, scheduled, and at check time. Tatum notifications do not list Sui, so there are no webhooks for Sui.
 
@@ -769,7 +769,7 @@ Prices, limits and providers are open (PRD section 16).
 1. Event sourcing with two tiers (durable and local).
 2. Namespace-per-branch and server-side derivation.
 3. Operator account in managed mode, with a path to bring-your-own and self-hosted.
-4. Single gateway module and gRPC-first with a JSON-RPC fallback.
+4. Single gateway module, gRPC only by default; the JSON-RPC backend is an explicit opt-in (`TATUM_JSONRPC_URL`) because Tatum does not serve Sui JSON-RPC (A8).
 5. Deterministic scoring and conflict candidates instead of automatic semantic contradiction.
 6. Proposed versus confirmed status and anti-gaming limits.
 7. Redaction before write, block for keys and mnemonics.

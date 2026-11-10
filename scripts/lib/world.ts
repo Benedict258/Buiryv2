@@ -3,7 +3,6 @@ import { randomBytes } from 'node:crypto';
 import {
   FIXTURES_DIR,
   GrpcBackend,
-  JsonRpcBackend,
   MockTatum,
   TatumGateway,
   createGatewayIfConfigured,
@@ -78,7 +77,6 @@ export async function mockWorld(o: { realTime?: boolean; budgets?: AdmissionBudg
           insecure: true,
           deadlineMs: 3000,
         }),
-        new JsonRpcBackend({ url: mockTatum.jsonrpcUrl, apiKey: 'mock' }),
       ],
     },
     defaultNetwork: 'sui:mainnet',
