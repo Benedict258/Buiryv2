@@ -30,6 +30,12 @@ Legend: **done** (implemented and tested), **mocked** (tested only against a moc
 
 - Baseline (`pnpm typecheck && pnpm lint && pnpm test`) also passes on Windows. The 0600 check on the credentials file is a conditional assertion inside its test: it is not made on Windows (NTFS has no POSIX modes) and still runs on Linux and macOS.
 
+## Live verification (2026-11-10): signed Walrus calls
+
+- Delegate private key supplied. Signed remember, bulk, job status, restore, stats and the Memory Read listing work against the public relayer (L-W1 partial, L-W2 verified).
+- Retention read live: 15 epochs, about 210 days, filled about 4 minutes after the write.
+- Recall on fresh memories answered `degraded: true` with every candidate dropped. Found only live; fixed so a degraded recall is served from the index and flagged, with regression tests (A23). Whether degraded recall clears is still open, so the live recall assertion in L-W1 still fails.
+
 ## Live verification (2026-10-28)
 
 - Step 0 live docs study: done; results in `docs/ASSUMPTIONS.md` (A4, A8, A13, A14 wrong).
