@@ -142,11 +142,18 @@ describe.each(targets)('WalrusMemoryAdapter contract: $name', (t) => {
     expect(r.degraded).toBeUndefined();
     expect(r.results.map((x) => x.blobId)).toContain(blobId);
     expect(r.results.find((x) => x.blobId === blobId)?.text).toBe(text);
-    const page = await ctx.adapter.list({ namespace: ctx.namespace });
-    const item = page.items.find((x) => x.blobId === blobId);
+    // Live, `end_epoch` and `expires_at` are null for a few minutes after the write (L-W2), so poll for them.
+    const real = t.name.startsWith('REAL');
+    let item: Awaited<ReturnType<typeof ctx.adapter.list>>['items'][number] | undefined;
+    for (let i = 0; i < (real ? 40 : 1); i++) {
+      const page = await ctx.adapter.list({ namespace: ctx.namespace });
+      item = page.items.find((x) => x.blobId === blobId);
+      if (item && (item.expiresAt ?? item.endEpoch) !== undefined) break;
+      if (real) await new Promise((r) => setTimeout(r, 15_000));
+    }
     expect(item).toBeTruthy();
     expect(item?.expiresAt ?? item?.endEpoch).toBeDefined();
-  });
+  }, 900_000);
 
   it('bulk remember returns one job per item', async () => {
     const texts = [1, 2, 3].map(

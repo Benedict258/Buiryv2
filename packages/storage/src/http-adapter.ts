@@ -328,7 +328,7 @@ export class HttpWalrusAdapter implements WalrusMemoryAdapter {
     };
   }
 
-  /** Retries a read once (by default) after a timeout or an unreachable relayer, with backoff. */
+  /** Retries a read (recall, stats, listing) once by default after a timeout or an unreachable relayer, with backoff. */
   private async withReadRetry<T>(fn: () => Promise<T>): Promise<T> {
     const retries = this.o.readRetries ?? 1;
     const base = this.o.readBackoffMs ?? 500;
@@ -369,7 +369,9 @@ export class HttpWalrusAdapter implements WalrusMemoryAdapter {
   /** The Memory Read API is keyed by owner address, which the relayer reports from `POST /api/stats`. */
   private async ownerAddress(): Promise<string> {
     if (this.owner) return this.owner;
-    const { json: j } = await this.call('POST', this.paths.stats, { namespace: 'default' });
+    const { json: j } = await this.withReadRetry(() =>
+      this.call('POST', this.paths.stats, { namespace: 'default' }),
+    );
     if (typeof j.owner !== 'string' || !j.owner)
       throw new RelayerError('unknown', 'relayer stats response missing owner');
     this.owner = j.owner;
@@ -382,7 +384,9 @@ export class HttpWalrusAdapter implements WalrusMemoryAdapter {
     if (opts.cursor) q.set('updated_after', opts.cursor);
     if (opts.limit) q.set('limit', String(opts.limit));
     const qs = q.toString();
-    const { json: j } = await this.call('GET', this.paths.list(owner) + (qs ? `?${qs}` : ''));
+    const { json: j } = await this.withReadRetry(() =>
+      this.call('GET', this.paths.list(owner) + (qs ? `?${qs}` : '')),
+    );
     const inNs = (r: Json): boolean =>
       !opts.namespace || r.namespace_id === opts.namespace || r.namespace === opts.namespace;
     const items = (Array.isArray(j.memories) ? (j.memories as Json[]) : []).filter(inNs).map((r) => {

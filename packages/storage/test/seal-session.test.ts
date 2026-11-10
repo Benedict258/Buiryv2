@@ -204,3 +204,27 @@ describe('recall retries a timeout or unreachable relayer once, with backoff', (
     expect(n).toBe(1);
   });
 });
+
+describe('the signed listing also retries a connect timeout once', () => {
+  it('recovers when the first stats call times out', async () => {
+    let n = 0;
+    const sleeps: number[] = [];
+    const f = (async (url: string) => {
+      n++;
+      if (n === 1)
+        throw Object.assign(new TypeError('fetch failed'), { cause: { code: 'UND_ERR_CONNECT_TIMEOUT' } });
+      if (String(url).endsWith('/api/stats')) return new Response(JSON.stringify({ owner: '0xowner' }));
+      return new Response(JSON.stringify({ memories: [], has_more: false }));
+    }) as unknown as typeof fetch;
+    const adapter = new HttpWalrusAdapter({
+      baseUrl: 'https://relayer.example',
+      accountId: '0xacct',
+      signer: new Ed25519Signer(KEY),
+      fetch: f,
+      sleep: async (ms) => void sleeps.push(ms),
+    });
+    await expect(adapter.list({})).resolves.toMatchObject({ items: [] });
+    expect(sleeps).toEqual([500]);
+    expect(n).toBe(3);
+  });
+});
