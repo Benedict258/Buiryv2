@@ -12,6 +12,8 @@
     "build": "tsup src/index.ts --format esm --dts"
   },
   "dependencies": {
-    "@buiry/core": "workspace:*"
+    "@buiry/core": "workspace:*",
+    "@mysten/seal": "1.5.2",
+    "@mysten/sui": "2.38.0"
   }
 }

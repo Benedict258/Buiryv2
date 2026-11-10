@@ -7,6 +7,27 @@ import { EPOCH_MS, MAX_BULK, type WriteState } from './adapter.js';
 
 const MOCK_OWNER = '0x' + 'a'.repeat(64);
 
+/** Seal package id the mock reports from GET /config. */
+export const MOCK_SEAL_PACKAGE_ID = '0x' + '5e'.repeat(32);
+
+/** True when the header is base64 JSON of an exported Seal SessionKey for the mock package (shape only). */
+function isExportedSealSession(h: string | string[] | undefined): boolean {
+  if (typeof h !== 'string' || !h) return false;
+  try {
+    const j = JSON.parse(Buffer.from(h, 'base64').toString('utf8')) as Record<string, unknown>;
+    return (
+      j.packageId === MOCK_SEAL_PACKAGE_ID &&
+      typeof j.address === 'string' &&
+      typeof j.personalMessageSignature === 'string' &&
+      typeof j.sessionKey === 'string' &&
+      typeof j.creationTimeMs === 'number' &&
+      typeof j.ttlMin === 'number'
+    );
+  } catch {
+    return false;
+  }
+}
+
 export interface MockRelayerOptions {
   now?: () => number;
   /** Polls before a job reports done (>=1). */
@@ -226,6 +247,10 @@ export class MockRelayer {
         deprecations: [],
       });
     }
+    if (method === 'GET' && path === '/config') {
+      // Shape of the live relayer's unsigned /config (fields Buiry reads).
+      return this.send(res, 200, { packageId: MOCK_SEAL_PACKAGE_ID, network: 'mainnet' });
+    }
 
     const isWrite = method === 'POST' && (path === '/api/remember' || path === '/api/remember/bulk');
     if (isWrite) {
@@ -286,7 +311,10 @@ export class MockRelayer {
       const limit = Math.min(100, Math.max(1, Number(json.limit ?? 10)));
       const pool = this.blobs.filter((b) => b.namespace === ns && this.visible(b));
       const q = String(json.query ?? '');
-      if (this.recallDegraded || (this.o.requireSealSession && !req.headers['x-seal-session']))
+      if (
+        this.recallDegraded ||
+        (this.o.requireSealSession && !isExportedSealSession(req.headers['x-seal-session']))
+      )
         return this.send(res, 200, { results: [], total: 0, dropped_count: pool.length, degraded: true });
       const scored = pool.map((b) => ({ b, s: relevance(q, b.text) }));
       scored.sort((a, c) =>

@@ -14,6 +14,7 @@ import {
   type WriteState,
 } from './adapter.js';
 import { canonicalRequest, type Signer } from './signer.js';
+import type { SealSessionSource } from './seal-session.js';
 
 /**
  * Endpoint paths from the relayer api-reference and the SDK source (A14, read 2026-10-28).
@@ -29,6 +30,8 @@ export interface RelayerPaths {
   forget: string;
   health: string;
   version: string;
+  /** Unsigned relayer configuration (Seal `packageId`, `network`). */
+  config: string;
   /** Memory Read API listing for an owner address. */
   list: (owner: string) => string;
 }
@@ -43,6 +46,7 @@ export const DEFAULT_PATHS: RelayerPaths = {
   forget: '/api/forget',
   health: '/health',
   version: '/version',
+  config: '/config',
   list: (owner) => `/v1/owners/${encodeURIComponent(owner)}/memories`,
 };
 
@@ -77,6 +81,16 @@ export interface HttpAdapterOptions {
   timeoutMs?: number;
   /** Relayer API versions this build supports (prefixes, e.g. "1."). Empty = accept any. */
   supportedVersionPrefixes?: string[];
+  /**
+   * Source of the `x-seal-session` header for recall (A23). Without it the relayer drops every recall candidate.
+   * Can also be attached later with `useSealSession`.
+   */
+  sealSession?: SealSessionSource & { scrub?(text: string): string; invalidate?(): void };
+  /** Extra attempts for read calls (recall) after a timeout or an unreachable relayer. Default 1. */
+  readRetries?: number;
+  /** Base delay before a read retry, doubled per attempt. Default 500 ms. */
+  readBackoffMs?: number;
+  sleep?: (ms: number) => Promise<void>;
 }
 
 type Json = Record<string, unknown>;
@@ -99,6 +113,7 @@ export class HttpWalrusAdapter implements WalrusMemoryAdapter {
   private readonly hdr: AuthHeaders;
   private readonly base: string;
   private owner?: string;
+  private seal?: HttpAdapterOptions['sealSession'];
 
   constructor(private readonly o: HttpAdapterOptions) {
     this.f = o.fetch ?? fetch;
@@ -107,6 +122,20 @@ export class HttpWalrusAdapter implements WalrusMemoryAdapter {
     this.paths = o.paths ?? DEFAULT_PATHS;
     this.hdr = o.authHeaders ?? DEFAULT_AUTH_HEADERS;
     this.base = o.baseUrl.replace(/\/+$/, '');
+    this.seal = o.sealSession;
+  }
+
+  /** Attach the Seal session source after construction (it may need this adapter's `relayerConfig`). */
+  useSealSession(source: NonNullable<HttpAdapterOptions['sealSession']>): void {
+    this.seal = source;
+  }
+
+  /** Unsigned `GET /config`: the Seal `packageId` and `network` the relayer decrypts for. */
+  async relayerConfig(): Promise<{ packageId: string; network: string }> {
+    const { json: j } = await this.call('GET', this.paths.config, undefined, false);
+    if (typeof j.packageId !== 'string' || !j.packageId || typeof j.network !== 'string' || !j.network)
+      throw new RelayerError('unknown', 'relayer /config is missing packageId or network');
+    return { packageId: j.packageId, network: j.network };
   }
 
   /** `pathAndQuery` is what gets signed and requested: the relayer verifies against path plus query. */
@@ -116,9 +145,10 @@ export class HttpWalrusAdapter implements WalrusMemoryAdapter {
     body?: Json,
     signed = true,
     okStatuses: number[] = [],
+    extraHeaders: Record<string, string> = {},
   ): Promise<{ json: Json; status: number }> {
     const payload = body === undefined ? '' : JSON.stringify(body);
-    const headers: Record<string, string> = { accept: 'application/json' };
+    const headers: Record<string, string> = { accept: 'application/json', ...extraHeaders };
     if (body !== undefined) headers['content-type'] = 'application/json';
     if (signed) {
       const ts = String(Math.floor(this.now() / 1000));
@@ -148,7 +178,7 @@ export class HttpWalrusAdapter implements WalrusMemoryAdapter {
       const aborted = e instanceof Error && e.name === 'AbortError';
       throw new RelayerError(
         aborted ? 'timeout' : 'unavailable',
-        aborted ? 'relayer timeout' : `relayer unreachable: ${(e as Error).message}`,
+        aborted ? 'relayer timeout' : `relayer unreachable: ${(e as Error).message}${causeCode(e)}`,
       );
     } finally {
       clearTimeout(timer);
@@ -260,13 +290,24 @@ export class HttpWalrusAdapter implements WalrusMemoryAdapter {
 
   async recall(req: RecallRequest): Promise<RecallResponse> {
     const limit = Math.min(100, Math.max(1, req.limit ?? 10));
-    const { json: j } = await this.call('POST', this.paths.recall, {
+    const body = {
       query: req.query,
       namespace: req.namespace,
       limit,
       ...(req.sort ? { sort: req.sort } : {}),
       ...(req.weights && !req.sort ? { scoring_weights: req.weights } : {}),
       ...(req.deadlineMs ? { deadline_ms: req.deadlineMs } : {}),
+    };
+    const j = await this.withReadRetry(async () => {
+      const extra: Record<string, string> = this.seal ? { 'x-seal-session': await this.seal.header() } : {};
+      try {
+        return (await this.call('POST', this.paths.recall, body, true, [], extra)).json;
+      } catch (e) {
+        // Scrub first: invalidating forgets the session value the scrubber matches on.
+        const clean = this.scrubbed(e);
+        if (e instanceof RelayerError && e.kind === 'auth') this.seal?.invalidate?.();
+        throw clean;
+      }
     });
     const arr = Array.isArray(j.results) ? (j.results as Json[]) : [];
     const dropped = typeof j.dropped_count === 'number' ? j.dropped_count : 0;
@@ -285,6 +326,29 @@ export class HttpWalrusAdapter implements WalrusMemoryAdapter {
         };
       }),
     };
+  }
+
+  /** Retries a read once (by default) after a timeout or an unreachable relayer, with backoff. */
+  private async withReadRetry<T>(fn: () => Promise<T>): Promise<T> {
+    const retries = this.o.readRetries ?? 1;
+    const base = this.o.readBackoffMs ?? 500;
+    const sleep = this.o.sleep ?? ((ms: number) => new Promise<void>((r) => setTimeout(r, ms)));
+    for (let attempt = 0; ; attempt++) {
+      try {
+        return await fn();
+      } catch (e) {
+        const transient = e instanceof RelayerError && (e.kind === 'timeout' || e.kind === 'unavailable');
+        if (!transient || attempt >= retries) throw e;
+        await sleep(e.retryAfterMs ?? base * 2 ** attempt);
+      }
+    }
+  }
+
+  /** Rebuilds an error so the Seal session (or key) can never appear in its message. */
+  private scrubbed(e: unknown): unknown {
+    if (!(e instanceof RelayerError) || !this.seal?.scrub) return e;
+    const msg = this.seal.scrub(e.message);
+    return msg === e.message ? e : new RelayerError(e.kind, msg, e.status, e.retryAfterMs);
   }
 
   async restore(namespace: string, limit = 10): Promise<RestoreResult> {
@@ -346,4 +410,10 @@ export class HttpWalrusAdapter implements WalrusMemoryAdapter {
   async forget(namespace: string): Promise<void> {
     await this.call('POST', this.paths.forget, { namespace });
   }
+}
+
+/** Appends the low-level network error code (for example UND_ERR_CONNECT_TIMEOUT) when there is one. */
+function causeCode(e: unknown): string {
+  const code = (e as { cause?: { code?: unknown } })?.cause?.code;
+  return typeof code === 'string' && /^[A-Z0-9_]{2,40}$/.test(code) ? ` (${code})` : '';
 }

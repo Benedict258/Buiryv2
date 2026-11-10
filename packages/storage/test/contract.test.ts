@@ -6,8 +6,10 @@ import {
   HttpWalrusAdapter,
   MockRelayer,
   RelayerError,
+  SealSessionProvider,
   type WalrusMemoryAdapter,
 } from '../src/index.js';
+import { createGatewayIfConfigured, suiNetwork } from '@buiry/chain';
 import { Clock } from './helpers.js';
 
 /**
@@ -32,7 +34,13 @@ const targets: Target[] = [
     name: 'mock relayer',
     make: async () => {
       const clock = new Clock();
-      const mock = await MockRelayer.start({ now: clock.now, verifyAuth: true, jobPolls: 2 });
+      // Like the live relayer, recall decrypts only with a Seal session (A23).
+      const mock = await MockRelayer.start({
+        now: clock.now,
+        verifyAuth: true,
+        jobPolls: 2,
+        requireSealSession: true,
+      });
       const adapter = new HttpWalrusAdapter({
         baseUrl: mock.url,
         accountId: '0xacct',
@@ -40,6 +48,13 @@ const targets: Target[] = [
         now: clock.now,
         supportedVersionPrefixes: ['1.'],
       });
+      adapter.useSealSession(
+        new SealSessionProvider({
+          delegateKey: seed,
+          relayerConfig: () => adapter.relayerConfig(),
+          packageVersion: async () => '1',
+        }),
+      );
       return {
         adapter,
         namespace: 'buiry.v1.prj_contract0001.main',
@@ -58,16 +73,33 @@ if (
 ) {
   targets.push({
     name: 'REAL relayer',
-    make: async () => ({
-      adapter: new HttpWalrusAdapter({
+    make: async () => {
+      const adapter = new HttpWalrusAdapter({
         baseUrl: process.env.BUIRY_CONTRACT_RELAYER_URL!,
         accountId: process.env.WALRUS_ACCOUNT_ID!,
         signer: new Ed25519Signer(process.env.WALRUS_DELEGATE_KEY!),
-      }),
-      namespace: `buiry.v1.prj_contract${Date.now().toString(36)}.main`,
-      settle: () => new Promise((r) => setTimeout(r, 8000)),
-      close: async () => {},
-    }),
+      });
+      // The Seal session's one Sui read goes through the real chain gateway (TATUM_* variables), as in server.ts.
+      const gateway = createGatewayIfConfigured(process.env as Record<string, string>);
+      if (gateway)
+        adapter.useSealSession(
+          new SealSessionProvider({
+            delegateKey: process.env.WALRUS_DELEGATE_KEY!,
+            relayerConfig: () => adapter.relayerConfig(),
+            packageVersion: async (id, network) => {
+              const r = await gateway.getObject(id, { network: suiNetwork(network) });
+              if (!r.value.found) throw new Error('relayer Seal package not found on chain');
+              return String(r.value.object.version);
+            },
+          }),
+        );
+      return {
+        adapter,
+        namespace: `buiry.v1.prj_contract${Date.now().toString(36)}.main`,
+        settle: () => new Promise((r) => setTimeout(r, 8000)),
+        close: async () => gateway?.close(),
+      };
+    },
   });
 }
 
@@ -107,6 +139,7 @@ describe.each(targets)('WalrusMemoryAdapter contract: $name', (t) => {
       query: 'pnpm workspaces monorepo',
       limit: 5,
     });
+    expect(r.degraded).toBeUndefined();
     expect(r.results.map((x) => x.blobId)).toContain(blobId);
     expect(r.results.find((x) => x.blobId === blobId)?.text).toBe(text);
     const page = await ctx.adapter.list({ namespace: ctx.namespace });

@@ -5,6 +5,7 @@ import {
   HttpWalrusAdapter,
   MockRelayer,
   RecallService,
+  SealSessionProvider,
   reconcileExpiry,
   expiryMargin,
   type ExpiryStore,
@@ -360,10 +361,15 @@ describe('A23: recall needs a client-built Seal session (cause confirmed live)',
     expect(r.results.map((x) => x.memoryId)).toEqual(['mem_seal']);
   });
 
-  // Expected to fail until the adapter builds and sends a Seal session on recall. When that lands this test
-  // starts passing, `it.fails` turns red, and it must be changed to `it`.
-  it.fails('returns relayer results when the adapter sends a Seal session (fix pending)', async () => {
+  it('returns relayer results when the adapter sends a Seal session', async () => {
     const { adapter, write } = await rig({ requireSealSession: true });
+    adapter.useSealSession(
+      new SealSessionProvider({
+        delegateKey: '33'.repeat(32),
+        relayerConfig: () => adapter.relayerConfig(),
+        packageVersion: async () => '1',
+      }),
+    );
     await write('mem_seal2', 'Use pnpm workspaces for the monorepo build.');
     const raw = await adapter.recall({ namespace: `buiry.v1.${PROJECT}.main`, query: 'pnpm workspaces' });
     expect(raw.degraded).toBeUndefined();

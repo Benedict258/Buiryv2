@@ -9,3 +9,4 @@ export * from './write-service.js';
 export * from './recall.js';
 export * from './expiry.js';
 export * from './mock-relayer.js';
+export * from './seal-session.js';
