@@ -64,7 +64,7 @@ Technology choices are proposals: TypeScript throughout (one language for the MC
 
 | Topology | Description | Used for |
 | --- | --- | --- |
-| T1. Managed cloud | Buiry-hosted API, workers, database and dashboard; Walrus operator account on the public relayer | Default product; hackathon entry |
+| T1. Managed cloud | Buiry-hosted API, workers, database and dashboard; Walrus operator account on the public relayer | Default product; the prototype |
 | T2. Managed plus own relayer | As T1, with Buiry's own self-hosted relayer pointing at the Mainnet package | Scale, configurable limits and epochs, no dependence on the public relayer's limits |
 | T3. Bring your own account | Workspace links its own Walrus account; Buiry holds a revocable delegate key | Teams that want data ownership |
 | T4. Self-hosted | Customer runs Buiry components and optionally the relayer | Enterprise, control of the trust boundary |
@@ -144,7 +144,7 @@ Agent tokens carry their own permission set that cannot exceed the project's rul
 
 In managed mode, Walrus's documented multi-tenant pattern applies: one account and one delegate key, with a namespace per tenant. Walrus states that a namespace is a data-organisation boundary and not a security boundary, so Buiry's authorisation layer (section 5) is the boundary.
 
-**Rate limits change the architecture.** On the public relayer, an account is limited to 60 weighted requests per minute and 500 per hour, with 30 per minute per delegate key. A remember costs 5 points, so the default limits allow about 12 writes per minute and 100 per hour **per account**, and a managed-mode operator account is shared by every tenant. The weight of a bulk call is not documented **\[ASSUME\]**. The public relayer is therefore a fit for development and the hackathon, and topology T2 (Buiry's own relayer with configured limits) is required before real multi-tenant load. Each account also has a default 1 GB storage quota.
+**Rate limits change the architecture.** On the public relayer, an account is limited to 60 weighted requests per minute and 500 per hour, with 30 per minute per delegate key. A remember costs 5 points, so the default limits allow about 12 writes per minute and 100 per hour **per account**, and a managed-mode operator account is shared by every tenant. The weight of a bulk call is not documented **\[ASSUME\]**. The public relayer is therefore a fit for development and the prototype, and topology T2 (Buiry's own relayer with configured limits) is required before real multi-tenant load. Each account also has a default 1 GB storage quota.
 
 ### Namespaces and branches
 
@@ -640,7 +640,7 @@ Memories live only for the epochs paid for (about two weeks per epoch on Mainnet
 3. Renews before expiry where the blob owner can extend. Blob ownership of relayer-written memories and relayer renewal behaviour are **\[ASSUME\]** unverified; until resolved, the system alerts and exports rather than assuming renewal.
 4. In self-hosted relayer mode, sets the storage epoch count for new writes (the relayer allows a configured value up to a cap).
 5. Marks lapsed memories `expired`, removes them from recall, and keeps their index record with an explanation.
-6. For the hackathon demo, writes the required Mainnet memories late enough to remain valid through judging and verifies their expiry in the interface.
+6. When memories must stay readable until a date the operator chooses (for example a demo), writes them close enough to that date that none lapses first, and verifies their expiry in the interface (`scripts/write-demo-memories.ts --valid-until`).
 
 ### Deletion and forgetting
 
@@ -757,7 +757,7 @@ Prices, limits and providers are open (PRD section 16).
 | A4 | Memory text can be retrieved for enumerated blobs (recall sweeps, restore, or manual client decrypt) | Prototype a rebuild on testnet | Rebuild is best effort; rely on write-time capture |
 | A5 | Permanent deletion covers current memories and is enabled | Ask Walrus; test on testnet | Deletion limited to tombstone and index removal |
 | A6 | Bulk remember weight is documented or measurable | Measure against the limiter | Budget model needs adjusting |
-| A7 | gRPC through Tatum satisfies the hackathon criterion | Ask organisers | Add or emphasise JSON-RPC |
+| A7 | Withdrawn: it concerned an event criterion that no longer applies | n/a | n/a |
 | A8 | Mainnet JSON-RPC at the gateway remains functional | A test call | JSON-RPC fallback unavailable |
 | A9 | JSON-RPC credit cost is comparable to gRPC | Read the pricing page or measure usage | Credit budget model |
 | A10 | zkLogin or equivalent can give Google users a Sui address usable as Walrus owner | Check Sui and Walrus documentation | Google users use managed mode only until linked |

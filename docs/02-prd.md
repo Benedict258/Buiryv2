@@ -224,7 +224,7 @@ The MCP tool set is specified in section 17. Behaviour requirements:
 | ID | Requirement | Priority |
 | --- | --- | --- |
 | FR-V1 | All chain reads, simulations and lookups go through one gateway module that talks to Tatum's Sui gateway with the API key held server-side. | Must |
-| FR-V2 | Transports: gRPC primary; JSON-RPC mainnet path retained. Each call records transport, latency, status and credit estimate. **\[VERIFY\]** which transport the hackathon criterion expects. | Must |
+| FR-V2 | Transports: gRPC only by default; the JSON-RPC backend is used only when explicitly configured, because Tatum does not serve Sui JSON-RPC (A8). Each call records transport, latency, status and credit estimate. | Must |
 | FR-V3 | Evidence-backed deployments: given a transaction digest, Buiry reads the transaction, extracts created and changed packages and objects, and stores them as the deployment memory's evidence. | Must |
 | FR-V4 | Drift detection: memories citing object IDs or packages are re-checked on schedule, on demand and at check time; version or upgrade differences mark them stale and lower confidence. | Must |
 | FR-V5 | Simulation capture: a drafted transaction can be dry-run and a failed result is stored as a failure memory. | Should |
@@ -389,7 +389,7 @@ Facts below come from public documentation read on 2026-10-11 and are inputs to 
 | Topic | What the documentation says | Consequence for the product |
 | --- | --- | --- |
 | Sui endpoints | Mainnet JSON-RPC and gRPC; testnet and devnet gRPC; API key in a header | Gateway supports both on mainnet; testnet through gRPC |
-| Deprecation | Sui has deprecated JSON-RPC in favour of gRPC | gRPC primary. **\[VERIFY\]** hackathon expectation |
+| Deprecation | Sui has deprecated JSON-RPC in favour of gRPC | gRPC only by default (Tatum's Sui JSON-RPC returned 404 live, A8) |
 | Services | Ledger, state, package, name, simulation, execution and checkpoint subscription services | Used by the verification requirements |
 | Tier | Sui is listed in the tier without uptime guarantees | Caching and graceful degradation |
 | Plan | Free plan: 100,000 credits, 3 requests per second, 2 API keys | Verification budget and throttling |
@@ -430,25 +430,14 @@ Usage add-ons: storage and recall volume, verification credits, additional agent
 
 Payment rails: Sui-native payments verified through the gateway, third-party providers, and conventional card or bank processors; provider availability for the operator's country to be confirmed. A unit-economics model (Walrus writes in storage and gas, embeddings, relayer and database, verification credits) must precede pricing.
 
-## 14. Hackathon alignment and submission checklist
+## 14. Prototype acceptance and demo scenario
 
-Buiry's first public entry is the Walrus and Tatum "Total Recall" hackathon. Dates are external facts from the event page: the build window is 20 October to 10 November 2026, submissions close 10 November at 17:00 UTC, judging runs 11 to 16 November and winners are announced 17 November. The event is online and open to solo builders or teams. Existing projects are allowed if the submitted work is new progress during the build window, which is why Buiry is rebuilt from scratch.
+The prototype is working when:
 
-**Tracks.** Smart Agents for Real Life is the natural fit (agents with portable memory that pick up where they left off). Special awards: Best Walrus Memory (deepest learning loop, memories that visibly change the product), Best Tatum AI Builder app, and a mystery bounty.
-
-**Judging.** Walrus and Tatum integration 30%, technical quality 30% (clean code and successful Tatum Sui RPC integration), creativity 20%, presentation 20% (clear docs and a working demo). Bonus for sharing on X or LinkedIn tagging the sponsors.
-
-**Submission checklist**
-
-- [ ] Walrus Memory integrated and writing on Mainnet
-- [ ] At least 10 memories stored on Mainnet, written late enough that none lapses before judging ends (see FR-S5 and the epoch caveat)
-- [ ] Tatum RPC used for onchain data, with the single gateway module and a visible usage panel
-- [ ] Published blog post: what it does, how it uses Tatum and Walrus, how it learned over time
-- [ ] Working demo and public repository
-- [ ] Tatum dashboard account ID and the Walrus Memory agent ID (the delegate key's public key) ready for the form
-- [ ] A demo project whose account object ID can be shown on a Sui explorer, with a live relayer health check
-- [ ] Social post tagging both sponsors
-- [ ] Event Rules page read: team size, eligibility, payout, definition of new work **\[VERIFY\]**
+- Walrus Memory is integrated and a signed write on Mainnet is stored, recalled and its expiry read back.
+- Memories that must stay readable to a chosen date are written so that none lapses before it (see FR-S5 and the epoch caveat).
+- Chain data is read through the single gateway module, with a visible usage panel.
+- The demo below runs against real services, and the storage and verification report shows real blob IDs and expiries.
 
 **Demo narrative.** Two different agents on one repository. Session one hits a trap and records a failure. Session two, in the other tool, is shown that failure first and avoids it. A deployed package is upgraded and the stale memory is flagged and corrected from a transaction digest. The dashboard shows the live memory, confidence changes, the activity log, Mainnet references and the Tatum usage panel.
 
@@ -456,10 +445,10 @@ Buiry's first public entry is the Walrus and Tatum "Total Recall" hackathon. Dat
 
 | Risk | Impact | Mitigation |
 | --- | --- | --- |
-| Stored memories expire (default epoch count is short and renewal behaviour is unclear) | Persistence promise broken; demo memories could lapse around judging | Read expiry via the read interface; alert early; write required hackathon memories late; confirm renewal with Walrus; self-hosted relayer to set epochs |
+| Stored memories expire (default epoch count is short and renewal behaviour is unclear) | Persistence promise broken; demo memories could lapse before the date they are needed | Read expiry via the read interface; alert early; write memories that must cover a chosen date close enough to it; confirm renewal with Walrus; self-hosted relayer to set epochs |
 | Public relayer has no uptime guarantee and per-account limits | Writes fail or throttle | Durable queue; graceful read degradation; budgets; relayer URL in configuration; self-hosting path |
 | Tatum Sui tier has no uptime guarantee; free plan limits | Verification unavailable or throttled | Cache, batch, on-demand checks, per-workspace budget, graceful degradation |
-| gRPC may not satisfy the hackathon's "Tatum Sui RPC" wording | Scoring loss | Support mainnet JSON-RPC alongside gRPC; ask the organisers |
+| Only one Sui transport works (gRPC; Tatum does not serve Sui JSON-RPC) | No fallback during a gRPC outage | Checks report `unknown` and degraded, never a stale pass; the gateway interface allows another provider |
 | Agents do not call memory tools reliably | Briefing not seen | Generated project file, explicit check tool, tool descriptions written for proactive use, client conformance tests |
 | Recall is semantic and capped | Relevant memory missed | Typed index and briefing; sort and limit controls; limit warnings |
 | Memory poisoning or prompt injection through memory | Agents misled | Proposed status; provenance; untrusted-data labelling; redaction; human promotion |
@@ -479,10 +468,10 @@ Buiry's first public entry is the Walrus and Tatum "Total Recall" hackathon. Dat
 | V3 | Has key-based upsert or recall shipped (issue 247)? | Walrus | Structured state design |
 | V4 | May third-party apps use the owner-scoped read interface with delegate-key authentication? | Walrus | FR-S5, FR-S8 |
 | V5 | Which interface returns memory text for enumerated blob IDs, to rebuild Buiry's index? | Walrus | FR-S8 |
-| V6 | Does gRPC through Tatum satisfy the "Tatum Sui RPC" criterion? | Tatum | FR-V2 |
+| V6 | Withdrawn (concerned an event criterion that no longer applies) | n/a | n/a |
 | V7 | Is Sui testnet JSON-RPC retired, and is mainnet JSON-RPC guaranteed? | Tatum | FR-V2 |
 | V8 | Which login methods can own a Walrus account directly (wallet, Google through zkLogin; GitHub and email unlikely)? | Walrus and Sui | FR-A2 |
-| V9 | Hackathon event rules: team size, eligibility, payout, new-work definition | Organisers | Submission |
+| V9 | Withdrawn (concerned event rules that no longer apply) | n/a | n/a |
 | V10 | Payment providers available to the operator; pricing and limits | Product | FR-Z3 |
 | V11 | A mainnet JSON-RPC test call with the Tatum key still succeeds | Builder | FR-V2 |
 | V12 | Does a self-hosted relayer accept the Tatum gateway for its Sui reads (header-based key)? | Walrus and Tatum | Optional infra integration |
@@ -495,16 +484,16 @@ Each item will be recorded with its answer, date and source in the decision log 
 
 | ID | Decision | Rationale |
 | --- | --- | --- |
-| D1 | Rebuild from scratch | The previous build was studied for lessons; its audit showed unreliable foundations, and the hackathon counts only new work in the build window. |
+| D1 | Rebuild from scratch | The previous build was studied for lessons; its audit showed unreliable foundations. |
 | D3 | MCP plus check tool plus generated file for push-back | Server-initiated MCP notifications are not consistently supported across clients; the check tool and the file are dependable. |
 | D5 | Walrus authoritative | Content survives the loss of any Buiry component. Buiry's index is a rebuildable cache. |
 | D7 | Deterministic core, optional visible model use | Predictable, cheap, auditable; no hidden model calls. |
-| D12 | Open core | Developers run client pieces next to their code; a public repository is also a hackathon requirement. |
-| D15 | Memory, not Console | The hackathon requires Memory writes; Console is file storage and may serve pack exports later. |
+| D12 | Open core | Developers run client pieces next to their code. |
+| D15 | Memory, not Console | Buiry needs memory semantics (namespaces, recall); Console is file storage and may serve pack exports later. |
 | D16 | Operator account plus namespaces first | This is Walrus's documented multi-tenant pattern; bring-your-own and self-hosted modes follow for ownership and scale. This revises an earlier recommendation of per-workspace user-owned accounts. |
-| D18 | gRPC primary, JSON-RPC retained on mainnet | Sui deprecated JSON-RPC; earlier hackathon material used JSON-RPC endpoints. |
+| D18 | gRPC only by default; JSON-RPC backend kept behind an explicit opt-in | Sui deprecated JSON-RPC, and Tatum's documented Sui JSON-RPC hosts returned 404 when checked live (A8). |
 | D19 | Sui verification by reads, not notifications | Tatum's notification chain list does not include Sui. |
-| D20 | Write required demo memories late and watch expiry | Default epoch counts are short and renewal is unconfirmed. |
+| D20 | Write memories that must cover a chosen date close enough to it, and watch expiry | Default epoch counts are short and renewal is unconfirmed. |
 
 ### MCP tool catalog
 

@@ -122,7 +122,7 @@ The main goal of Buiry is that a project's memory follows the project across too
 
 Many project facts that coding agents rely on are claims about something external and checkable: that a package exists on a network, that an object has a certain version, that a transaction succeeded, that a wallet can pay for gas. Buiry treats these as verifiable.
 
-All chain reads and simulations pass through one gateway module that talks to Tatum's Sui infrastructure. Tatum documents both a JSON-RPC gateway and a gRPC gateway for Sui mainnet, and gRPC gateways for testnet and devnet; Sui has deprecated JSON-RPC in favour of gRPC. Buiry uses gRPC as the primary transport and keeps a JSON-RPC path on mainnet. The gateway records the transport, latency and credit cost of every call, and the dashboard shows them.
+All chain reads and simulations pass through one gateway module that talks to Tatum's Sui infrastructure. Tatum documents both a JSON-RPC gateway and a gRPC gateway for Sui mainnet, and gRPC gateways for testnet and devnet; Sui has deprecated JSON-RPC in favour of gRPC. In practice the documented Sui JSON-RPC hosts returned 404 when checked, so Buiry reads the chain over gRPC only; a JSON-RPC path stays in code behind an explicit setting. The gateway records the transport, latency and credit cost of every call, and the dashboard shows them.
 
 | Use | What Buiry does | Tatum capability used |
 | --- | --- | --- |
@@ -211,7 +211,7 @@ A product that promises lasting memory has to be precise about what lasts.
 
 ## 12. Platform, openness and ecosystem
 
-**Open core.** The client-side pieces are open source under a permissive licence: the command-line tool and local component, the MCP server, the memory schema and the scoring rules. The hosted platform adds the managed relayer account, the dashboard, teams and roles, alerts and integrations, replay, billing and support. A public repository is also a requirement of the hackathon in which Buiry is first entered.
+**Open core.** The client-side pieces are open source under a permissive licence: the command-line tool and local component, the MCP server, the memory schema and the scoring rules. The hosted platform adds the managed relayer account, the dashboard, teams and roles, alerts and integrations, replay, billing and support.
 
 **Integrations.** Alerts and flagged items go first to the dashboard, and optionally to webhooks (Slack, Discord and generic endpoints). A REST API lets other platforms read project state, post events and receive alerts. Agents connect over MCP; tools without MCP use the API and generated files.
 
@@ -265,12 +265,10 @@ These are stated openly because several design choices depend on them.
 | 2 | Does the permanent-deletion API cover current memories and is it enabled on the public relayer? | Decides the deletion story | Walrus |
 | 3 | Has key-based upsert or recall shipped, as a maintainer indicated on issue 247? | Could simplify structured state | Walrus |
 | 4 | May third-party applications use the owner-scoped memory read interface with delegate-key authentication? | Enumeration and expiry monitoring | Walrus |
-| 5 | Does gRPC through Tatum's gateway satisfy the hackathon's "Tatum Sui RPC" criterion? | Scoring | Tatum community channel |
-| 6 | Is Sui testnet JSON-RPC retired, and is mainnet JSON-RPC guaranteed to remain? | Transport design | Tatum |
-| 7 | How is Buiry's index rebuilt from Walrus alone: which interface returns memory text for a list of blob identifiers? | The claim that Buiry's state is rebuildable | Walrus |
-| 8 | Hackathon rules: team size, eligibility, payout, and what counts as new work | Submission | Event rules page |
-| 9 | Pricing, limits and payment rails | Monetisation | Product decision |
-| 10 | Which login methods can own a Walrus account directly (wallet and Google via zkLogin are plausible; GitHub and email probably need a Buiry-managed identity) | Onboarding design | Walrus and Sui documentation |
+| 5 | Will Tatum serve Sui JSON-RPC again? Its documented hosts returned 404 when checked, so chain reads run over gRPC only | Whether a second transport exists | Tatum |
+| 6 | How is Buiry's index rebuilt from Walrus alone: which interface returns memory text for a list of blob identifiers? | The claim that Buiry's state is rebuildable | Walrus |
+| 7 | Pricing, limits and payment rails | Monetisation | Product decision |
+| 8 | Which login methods can own a Walrus account directly (wallet and Google via zkLogin are plausible; GitHub and email probably need a Buiry-managed identity) | Onboarding design | Walrus and Sui documentation |
 
 **Known limitations.**
 
@@ -324,4 +322,3 @@ Phases are ordered by dependency, not by date.
 - [Tatum Sui RPC](https://docs.tatum.io/reference/rpc-sui)
 - [Tatum Sui gRPC migration](https://docs.tatum.io/docs/sui-migration-guide-from-json-rpc-to-grpc)
 - [Tatum notification chains](https://docs.tatum.io/reference/notifications-supported-chains)
-- [Total Recall hackathon](https://tatum.io/hackathon/total-recall)
