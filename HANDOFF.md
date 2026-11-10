@@ -94,7 +94,7 @@ Everything in section 3.
 
 ### Not verified
 
-- Signed Walrus recall on fresh memories: the relayer answers `degraded: true` with every candidate dropped (A23); whether and when it clears is open. Bulk rate limits and weight (A6) and operator renewal (A1) are also open.
+- Recall from Buiry: every candidate is dropped because the adapter sends no Seal session (`x-seal-session`); confirmed against the official SDK, which recalls the same memories with a session (A23). Building the session (needs `@mysten/seal` and a Sui client inside `packages/storage`) is the next code change. Bulk rate limits and weight (A6) and operator renewal (A1) are also open.
 - The live demo (L-D1). Also needs an upgraded Mainnet package and its publish/upgrade digest.
 - OAuth sign-in with real apps (L-A1, A21).
 - Cursor config; OpenCode and Codex behaviour (need a model login).
@@ -211,7 +211,7 @@ Plan: keep it, do not expand it, decide after the prototype works. To decide, re
 
 ## 10. Prioritised next steps (each with an acceptance check)
 
-1. Finish L-W1: re-run the REAL contract suite until recall returns the stored memory, or establish why the relayer drops fresh candidates (A23). Signed remember, bulk, restore and the listing already pass; L-W2 (expiry) is verified: 15 epochs, about 210 days, filled about 4 minutes after the write.
+1. Finish L-W1: build and send a Seal `SessionKey` (`x-seal-session`) on recall in `packages/storage` (as the official SDK does), flip the `it.fails` test in `recall.test.ts` to `it`, turn on `requireSealSession` in the mock by default, then re-run the REAL contract suite. L-W2 (expiry) is verified: 15 epochs, about 210 days, filled about 4 minutes after the write. Do not run L-D1 until recall works.
 2. Run the live demo (L-D1). Accept when agent B is shown agent A's failure first, the package upgrade marks the deployment stale, the corrected memory is created from the digest, and the evidence report shows real blob ids and expiries.
 3. Done: hackathon framing stripped (section 8); CLAUDE.md rule 4 kept.
 4. Retention and renewal story for Walrus expiry. Accept when a memory near expiry can be exported or rewritten, and the dashboard says exactly what will happen.

@@ -34,7 +34,7 @@ Legend: **done** (implemented and tested), **mocked** (tested only against a moc
 
 - Delegate private key supplied. Signed remember, bulk, job status, restore, stats and the Memory Read listing work against the public relayer (L-W1 partial, L-W2 verified).
 - Retention read live: 15 epochs, about 210 days, filled about 4 minutes after the write.
-- Recall on fresh memories answered `degraded: true` with every candidate dropped. Found only live; fixed so a degraded recall is served from the index and flagged, with regression tests (A23). Whether degraded recall clears is still open, so the live recall assertion in L-W1 still fails.
+- Recall answered `degraded: true` with every candidate dropped. Cause confirmed by A/B against the official SDK: recall needs a client-built Seal session (`x-seal-session`), which the adapter does not send (A23). Degraded recall is served from the index and flagged; the mock can now require a session (`requireSealSession`), and an `it.fails` test marks the pending adapter change. Live recall in L-W1 fails until then.
 
 ## Live verification (2026-10-28)
 
