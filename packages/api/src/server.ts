@@ -4,8 +4,13 @@ import { createServer, type Server } from 'node:http';
 import { extname, join, normalize, resolve } from 'node:path';
 import { getRequestListener } from '@hono/node-server';
 import { createMcpHandler } from '@buiry/mcp';
-import { createGatewayIfConfigured } from '@buiry/chain';
-import { Ed25519Signer, HttpWalrusAdapter, type WalrusMemoryAdapter } from '@buiry/storage';
+import { createGatewayIfConfigured, suiNetwork } from '@buiry/chain';
+import {
+  Ed25519Signer,
+  HttpWalrusAdapter,
+  SealSessionProvider,
+  type WalrusMemoryAdapter,
+} from '@buiry/storage';
 import { MemoryMailer, type Mailer } from './auth/auth-service.js';
 import { GitHubOAuth, GoogleOAuth, type OAuthProvider } from './auth/oauth.js';
 import { SuiPersonalMessageVerifier } from './auth/wallet.js';
@@ -56,17 +61,37 @@ export async function buildRuntime(env: Env = process.env): Promise<Runtime> {
     random: (n) => new Uint8Array(randomBytes(n)),
     secretKey: secretKey.length >= 32 ? secretKey : randomBytes(32).toString('hex'),
   };
+  const gateway = createGatewayIfConfigured(env, { sink: tatumCallSink(deps) });
+  if (gateway) deps.gateway = gateway;
   let adapter: WalrusMemoryAdapter | undefined;
   if (env.WALRUS_RELAYER_URL && env.WALRUS_DELEGATE_KEY && env.WALRUS_ACCOUNT_ID) {
-    adapter = new HttpWalrusAdapter({
+    const http = new HttpWalrusAdapter({
       baseUrl: env.WALRUS_RELAYER_URL,
       accountId: env.WALRUS_ACCOUNT_ID,
       signer: new Ed25519Signer(env.WALRUS_DELEGATE_KEY),
     });
+    // Recall needs a Seal session (A23). Its one Sui read (the relayer package must be version 1) goes through the
+    // chain gateway; without a gateway, recall is served from Buiry's index and flagged as cached.
+    if (gateway) {
+      http.useSealSession(
+        new SealSessionProvider({
+          delegateKey: env.WALRUS_DELEGATE_KEY,
+          relayerConfig: () => http.relayerConfig(),
+          packageVersion: async (objectId, network) => {
+            const r = await gateway.getObject(objectId, { network: suiNetwork(network) });
+            if (!r.value.found) throw new Error('relayer Seal package not found on chain');
+            return String(r.value.object.version);
+          },
+        }),
+      );
+    } else {
+      console.warn(
+        '[buiry] no Tatum gateway configured: Walrus recall cannot build a Seal session and will be served from the index',
+      );
+    }
+    adapter = http;
     deps.adapter = adapter;
   }
-  const gateway = createGatewayIfConfigured(env, { sink: tatumCallSink(deps) });
-  if (gateway) deps.gateway = gateway;
   return {
     deps,
     ...(adapter ? { adapter } : {}),
