@@ -68,4 +68,4 @@ The same report is available at `GET /v1/projects/:id/evidence-report` and from 
 
 ## Licensing
 
-`packages/core`, `packages/mcp` and `packages/cli` are Apache-2.0 (see `LICENSE` and `NOTICE`). Everything else is proprietary; see the notice in each package.
+Licensing is per package (see the root `LICENSE` notice and `NOTICE`). `packages/core`, `packages/mcp` and `packages/cli` are Apache-2.0; everything else is proprietary. Each package's own `LICENSE` file applies.
