@@ -18,6 +18,11 @@ export interface MockRelayerOptions {
   rateLimits?: boolean;
   bulkWeightPerItem?: number;
   verifyAuth?: boolean;
+  /**
+   * Live behaviour (A23): recall decrypts only with a client-built Seal session (`x-seal-session`); without one
+   * every candidate is dropped (HTTP 200, `degraded: true`). Off by default until the adapter sends a session.
+   */
+  requireSealSession?: boolean;
   version?: string;
   /** When set, the blob is stored when the write is accepted (done after this delay) instead of on first poll. */
   autoCompleteMs?: number;
@@ -76,6 +81,7 @@ export class MockRelayer {
       rateLimits: o.rateLimits ?? false,
       bulkWeightPerItem: o.bulkWeightPerItem ?? 5,
       verifyAuth: o.verifyAuth ?? false,
+      requireSealSession: o.requireSealSession ?? false,
       version: o.version ?? '1.0.0',
       autoCompleteMs: o.autoCompleteMs ?? -1,
     };
@@ -280,7 +286,7 @@ export class MockRelayer {
       const limit = Math.min(100, Math.max(1, Number(json.limit ?? 10)));
       const pool = this.blobs.filter((b) => b.namespace === ns && this.visible(b));
       const q = String(json.query ?? '');
-      if (this.recallDegraded)
+      if (this.recallDegraded || (this.o.requireSealSession && !req.headers['x-seal-session']))
         return this.send(res, 200, { results: [], total: 0, dropped_count: pool.length, degraded: true });
       const scored = pool.map((b) => ({ b, s: relevance(q, b.text) }));
       scored.sort((a, c) =>

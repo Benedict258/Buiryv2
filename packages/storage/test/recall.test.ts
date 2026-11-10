@@ -341,3 +341,32 @@ describe('degraded relayer recall', () => {
     expect(r.results.map((x) => x.memoryId)).toEqual(['mem_dg']);
   });
 });
+
+describe('A23: recall needs a client-built Seal session (cause confirmed live)', () => {
+  // Live 2026-11-10: same account, delegate and namespace. Without `x-seal-session` the relayer dropped every
+  // candidate (`degraded: true`, `dropped_count: 4`); the official SDK, which sends one, got all 4 with text.
+  it('reproduces the live failure: without a session every candidate is dropped and recall is served from the index', async () => {
+    const { svc, write, clock, adapter } = await rig({ requireSealSession: true });
+    await write('mem_seal', 'Use pnpm workspaces for the monorepo build.');
+    const raw = await adapter.recall({ namespace: `buiry.v1.${PROJECT}.main`, query: 'pnpm workspaces' });
+    expect(raw).toMatchObject({ results: [], degraded: true, dropped: 1 });
+    const r = await svc.recall({
+      projectId: PROJECT,
+      branch: 'main',
+      query: 'pnpm workspaces',
+      now: clock.now(),
+    });
+    expect(r.servedFromCache).toBe(true);
+    expect(r.results.map((x) => x.memoryId)).toEqual(['mem_seal']);
+  });
+
+  // Expected to fail until the adapter builds and sends a Seal session on recall. When that lands this test
+  // starts passing, `it.fails` turns red, and it must be changed to `it`.
+  it.fails('returns relayer results when the adapter sends a Seal session (fix pending)', async () => {
+    const { adapter, write } = await rig({ requireSealSession: true });
+    await write('mem_seal2', 'Use pnpm workspaces for the monorepo build.');
+    const raw = await adapter.recall({ namespace: `buiry.v1.${PROJECT}.main`, query: 'pnpm workspaces' });
+    expect(raw.degraded).toBeUndefined();
+    expect(raw.results).toHaveLength(1);
+  });
+});
