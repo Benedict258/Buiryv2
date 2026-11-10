@@ -27,7 +27,7 @@ Run on 2026-10-28 from a Windows machine with network access. Secrets come from 
 | L-U2                                                | partial; one bug found and fixed | Real server (real Postgres, real Tatum gRPC) in Chrome. Before the fix, the emailed link ended at `/signin?next=...` with no session. After the fix: the link signs in and lands in the workspace; cookie `buiry_session` is httpOnly and SameSite=Lax; no bearer token in localStorage; the session survives a reload; a cross-origin POST carrying the cookie -> 403; a same-origin POST -> 201. The one remaining console error is the expected 401 from the signed-out `/v1/auth/me` bootstrap probe. Wallet sign-in in the browser is not possible (connector not bundled). |
 | L-U3                                                | partial                          | Public showcase in a fresh browser context: renders without a session, no agent names, counts and confirmed memories shown; after the owner switches it off, `GET /v1/public/showcase/:id` -> 404 and the page says "Nothing is shared here" (it also shows a raw error line and a Retry button). Invitations tab lists the pending invite with Revoke. Creating an invitation and accepting `/invite/<token>` as another account were not exercised.                                                                                                                            |
 
-## L-D1. Read the live docs (Step 0)
+## L-S0. Read the live docs (Step 0; done, see `docs/ASSUMPTIONS.md`)
 
 Open the pages listed in `docs/ASSUMPTIONS.md` and paste back, for each of A1-A6, A13-A15: the sentence(s) that answer it, with URL.
 Expected: answers or "not documented". Paste back: quoted text + URLs.
