@@ -72,10 +72,10 @@ Root `LICENSE` is now a short per-package notice (Apache-2.0 for core, mcp, cli;
 
 ### Gate (Windows, Node 24.16, pnpm 10.28.0 via corepack)
 
-- At `ef146be` (start of the audit): install ok; typecheck ok except that the old script's nested `pnpm` call failed when pnpm was not on PATH; lint ok; 33 files, 372 tests passed.
+- At `c182a34` (start of the audit; `ef146be` before the author rewrite): install ok; typecheck ok except that the old script's nested `pnpm` call failed when pnpm was not on PATH; lint ok; 33 files, 372 tests passed.
 - After the follow-up commits: typecheck (now plain `tsc` for the dashboard, no nested pnpm), lint and test pass before every commit; 33 files, 375 tests (three new env-wiring tests for the chain gateway).
 - `pnpm dev:api` was started from a Windows shell: `/v1/healthz` returned 200 and the built dashboard was served at `/`.
-- The "344 on the cloud copy at `0464026`" figure is unverified. The remote branch at `0464026` (`ccr-e0e1030c-5n01et`) was an ancestor of `main` and has been deleted.
+- The "344 on the cloud copy" figure is unverified. The remote branch at `d7d2f7f` (then `0464026`) (`ccr-e0e1030c-5n01et`) was an ancestor of `main` and has been deleted.
 - Not run: `pnpm test:cov`, `pnpm conformance`, `pnpm demo`.
 
 ### Built and tested on mocks
@@ -131,7 +131,7 @@ Everything in section 3.
 5. **Rotate keys that were pasted into chat:** the Tatum API key now, the Walrus delegate once checks are done. (No key value was found in tracked files or git history in this session.)
 6. **Tatum decision** (section 9).
 7. **Legal re-read of the root `LICENSE` notice** before anything is published.
-8. **Rewrite of the 15 AI-authored commits** (section 7): a plan, then the owner's approval before any force-push.
+8. **Backup tag:** delete the local tag `backup-before-author-rewrite` once the rewritten history is confirmed (section 7).
 9. Anything in `LOCAL_CHECKS.md` that still reads blocked, partial, not run or needs you.
 
 ## 6. Setup and commands
@@ -166,7 +166,7 @@ Read by the code (from a grep of `packages`, `scripts`, `apps`):
 
 ## 7. Rules and lessons
 
-- No AI attribution in commits, PRs or files. Small, focused commits. No attribution lines appear in commit messages, but the 15 commits from `68699b4` to `0464026` have `Claude <noreply@anthropic.com>` as author. The owner chose not to rewrite now; a rewrite plan comes later and needs the owner's approval before any force-push. New commits use the repo-local identity `ISAAC BENEDICT`.
+- No AI attribution in commits, PRs or files. Small, focused commits. No commit names an AI as author or committer. The 15 commits from `519db4d` to `d7d2f7f` were originally authored and committed as an AI identity; with the owner's approval their author and committer were rewritten to `ISAAC BENEDICT`, with trees, messages and dates unchanged, and `main` was force-pushed with a lease. Every hash from `519db4d` on changed, so old hashes in chat logs or notes no longer resolve. The pre-rewrite history is kept only in the local tag `backup-before-author-rewrite`, which was not pushed. Commits use the repo-local identity `ISAAC BENEDICT`.
 - Never commit secrets. Gitleaks runs in CI (`.github/workflows/ci.yml`). Scan staged diffs and the commit range before any push. Never echo key values into logs, docs or commit messages.
 - Do not invent facts about Walrus or Tatum. Unconfirmed things go behind an interface, get mocked, and are logged in `docs/ASSUMPTIONS.md` with source, how to verify, and what changes if false.
 - Never fake a live result. Every real-network check is recorded in `LOCAL_CHECKS.md` with the exact command and what to paste back.
@@ -238,12 +238,14 @@ Then open `LOCAL_CHECKS.md` for the next live check.
 - Root `LICENSE` replaced with a per-package notice (needs a legal re-read).
 - Hackathon framing removed from README, PROGRESS, LOCAL_CHECKS, ASSUMPTIONS, whitepaper, PRD, architecture, CLAUDE.md build order, the evidence report comments and the CLI test; `buiry evidence` is the storage and verification report.
 - Remote branch `ccr-e0e1030c-5n01et` deleted after confirming it was an ancestor of `main`.
+- History rewrite (approved): author and committer of the 15 AI-identity commits set to `ISAAC BENEDICT`; trees, messages and dates verified identical; force-pushed with lease. Local backup tag `backup-before-author-rewrite`.
+- Checked: `packages/core`, `packages/mcp` and `packages/cli` each still have the Apache-2.0 `LICENSE` file (identical in all three), `"license": "Apache-2.0"` in `package.json`, and an `SPDX-License-Identifier: Apache-2.0` header in every `src/*.ts` file (26 files).
 - No signed Walrus call has been made; that waits for the delegate private key in `.env`.
 
 ## Corrections made
 
 - HANDOFF.md did not exist on disk or in git history; created from the pasted draft.
-- Gate: replaced the reported counts with this session's run (33 files, 372 tests passing); noted that `pnpm typecheck` needs `pnpm` on PATH; marked the 344 cloud figure unverified and identified `0464026` as `origin/ccr-e0e1030c-5n01et`.
+- Gate: replaced the reported counts with this session's run (33 files, 372 tests passing); noted that `pnpm typecheck` needs `pnpm` on PATH; marked the 344 cloud figure unverified and identified the commit now at `d7d2f7f` as `origin/ccr-e0e1030c-5n01et`.
 - Licences: `storage`, `chain`, `api`, `worker`, `dashboard` are `UNLICENSED`; added that the root `LICENSE` is MIT (BD1), which the draft omitted.
 - Worker: added the `webhooks` delivery job (seven jobs, not six) and that the server entry lives in `packages/worker`.
 - Routes: "about 90" is exactly 90 by count (74 plus 16 agent operations); PROGRESS says "about 85".
