@@ -20,7 +20,7 @@ Buiry is a portable, verifiable project-memory layer for AI coding agents (MCP i
 
 ## Build order
 
-0. Study live docs, update ASSUMPTIONS. 1. `core` (pure, no I/O). 2. `storage`. 3. `chain`. 4. `mcp` + BUIRY.md. 5. `api` + `worker` + database. 6. `cli`. 7. `apps/dashboard`. Then demo, evidence and submission support.
+0. Study live docs, update ASSUMPTIONS. 1. `core` (pure, no I/O). 2. `storage`. 3. `chain`. 4. `mcp` + BUIRY.md. 5. `api` + `worker` + database. 6. `cli`. 7. `apps/dashboard`. Then the demo and the storage and verification report (`buiry evidence`).
 
 ## Working loop
 

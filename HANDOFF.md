@@ -42,7 +42,7 @@ pnpm monorepo, TypeScript (strict, ESM), Node 20 or newer (`engines`). CI runs N
 | `apps/dashboard`   | Vite + React + TypeScript SPA built from the UI spec                                                                                                                                                                                                                                                     | proprietary (`UNLICENSED`) |
 | `scripts`          | conformance (30 checks), demo (mock and `--live`), write-demo-memories, dev-server, dashboard-shots, chain-smoke, db-smoke                                                                                                                                                                               | proprietary                |
 
-Root `LICENSE` is MIT (pre-existing, left untouched per BD1). This conflicts with the per-package split in CLAUDE.md rule 5 and `NOTICE`. Owner decision.
+Root `LICENSE` is now a short per-package notice (Apache-2.0 for core, mcp, cli; proprietary for everything else), replacing the earlier MIT text by the owner's decision (BD1). It has not had a legal review; the owner, or ideally a lawyer, should re-read it before anything is published.
 
 ### Confinement rules (enforced by ESLint `no-restricted-imports` and `packages/chain/test/confinement.test.ts`)
 
@@ -70,13 +70,13 @@ Root `LICENSE` is MIT (pre-existing, left untouched per BD1). This conflicts wit
 
 ## 4. State of the build
 
-### Gate (run in this session on `ef146be`, Windows, Node 24.16, pnpm 10.28.0 via corepack)
+### Gate (Windows, Node 24.16, pnpm 10.28.0 via corepack)
 
-- `pnpm install`: ok, lockfile up to date, working tree unchanged.
-- `pnpm typecheck`: root `tsc` passed; the script then calls `pnpm --filter @buiry/dashboard typecheck`, which failed only because `pnpm` was not on PATH (corepack shim not enabled). Run separately, the dashboard typecheck passed. So typecheck passes when `pnpm` is on PATH.
-- `pnpm lint`: passed (ESLint and Prettier).
-- `pnpm test`: 33 files, 372 tests, all passed. Matches the previous networked-machine count at `ef146be`. The "344 on the cloud copy at `0464026`" figure is unverified; `0464026` is where `origin/ccr-e0e1030c-5n01et` points, 11 commits behind `main`.
-- Not run this session: `pnpm test:cov`, `pnpm conformance`, `pnpm demo`, dashboard build.
+- At `ef146be` (start of the audit): install ok; typecheck ok except that the old script's nested `pnpm` call failed when pnpm was not on PATH; lint ok; 33 files, 372 tests passed.
+- After the follow-up commits: typecheck (now plain `tsc` for the dashboard, no nested pnpm), lint and test pass before every commit; 33 files, 375 tests (three new env-wiring tests for the chain gateway).
+- `pnpm dev:api` was started from a Windows shell: `/v1/healthz` returned 200 and the built dashboard was served at `/`.
+- The "344 on the cloud copy at `0464026`" figure is unverified. The remote branch at `0464026` (`ccr-e0e1030c-5n01et`) was an ancestor of `main` and has been deleted.
+- Not run: `pnpm test:cov`, `pnpm conformance`, `pnpm demo`.
 
 ### Built and tested on mocks
 
@@ -130,17 +130,18 @@ Everything in section 3.
 4. **OAuth apps** for GitHub and Google, if wanted.
 5. **Rotate keys that were pasted into chat:** the Tatum API key now, the Walrus delegate once checks are done. (No key value was found in tracked files or git history in this session.)
 6. **Tatum decision** (section 9).
-7. **Root licence** (MIT vs the Apache/proprietary split).
-8. Anything in `LOCAL_CHECKS.md` that still reads blocked, partial, not run or needs you.
+7. **Legal re-read of the root `LICENSE` notice** before anything is published.
+8. **Rewrite of the 15 AI-authored commits** (section 7): a plan, then the owner's approval before any force-push.
+9. Anything in `LOCAL_CHECKS.md` that still reads blocked, partial, not run or needs you.
 
 ## 6. Setup and commands
 
-Requires Node 20 or newer and pnpm 10.28.0 (`packageManager`). On Windows, `npm i -g pnpm@10.28.0` if corepack needs admin rights. `corepack pnpm <cmd>` works without enabling shims, but `pnpm typecheck` and `pnpm build` call `pnpm` internally, so `pnpm` must be on PATH.
+Requires Node 20 or newer and pnpm 10.28.0 (`packageManager`). On Windows, `npm i -g pnpm@10.28.0` if corepack needs admin rights. `corepack pnpm <cmd>` works without enabling shims. `pnpm typecheck` no longer calls pnpm internally; `pnpm build` and `pnpm dev:dashboard` still do, so those need `pnpm` on PATH.
 
 - `pnpm install`
 - `pnpm typecheck && pnpm lint && pnpm test`
 - `pnpm test:cov`, `pnpm conformance`, `pnpm demo` (mocks), `pnpm demo --live`
-- Dashboard on mocks: `pnpm --filter @buiry/dashboard build`, then `pnpm dev:api`. It prints a workspace id, a project id and a session token. Note: the `dev:api` script is `DASHBOARD_DIR=apps/dashboard/dist tsx scripts/dev-server.ts`, an inline variable that Windows shells do not support; on Windows set `DASHBOARD_DIR` first and run `pnpm tsx scripts/dev-server.ts` (unverified; not run this session).
+- Dashboard on mocks: `pnpm --filter @buiry/dashboard build`, then `pnpm dev:api`. It prints a workspace id, a project id and a session token. The dev server serves `apps/dashboard/dist` by default when it is built (`DASHBOARD_DIR` overrides), so it works the same on Windows shells.
 - Server: `pnpm tsx packages/worker/src/bin.ts` (REST on `/v1`, MCP on `/mcp`).
 - CLI from source: `pnpm tsx packages/cli/src/bin.ts <command>`.
 - Screenshot pass: `pnpm dashboard:shots <token> <workspace-id> <project-id>` (`CHROMIUM_PATH` overrides the browser).
@@ -173,19 +174,18 @@ Read by the code (from a grep of `packages`, `scripts`, `apps`):
 - Do not chain `lint` after `commit` with `;`; gate first, then commit.
 - After each step: typecheck, lint, test, commit, update PROGRESS.md and LOCAL_CHECKS.md.
 - Keep chat output concise; detail belongs in docs.
-- CLAUDE.md rule 4 (no timelines or schedules in files) and the "run the late write close to the deadline" step (LOCAL_CHECKS L-D2, architecture section 14 item 6) came from the hackathon. Re-decide them (section 8). PRD section 14 already contains event dates, which rule 4 forbids.
+- CLAUDE.md rule 4 (no timelines or schedules in files) stays, by the owner's decision. The event dates in the PRD and the "close to the deadline" wording (L-D2, architecture section 14) were removed; L-D2 now says to run it when storage leases need to cover a date you choose. Dates that record when a check ran are records, not schedules, and stay.
 
-## 8. What shifts now that it is not a hackathon
+## 8. What shifts now that the goal is a prototype
 
-- **Remove or generalise hackathon framing** in: `README.md` (intro line and "Hackathon evidence" section), `LOCAL_CHECKS.md` (L-T3, L-D2), `docs/PROGRESS.md` ("hackathon evidence report"), `docs/ASSUMPTIONS.md` (A7), `docs/01-whitepaper.md`, `docs/02-prd.md` (section 14 and elsewhere), `docs/03-architecture.md` (sections 6, 11, 14 and A7), `packages/api/src/service/dashboard.ts` (comment on the evidence report), `packages/api/src/http/context.ts` (comment), `packages/cli/test/cli.test.ts` (test name). `docs/BLOG_OUTLINE.md` has no hackathon references. No dashboard UI string mentions the hackathon.
-- **Keep, but rename if useful:** `buiry evidence` and `GET /v1/projects/:id/evidence-report` (useful as a storage and verification report), and `write-demo-memories` (useful as a seeding tool).
-- **Revisit CLAUDE.md rules:** the "no timelines" rule and the deadline wording.
+- **Hackathon framing: removed.** No file other than this one mentions the hackathon. PRD section 14 is now "Prototype acceptance and demo scenario". A7, L-T3, PRD V6 and V9 are withdrawn.
+- **Kept:** `buiry evidence` and `GET /v1/projects/:id/evidence-report`, now described as the storage and verification report (JSON field names unchanged), and `write-demo-memories` as a seeding tool.
 - **Production gaps to close:**
   - Walrus storage is time-limited; the docs say lapsed memories cannot be renewed, and renewal by the operator is unconfirmed (A1). Expiry alerts exist; a renewal or export-and-rewrite path does not.
   - The public relayer's limits (architecture section 6: 60 weighted requests per minute, 500 per hour per account; a remember costs 5) mean managed multi-tenant use needs a self-hosted relayer.
   - Only one Sui chain transport works (gRPC). The gateway from env is built for a single network (`TATUM_NETWORK`), so the network-sanity probe of "other configured networks" has nothing to probe unless more backends are configured in code.
   - Hosting and deployment target, backups, monitoring and alerting, secrets management, key custody for the Walrus account and delegates.
-  - Licence model (root MIT vs per-package split), npm naming and publishing, versioning, security review, privacy and data-deletion promises.
+  - Legal review of the licence notice, npm naming and publishing, versioning, security review, privacy and data-deletion promises.
   - Billing and plan limits are placeholders (BD21).
   - Placeholders listed in BD26: bulk move-to-branch and flag notes, memory renewal, billing payment methods, browser wallet connect, the marketing site, the internal admin console.
 - **Do not claim publicly:** a general Claude Code behaviour rate, live Walrus write performance, or a working JSON-RPC fallback. None is verified.
@@ -213,7 +213,7 @@ Plan: keep it, do not expand it, decide after the prototype works. To decide, re
 
 1. Get the delegate private key into `.env`. Run L-W1 and L-W2. Accept when a signed `remember` is stored, recalled and its expiry is read back, and every mock-versus-real difference is fixed with a regression test and logged in ASSUMPTIONS.
 2. Run the live demo (L-D1). Accept when agent B is shown agent A's failure first, the package upgrade marks the deployment stale, the corrected memory is created from the digest, and the evidence report shows real blob ids and expiries.
-3. Strip hackathon framing (section 8) and settle the CLAUDE.md rules. Accept when no doc or UI string refers to the hackathon and the gate passes.
+3. Done: hackathon framing stripped (section 8); CLAUDE.md rule 4 kept.
 4. Retention and renewal story for Walrus expiry. Accept when a memory near expiry can be exported or rewritten, and the dashboard says exactly what will happen.
 5. Production deployment: pick a host, set up secrets, backups, health checks, monitoring and alerts, and a documented restore. Accept when a fresh deploy passes the live smoke checks.
 6. Package and publish: settle the npm name, make builds self-contained, add a clean-install test. Accept when `npx` runs the right server on a machine with nothing else installed.
@@ -234,6 +234,11 @@ Then open `LOCAL_CHECKS.md` for the next live check.
 - LOCAL_CHECKS: the Step 0 docs check is now L-S0, so L-D1 is only the live demo.
 - ASSUMPTIONS: A18 and A19 defined (reconstructed), A17 to A19 added to the register, statuses set.
 - `.env.example` lists every variable the code reads; `REDIS_URL` removed.
+- `pnpm dev:api` works on Windows shells (the dev server defaults `DASHBOARD_DIR`); `pnpm typecheck` no longer needs `pnpm` on PATH.
+- Root `LICENSE` replaced with a per-package notice (needs a legal re-read).
+- Hackathon framing removed from README, PROGRESS, LOCAL_CHECKS, ASSUMPTIONS, whitepaper, PRD, architecture, CLAUDE.md build order, the evidence report comments and the CLI test; `buiry evidence` is the storage and verification report.
+- Remote branch `ccr-e0e1030c-5n01et` deleted after confirming it was an ancestor of `main`.
+- No signed Walrus call has been made; that waits for the delegate private key in `.env`.
 
 ## Corrections made
 
