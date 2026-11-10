@@ -325,3 +325,19 @@ describe('expiry reconciliation', () => {
     expect(expiryMargin(30 * 86_400_000)).toBeGreaterThan(2 * 30 * 86_400_000);
   });
 });
+
+describe('degraded relayer recall', () => {
+  it('fills from the index and says so when the relayer drops every candidate', async () => {
+    const { svc, write, clock, mock } = await rig();
+    await write('mem_dg', 'Use pnpm workspaces for the monorepo build.');
+    mock.recallDegraded = true;
+    const r = await svc.recall({
+      projectId: PROJECT,
+      branch: 'main',
+      query: 'pnpm workspaces monorepo',
+      now: clock.now(),
+    });
+    expect(r.servedFromCache).toBe(true);
+    expect(r.results.map((x) => x.memoryId)).toEqual(['mem_dg']);
+  });
+});

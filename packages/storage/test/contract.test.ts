@@ -412,6 +412,16 @@ describe('MockRelayer behaviours the adapter must handle', () => {
       });
     });
 
+    it('reports a degraded recall (HTTP 200, candidates dropped) instead of an empty match', async () => {
+      // Shape seen live on the public relayer right after writes.
+      const degraded = (async () =>
+        new Response(
+          JSON.stringify({ results: [], total: 0, dropped_count: 4, degraded: true }),
+        )) as unknown as typeof fetch;
+      const r = await make(degraded).recall({ namespace: 'ns', query: 'q' });
+      expect(r).toEqual({ results: [], degraded: true, dropped: 4 });
+    });
+
     it('accepts expires_at as epoch ms, epoch seconds or an RFC 3339 string', async () => {
       const page = (v: unknown) =>
         (async (url: string) =>

@@ -53,6 +53,8 @@ export class MockRelayer {
   /** Counts accepted write requests (remember + bulk items); the mock does not deduplicate. */
   writeItems = 0;
   hardDeleted: string[] = [];
+  /** Live behaviour: answer recall with HTTP 200, no results, `degraded: true` and every candidate dropped. */
+  recallDegraded = false;
   /** Number of 429 responses issued (tests assert the drain never trips the limiter). */
   rateLimitedCount = 0;
   private failures: { n: number; status: number; error: string; retryAfter?: number }[] = [];
@@ -278,6 +280,8 @@ export class MockRelayer {
       const limit = Math.min(100, Math.max(1, Number(json.limit ?? 10)));
       const pool = this.blobs.filter((b) => b.namespace === ns && this.visible(b));
       const q = String(json.query ?? '');
+      if (this.recallDegraded)
+        return this.send(res, 200, { results: [], total: 0, dropped_count: pool.length, degraded: true });
       const scored = pool.map((b) => ({ b, s: relevance(q, b.text) }));
       scored.sort((a, c) =>
         json.sort === 'recent' ? c.b.createdAt - a.b.createdAt : c.s - a.s || c.b.createdAt - a.b.createdAt,

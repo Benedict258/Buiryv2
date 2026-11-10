@@ -77,9 +77,14 @@ export class RecallService {
       ),
     );
     const ok = settled.flatMap((s, idx) =>
-      s.status === 'fulfilled' ? [{ branch: branches[idx]!, results: s.value.results }] : [],
+      s.status === 'fulfilled'
+        ? [{ branch: branches[idx]!, results: s.value.results, degraded: s.value.degraded === true }]
+        : [],
     );
-    const servedFromCache = ok.length === 0;
+    // A degraded relayer answer (HTTP 200, candidates dropped) counts as unavailable for that namespace:
+    // its results are used, but the index fills the gap and the caller is told it came from cache.
+    const usable = ok.filter((o) => !o.degraded);
+    const servedFromCache = usable.length === 0;
     const mayHaveMore = ok.some((o) => o.results.length >= limit);
 
     const relayerScore = new Map<string, number>();

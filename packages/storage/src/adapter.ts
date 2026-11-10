@@ -68,6 +68,18 @@ export interface RecalledMemory {
   agentId?: string;
 }
 
+/**
+ * Recall response. The live relayer can answer HTTP 200 with `degraded: true` and a `dropped_count`: it found
+ * candidates but could not return them (seen live right after writes). That is not "no match".
+ */
+export interface RecallResponse {
+  results: RecalledMemory[];
+  /** The relayer reported a degraded recall; results may be incomplete. */
+  degraded?: boolean;
+  /** Candidates the relayer found but dropped. */
+  dropped?: number;
+}
+
 /** `/api/restore` rebuilds the relayer's index server-side and returns counts only, never memory text. */
 export interface RestoreResult {
   restored: number;
@@ -103,7 +115,7 @@ export interface WalrusMemoryAdapter {
   /** Up to 20 items; returns one job id per item, in order. */
   rememberBulk(namespace: string, texts: string[], opts?: WriteOptions): Promise<{ jobIds: string[] }>;
   getJob(jobId: string): Promise<JobStatus>;
-  recall(req: RecallRequest): Promise<{ results: RecalledMemory[] }>;
+  recall(req: RecallRequest): Promise<RecallResponse>;
   /** Re-indexes owned blobs the relayer lacks. Newest first, limit 1..100, no cursor; counts only. */
   restore(namespace: string, limit?: number): Promise<RestoreResult>;
   /** Memory Read API listing: a signed GET with the delegate key (A3). */

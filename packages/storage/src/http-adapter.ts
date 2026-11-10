@@ -5,7 +5,7 @@ import {
   type JobStatus,
   type MemoryListPage,
   type RecallRequest,
-  type RecalledMemory,
+  type RecallResponse,
   type RelayerHealth,
   type RelayerVersion,
   type RestoreResult,
@@ -258,7 +258,7 @@ export class HttpWalrusAdapter implements WalrusMemoryAdapter {
     return { state: status === 'pending' ? 'pending' : 'running' };
   }
 
-  async recall(req: RecallRequest): Promise<{ results: RecalledMemory[] }> {
+  async recall(req: RecallRequest): Promise<RecallResponse> {
     const limit = Math.min(100, Math.max(1, req.limit ?? 10));
     const { json: j } = await this.call('POST', this.paths.recall, {
       query: req.query,
@@ -269,7 +269,10 @@ export class HttpWalrusAdapter implements WalrusMemoryAdapter {
       ...(req.deadlineMs ? { deadline_ms: req.deadlineMs } : {}),
     });
     const arr = Array.isArray(j.results) ? (j.results as Json[]) : [];
+    const dropped = typeof j.dropped_count === 'number' ? j.dropped_count : 0;
     return {
+      ...(j.degraded === true ? { degraded: true } : {}),
+      ...(dropped > 0 ? { dropped } : {}),
       results: arr.map((r) => {
         const created = toMs(r.created_at);
         return {
