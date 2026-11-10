@@ -155,7 +155,7 @@ Namespace: `buiry.v1.<project_id>.<branch_slug>`. Namespaces match exactly, have
 &#91;embedded content: write path · 7 steps and a failure branch\]
 
 1. **Acknowledge fast.** The tool returns a memory ID and the state `queued` as soon as the event and index row are committed, without waiting for Walrus.
-2. **Idempotency.** The key is a hash of namespace, event header and text. A repeat, including one replayed by an MCP reconnect, is a no-op that returns the original memory ID. Walrus does not deduplicate, so this is Buiry's job.
+2. **Idempotency, two layers (BD13).** A request-level key deduplicates replayed tool calls: it is the client-supplied key (stored as `client:<key>`) or, without one, a hash of project, branch, type, redacted text, evidence and agent. A repeat, including one replayed by an MCP reconnect, is a no-op that returns the original memory ID. The header carries a fresh memory ID, so this layer cannot be the storage key. The storage-level key is a hash of namespace, event header and text; it deduplicates writes in the queue and is sent to the relayer as `idempotency_key` (A14). A retry after a failed attempt sends the key with an attempt suffix (`.a<n>`), so the relayer does not keep returning the failed job.
 3. **Batching.** The worker uses bulk writes (up to 20 per request) to reduce calls and cost.
 4. **Budgets.** Per-agent and per-project write budgets, plus a global budget derived from the relayer limits, with backpressure and clear errors.
 5. **Confirmation.** The worker polls the job until `done` and records the blob ID, then sets `stored`. The vector index can lag a write, so recall immediately after a write is not guaranteed to return it; Buiry serves just-written memories from its own index.
