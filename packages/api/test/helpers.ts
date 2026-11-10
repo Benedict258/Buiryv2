@@ -26,7 +26,8 @@ export async function startGateway(clock: Clock, apiKey = KEY) {
     all.filter((f) => f.network === 'sui:testnet'),
   );
   const mk = (m: MockTatum) => [
-    new GrpcBackend({ endpoint: m.grpcEndpoint, apiKey, insecure: true, deadlineMs: 2000 }),
+    // Generous deadline: under full-suite load a 2 s deadline with no retries turned checks into `unknown`.
+    new GrpcBackend({ endpoint: m.grpcEndpoint, apiKey, insecure: true, deadlineMs: 10_000 }),
   ];
   const gateway = new TatumGateway({
     backends: { 'sui:mainnet': mk(mainnet), 'sui:testnet': mk(testnet) },
