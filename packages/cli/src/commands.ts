@@ -653,5 +653,8 @@ export const COMMANDS: Record<string, { run: Cmd; summary: string }> = {
   import: { run: importCmd, summary: 'Import a memory pack (previewed, redacted, imported as proposed)' },
   branch: { run: branch, summary: 'list | create <name> | switch <name> | merge-proposal <name>' },
   sync: { run: sync, summary: 'Refresh the BUIRY.md snapshot region from the server' },
-  evidence: { run: evidence, summary: 'Show Walrus account, agent id, blob ids, expiry and Tatum usage' },
+  evidence: {
+    run: evidence,
+    summary: 'Storage and verification report: Walrus account, agent id, blob ids, expiry, chain calls',
+  },
 };

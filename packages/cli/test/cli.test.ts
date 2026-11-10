@@ -549,8 +549,8 @@ describe('export and import', () => {
   });
 });
 
-describe('evidence report (hackathon proofs)', () => {
-  it('prints the account id, agent id, blob ids and Tatum usage the submission form needs', async () => {
+describe('evidence report (storage and verification)', () => {
+  it('prints the account id, agent id, blob ids, expiry and Tatum usage', async () => {
     const { sb, projectId } = await ready();
     await sb.run('remember', 'Evidence test memory.', '--type', 'fact');
     await w.stack.db.system((tx) =>

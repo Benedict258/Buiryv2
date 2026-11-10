@@ -703,7 +703,7 @@ export async function retryDeadWrite(
   ]);
 }
 
-/** The proof points a hackathon submission needs, in one place. */
+/** Storage and verification report: where the project's memories live on Walrus, when they expire, and how chain checks ran. */
 export async function evidenceReport(
   deps: ServiceDeps,
   tx: Tx,

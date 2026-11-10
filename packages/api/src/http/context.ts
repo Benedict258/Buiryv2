@@ -15,7 +15,7 @@ export interface AppConfig {
   cookieSecure: boolean;
   enforcePlans: boolean;
   webhook?: WebhookOpts;
-  /** Shown in the hackathon evidence report. */
+  /** Shown in the storage and verification report (`/v1/projects/:id/evidence-report`). */
   evidence: {
     walrusNetwork?: string;
     delegatePublicKey?: string;
