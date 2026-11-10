@@ -4,8 +4,6 @@ Portable, verifiable project memory for AI coding agents.
 
 Agents connect over MCP, read a briefing for the task at hand, write typed memories with evidence, report whether a memory helped, and hand off to the next session or tool. Memory is stored on Walrus Memory, scored by a deterministic learning loop, checked against the chain through Tatum's Sui gateway, and governed from a dashboard.
 
-Built for the Tatum x Walrus "Total Recall" hackathon.
-
 ## Quick start
 
 Requires Node 20+ and pnpm.
@@ -58,10 +56,10 @@ Anything that talks to Walrus or Tatum for real is described in [LOCAL_CHECKS.md
 
 Architecture diagram source: [docs/diagrams/architecture.mmd](docs/diagrams/architecture.mmd). Blog outline: [docs/BLOG_OUTLINE.md](docs/BLOG_OUTLINE.md).
 
-## Hackathon evidence
+## Storage and verification report
 
 ```bash
-buiry evidence             # Walrus blob ids and expiry, Tatum call counts and transports
+buiry evidence             # Walrus account, blob ids and expiry; chain call counts and transports
 ```
 
 The same report is available at `GET /v1/projects/:id/evidence-report` and from the dashboard.

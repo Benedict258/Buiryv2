@@ -15,7 +15,7 @@ Run on 2026-10-28 from a Windows machine with network access. Secrets come from 
 | L-T1                                                | contradicted                     | `curl -X POST $TATUM_JSONRPC_URL -H "x-api-key: ..." -d '{"jsonrpc":"2.0","id":1,"method":"sui_getChainIdentifier","params":[]}'` -> HTTP 404. Control: the same key on `https://ethereum-mainnet.gateway.tatum.io` returns a block number (HTTP 200), so the key and gateway work and Sui JSON-RPC is not served at the documented address. Public Sui fullnodes also reject JSON-RPC ("deprecated").                                                                                                                                                                           |
 | L-T2                                                | verified (gRPC)                  | `TATUM_GRPC_ENDPOINT=sui-mainnet-grpc.gateway.tatum.io:443 TATUM_JSONRPC_URL= pnpm tsx scripts/chain-smoke.ts`: service info 1027 ms, object (Sui clock) 314 ms, package versions 170 ms, all `grpc` and `ok`; chain id `4btiuiMPvEENsttpZC7CZ53DruC3MAgfznDbASZ7DR6S`, epoch 1294. With `SMOKE_TX` set to a recent mainnet digest: `tx: true` (198 ms). An old digest below `lowestAvailableCheckpoint` comes back not-found. Credit figures in the output are the client's estimate; the Tatum dashboard was not read.                                                         |
 | Custom gateway `example-gateway.gateway.tatum.io`   | not usable for Sui               | JSON-RPC: Sui methods return `-32601 Method not found`, EVM methods return upstream errors (-16500, -16429); it also answers without an API key. gRPC: "Received HTTP status code 400". Use the public `sui-mainnet-grpc` host.                                                                                                                                                                                                                                                                                                                                                  |
-| L-T3                                                | needs you                        | Question for the organisers; not answerable from here.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                           |
+| L-T3                                                | withdrawn                        | It asked whether gRPC met a hackathon criterion; that goal is dropped.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                           |
 | L-A3                                                | verified                         | Real PostgreSQL (the `embedded-postgres` npm package, a throwaway server on a local port and a temp data directory): `DATABASE_URL=postgres://...@127.0.0.1:54329/buiry_smoke pnpm tsx scripts/db-smoke.ts` applied migrations 001 to 005, the tenant transaction saw only its own workspace, and the script printed `OK`.                                                                                                                                                                                                                                                       |
 | L-A4                                                | verified                         | Server on the real Postgres with Tatum gRPC configured: `GET /v1/healthz` -> `{"ok":true,"data":{"status":"ok"}}`; `POST /mcp` without a token -> 401; the built dashboard is served at `/`. The Walrus write drain was not running (no delegate private key). Doc bug found: the L-A4 command used `BUIRY_MAILER=memory`, which keeps the sign-in link inside the server process, so `buiry login --email` can never complete against it; unset it so the link is printed to the server log.                                                                                    |
 | L-M1                                                | partial                          | Claude Code 2.1.312 only, 3 runs of the same coding task that never mentions Buiry, in a scratch repo with the generated `CLAUDE.md` pointer and `BUIRY.md`: `buiry_connect` and `buiry_check` were called before any file edit in 3 of 3 runs; `buiry_handoff` at the end in 3 of 3; `buiry_connect` or `buiry_check` was called twice in each run. This measures the pointer-file path; a run without the pointer was not made. OpenCode and Codex are installed (1.19.5, 0.165.0) but need a model login, so their behaviour was not measured; Cursor is not installed.       |
@@ -73,9 +73,9 @@ pnpm tsx scripts/chain-smoke.ts
 
 The script prints, per call, the method, transport, latency, status and credit estimate for: service info, a known mainnet transaction, a known object, a package version list, and a name lookup. Paste back the whole output and the Tatum dashboard credit usage before and after. Failures with `unsupported` or field errors mean the deployed proto revision differs from the vendored one.
 
-## L-T3. Hackathon criterion (resolves A7)
+## L-T3. Withdrawn
 
-Ask the organisers (or the Tatum community channel) whether Sui gRPC through the Tatum gateway satisfies "Tatum Sui RPC". Paste back the answer. Buiry keeps a JSON-RPC path either way.
+This check asked whether Sui gRPC through Tatum met a hackathon criterion (A7). The hackathon goal is dropped, so there is nothing to run.
 
 ## L-M1. Real agent clients (measure, do not assume)
 
@@ -144,16 +144,16 @@ pnpm demo --live
 
 Expected: agent B is shown the failure first; the package check reports the upgrade and the memory goes stale; the corrected memory takes its evidence from the digest; the evidence section prints real blob ids and expiries. Paste back the full output. The mock run (`pnpm demo`) is not evidence of live behaviour.
 
-## L-D2. Write the demo memories (run this close to the deadline)
+## L-D2. Write the demo memories
 
-Storage is leased for a limited number of epochs, so the memories must be written near the date by which they must still be readable. Do not run it early.
+Run it when storage leases need to cover a date you choose. Storage is leased for a limited number of epochs and lapsed memories cannot be renewed, so a memory written now may lapse before a later date; pass that date as `--valid-until` and the script warns if any memory would expire first.
 
 ```bash
 export WALRUS_RELAYER_URL=... WALRUS_ACCOUNT_ID=... WALRUS_DELEGATE_KEY=...
 pnpm tsx scripts/write-demo-memories.ts --valid-until <last date the memories must be readable>
 ```
 
-Expected: 12 memories stored, a table of blob ids and expiry times, and exit code 0. Exit code 2 and a WARNING line mean a memory expires before the date given; renew or re-run later. Paste back the table.
+Expected: 12 memories stored, a table of blob ids and expiry times, and exit code 0. Exit code 2 and a WARNING line mean a memory expires before the date given; run it again closer to that date. Paste back the table.
 
 ## L-U1. Dashboard in your browser against the development server
 
