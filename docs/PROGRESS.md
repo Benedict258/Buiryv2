@@ -30,6 +30,18 @@ Legend: **done** (implemented and tested), **mocked** (tested only against a moc
 
 - Baseline (`pnpm typecheck && pnpm lint && pnpm test`) also passes on Windows. The 0600 check on the credentials file is a conditional assertion inside its test: it is not made on Windows (NTFS has no POSIX modes) and still runs on Linux and macOS.
 
+## Testnet live checks (2026-11-11)
+
+- Preflight on the testnet profile: `buiry doctor` shows Walrus, Tatum, relayer and project all on testnet.
+- L-W1T and L-W2T verified on testnet: REAL contract suite 4 of 4, recall with the Seal session returns every memory with text and no `degraded`, expiry 5 days (`end_epoch` 583).
+- Found on testnet and fixed with regression tests: the relayer `/config` read at startup now retries once; expiry margins and the "expiring" window follow the network epoch (they were a fixed 28 days).
+- Open: `expires_at` is an estimate within the epoch (A29); relayer connection failures (A24).
+
+## Known risk: tenant isolation in managed mode
+
+- In managed mode one Walrus Memory account holds every tenant's projects. A Seal session from its delegate can obtain the key of any namespace in the account, and keys outlive the session (A26). A leaked session, a compromised relayer, or a delegate key therefore reaches every tenant, not one project. Namespaces separate data; they do not authorise.
+- Options, not yet chosen: (1) one Walrus Memory account per tenant (workspace) under Buiry's management; (2) bring-your-own account, where each customer owns the account and adds Buiry's delegate; (3) a self-hosted relayer and contract for hard isolation. Each changes key custody, onboarding and cost.
+
 ## Testnet consistency (2026-11-11)
 
 - Audit: `pnpm audit --prod` reports none (body-parser 2.4.0 via a pnpm override; react-router-dom 7.18.5, checked in Chrome on 94 screens). Dev-only advisories remain in vitest 2, vite 5, esbuild, glob and minimatch; they need major upgrades.
