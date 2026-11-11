@@ -611,7 +611,7 @@ The tool result reports the classes found so that the writer can rephrase. Detec
 | Billing | Payment spoofing | Provider signatures; for Sui payments, verification through the gateway with confirmations |
 | Availability | Dependency outage | Degrade rules (section 14) |
 
-**Privacy statement per mode.** Managed mode: the relayer operator can read memory plaintext during embedding and encryption; Buiry can read what its index stores. Bring-your-own: the same relayer trust applies unless client-managed or self-hosted flows are used. Self-hosted: the operator controls the boundary. The product states this per mode and does not claim more.
+**Privacy statement per mode.** Managed mode: the relayer operator can read memory plaintext during embedding and encryption on write, and during decryption on recall. Recall decryption uses a Seal session that Buiry builds from the delegate key and sends as `x-seal-session`: five minutes, scoped to the Memory package, kept in memory and never logged. By Seal's design its holder can request decryption keys for the account until it expires (A23; not verified against the package policy). The delegate private key never leaves Buiry. Buiry can read what its index stores. Bring-your-own: the same relayer trust applies unless client-managed or self-hosted flows are used. Self-hosted: the operator controls the boundary. The product states this per mode and does not claim more.
 
 **Audit.** Administrative actions, token events, deletion events and exports are written to an audit log that cannot be edited by workspace members.
 
