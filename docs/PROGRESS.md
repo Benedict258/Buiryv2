@@ -30,7 +30,15 @@ Legend: **done** (implemented and tested), **mocked** (tested only against a moc
 
 - Baseline (`pnpm typecheck && pnpm lint && pnpm test`) also passes on Windows. The 0600 check on the credentials file is a conditional assertion inside its test: it is not made on Windows (NTFS has no POSIX modes) and still runs on Linux and macOS.
 
-## Live verification (2026-11-10): signed Walrus calls
+## Testnet consistency (2026-11-11)
+
+- Audit: `pnpm audit --prod` reports none (body-parser 2.4.0 via a pnpm override; react-router-dom 7.18.5, checked in Chrome on 94 screens). Dev-only advisories remain in vitest 2, vite 5, esbuild, glob and minimatch; they need major upgrades.
+- Seal session reach documented (A26): every namespace in the account; keys outlive the 5-minute session.
+- All earlier live Walrus results ran on Mainnet (A27). Testnet relayer and Tatum testnet gRPC verified unsigned (L-W0T, L-T4). Signed testnet checks wait for a testnet account (L-W1T, L-W2T).
+- Network consistency: server and live demo refuse to start on any mismatch between WALRUS_NETWORK, TATUM_NETWORK, DEMO_NETWORK, the relayer `/config` and project networks; project create/update reject a conflicting Sui network; `buiry doctor` prints the networks. The live demo world now sends the Seal session.
+- Explicit env profiles: `scripts/with-env.ts` loads `.env.<profile>` only.
+
+## Live verification (2026-11-10, Mainnet): signed Walrus calls
 
 - Delegate private key supplied. Signed remember, bulk, job status, restore, stats and the Memory Read listing work against the public relayer (L-W1 partial, L-W2 verified).
 - Retention read live: 15 epochs, about 210 days, filled about 4 minutes after the write.

@@ -73,7 +73,7 @@ Root `LICENSE` is now a short per-package notice (Apache-2.0 for core, mcp, cli;
 ### Gate (Windows, Node 24.16, pnpm 10.28.0 via corepack)
 
 - At `c182a34` (start of the audit; `ef146be` before the author rewrite): install ok; typecheck ok except that the old script's nested `pnpm` call failed when pnpm was not on PATH; lint ok; 33 files, 372 tests passed.
-- After the follow-up commits: typecheck (now plain `tsc` for the dashboard, no nested pnpm), lint and test pass before every commit; 33 files, 375 tests (three new env-wiring tests for the chain gateway).
+- Current: typecheck (plain `tsc` for the dashboard, no nested pnpm), lint and test pass before every commit; 38 files, 418 tests at the end of Parts A and B (2026-11-11).
 - `pnpm dev:api` was started from a Windows shell: `/v1/healthz` returned 200 and the built dashboard was served at `/`.
 - The "344 on the cloud copy" figure is unverified. The remote branch at `d7d2f7f` (then `0464026`) (`ccr-e0e1030c-5n01et`) was an ancestor of `main` and has been deleted.
 - Not run: `pnpm test:cov`, `pnpm conformance`, `pnpm demo`.
@@ -82,7 +82,10 @@ Root `LICENSE` is now a short per-package notice (Apache-2.0 for core, mcp, cli;
 
 Everything in section 3.
 
-### Verified live (per `LOCAL_CHECKS.md` "Live results"; not re-run in this session)
+### Verified live (per `LOCAL_CHECKS.md` "Live results"; the network is named on each line)
+
+- Walrus Memory on **Mainnet** (the relayer served Mainnet although `.env` said testnet, A27): signed remember, bulk, restore and listing; recall with the Seal session returned every stored memory with text (L-W1); expiry read, 15 epochs, about 210 days (L-W2).
+- Walrus Memory **testnet** relayer, unsigned only: `/health`, `/version`, `/config` (L-W0T). Tatum Sui **testnet** gRPC (L-T4).
 
 - Walrus relayer, unsigned endpoints only: `/health`, `/version`, `/config`. `/config` reports `securityDeleteEnabled: true` on the public relayer.
 - Tatum Sui gRPC (`sui-mainnet-grpc.gateway.tatum.io:443`) for service info, object, package versions and transaction (L-T0, L-T2).
@@ -95,7 +98,7 @@ Everything in section 3.
 ### Not verified
 
 - Bulk rate limits and weight (A6) and operator renewal (A1) are open. Connect timeouts to the public relayer (A24) and one SDK 404 (A25) are unexplained.
-- The live demo (L-D1). Also needs an upgraded Mainnet package and its publish/upgrade digest.
+- Signed Walrus calls on testnet (L-W1T, L-W2T): need a testnet account and delegate. The live demo (L-D1) on testnet: needs the testnet package (Part D).
 - OAuth sign-in with real apps (L-A1, A21).
 - Cursor config; OpenCode and Codex behaviour (need a model login).
 - Tatum credit usage and plan limits (A9). Credit figures in code are client-side estimates (2 per call).
@@ -124,9 +127,9 @@ Everything in section 3.
 
 ## 5. Blockers that need a human
 
-1. **Walrus delegate private key:** supplied in `.env`; the relayer accepts its signatures. Rotate it when the live checks are done.
+1. **Walrus delegate private key (Mainnet):** in `.env`; the relayer accepts its signatures. Rotate it before the Mainnet cutover; testnet uses its own delegate in `.env.testnet`.
 2. **npm name.** `@buiry/mcp` resolves to the v1 package (0.1.8) per LOCAL_CHECKS (unverified this session). Decide: publish v2 as a new major and deprecate v1, or use a new name. Until then `BUIRY_MCP_COMMAND` overrides what `buiry connect` launches.
-3. **Demo inputs.** `DEMO_PACKAGE_ID` (an upgraded Mainnet package) and `DEMO_TX_DIGEST`.
+3. **Testnet account.** Create a Walrus Memory account and delegate on the testnet dashboard `https://dev.memwal.ai`; put the delegate private key only in `.env.testnet`. Demo inputs (`DEMO_PACKAGE_ID`, the original v1 id of an upgraded package, and `DEMO_TX_DIGEST`, the upgrade transaction) come from Part D on testnet.
 4. **OAuth apps** for GitHub and Google, if wanted.
 5. **Rotate keys that were pasted into chat:** the Tatum API key now, the Walrus delegate once checks are done. (No key value was found in tracked files or git history in this session.)
 6. **Tatum decision** (section 9).
@@ -150,7 +153,11 @@ Requires Node 20 or newer and pnpm 10.28.0 (`packageManager`). On Windows, `npm 
 
 Windows notes: `.gitattributes` forces LF (`* text=auto eol=lf`); inline `VAR=value command` does not work in cmd or PowerShell; the credentials-file 0600 check is not a skipped test but a conditional assertion inside one test, so on Windows the test passes without checking the mode.
 
-### Environment variable names (values only in the gitignored `.env`)
+### Environment profiles
+
+Live runs use an explicit profile: `pnpm tsx scripts/with-env.ts testnet -- <command>` loads only the gitignored `.env.testnet` (a names-only template with the public testnet values in comments is in place). No fallback to `.env`. See LOCAL_CHECKS "Profiles".
+
+### Environment variable names (values only in the gitignored env files)
 
 `.env.example` lists every name below (names only, grouped, with a comment where the meaning is not obvious). The unused `REDIS_URL` was removed.
 
@@ -211,15 +218,13 @@ Plan: keep it, do not expand it, decide after the prototype works. To decide, re
 
 ## 10. Prioritised next steps (each with an acceptance check)
 
-1. Done: L-W1 and L-W2 verified live. Recall sends a Seal session and returns every stored memory with text. Optional: re-run the REAL contract suite once to see its expiry polling pass live. Next is L-D1, the live demo.
-2. Run the live demo (L-D1). Accept when agent B is shown agent A's failure first, the package upgrade marks the deployment stale, the corrected memory is created from the digest, and the evidence report shows real blob ids and expiries.
-3. Done: hackathon framing stripped (section 8); CLAUDE.md rule 4 kept.
-4. Retention and renewal story for Walrus expiry. Accept when a memory near expiry can be exported or rewritten, and the dashboard says exactly what will happen.
-5. Production deployment: pick a host, set up secrets, backups, health checks, monitoring and alerts, and a documented restore. Accept when a fresh deploy passes the live smoke checks.
-6. Package and publish: settle the npm name, make builds self-contained, add a clean-install test. Accept when `npx` runs the right server on a machine with nothing else installed.
-7. Close the placeholders worth keeping from BD26 and decide which to drop.
-8. Tatum decision (section 9).
-9. Only then: look at the Microsoft Imagine Cup rules and any Azure migration.
+1. Done: Parts A and B (audit fixes, Seal session reach in the docs, network check, profiles). Testnet relayer and Tatum testnet gRPC answer.
+2. Owner: create the testnet Walrus Memory account and delegate (dev.memwal.ai), fill `.env.testnet`. Accept when `pnpm tsx scripts/with-env.ts testnet -- node -e "0"` loads it and the server starts without a network mismatch.
+3. L-W1T and L-W2T on testnet, including the REAL contract suite. Accept when recall returns every stored memory with text and no `degraded`, the listing shows expiry, and every difference from Mainnet has a regression test and an ASSUMPTIONS entry.
+4. Testnet demo package (Part D): a throwaway address, publish, upgrade once, verifiers read-only. Accept when the package verifier reports "package upgraded: cited version 1, latest 2".
+5. Live demo on testnet (L-D1), only when the owner says so.
+6. After the demo: retention and renewal for Walrus expiry; deployment, backups and monitoring; npm naming (the v1 package owns `@buiry/mcp`); the Tatum decision; then a Mainnet cutover checklist (separate keys and `.env.mainnet`, re-run every live check, then flip).
+7. Only then: Microsoft Imagine Cup and any Azure move.
 
 ## 11. How to resume
 
@@ -228,6 +233,8 @@ Run: `git pull`, `pnpm install`, `pnpm typecheck && pnpm lint && pnpm test`, `pn
 Then open `LOCAL_CHECKS.md` for the next live check.
 
 ## Configuration found wrong in `.env` (owner to fix)
+
+- `WALRUS_NETWORK=testnet` while `WALRUS_RELAYER_URL` is the Mainnet relayer (A27). The server now refuses to start with that mix. Testnet work uses `.env.testnet` through `scripts/with-env.ts`; `.env` stays for the later Mainnet cutover (or becomes `.env.mainnet`).
 
 - `TATUM_NETWORK` is `testnet` and `TATUM_GRPC_ENDPOINT` is a URL with a scheme and a path, not the documented `sui-mainnet-grpc.gateway.tatum.io:443`; with these values the gateway gets HTTP 400 (as the custom gateway host did on 2026-10-28). The Walrus Memory package is on mainnet, so the Seal session's package check needs the mainnet host. Live runs on 2026-11-10 overrode both values in-process; `.env` itself was not edited.
 
