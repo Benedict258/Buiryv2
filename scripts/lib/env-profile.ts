@@ -10,6 +10,15 @@ import { normalizeSuiNetwork } from '../../packages/core/src/index.js';
 /** Variables that decide which services and network a run talks to; the profile must own them all. */
 export const PROFILE_OWNED = /^(WALRUS_|TATUM_|DEMO_|DATABASE_URL$|BUIRY_SECRET_KEY$)/;
 
+/**
+ * Quotes one argument for the Windows shell when it contains whitespace or quotes, so it reaches the program as one
+ * argument. Plain arguments pass through unchanged.
+ */
+export function quoteForCmd(arg: string): string {
+  if (arg !== '' && !/[\s"]/.test(arg)) return arg;
+  return `"${arg.replace(/"/g, '\\"')}"`;
+}
+
 /** Parses dotenv text: `NAME=value` lines, optional `export`, quotes stripped, CRLF-safe. Empty values are skipped. */
 export function parseEnvText(text: string): Record<string, string> {
   const out: Record<string, string> = {};

@@ -2,7 +2,7 @@ import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, describe, expect, it } from 'vitest';
-import { loadProfile, parseEnvText } from './env-profile.js';
+import { loadProfile, parseEnvText, quoteForCmd } from './env-profile.js';
 
 const dirs: string[] = [];
 afterEach(() => {
@@ -58,5 +58,14 @@ describe('environment profiles (B5)', () => {
 
   it('rejects path-like profile names', () => {
     expect(() => loadProfile(root({}), '../x', {})).toThrow('invalid profile name');
+  });
+});
+
+describe('Windows argument quoting for the profile runner', () => {
+  it('leaves plain arguments alone and quotes ones with spaces or quotes', () => {
+    expect(quoteForCmd('--live')).toBe('--live');
+    expect(quoteForCmd('a b')).toBe('"a b"');
+    expect(quoteForCmd('say "hi"')).toBe('"say \\"hi\\""');
+    expect(quoteForCmd('')).toBe('""');
   });
 });

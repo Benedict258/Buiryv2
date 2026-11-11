@@ -6,7 +6,7 @@
  */
 import { spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
-import { loadProfile } from './lib/env-profile.js';
+import { loadProfile, quoteForCmd } from './lib/env-profile.js';
 
 const root = fileURLToPath(new URL('..', import.meta.url));
 const [name, sep, ...cmd] = process.argv.slice(2);
@@ -19,10 +19,12 @@ try {
   console.error(
     `[buiry] profile ${p.name}: ${p.names.length} variables from .env.${p.name} (${p.names.join(', ')})`,
   );
-  const r = spawnSync(cmd[0]!, cmd.slice(1), {
+  // Windows needs the shell to run pnpm.cmd; quote arguments so spaces survive it.
+  const win = process.platform === 'win32';
+  const r = spawnSync(cmd[0]!, win ? cmd.slice(1).map(quoteForCmd) : cmd.slice(1), {
     stdio: 'inherit',
     env: { ...process.env, ...p.env, BUIRY_ENV_PROFILE: p.name },
-    shell: process.platform === 'win32',
+    shell: win,
   });
   process.exit(r.status ?? 1);
 } catch (e) {
