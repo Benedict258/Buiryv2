@@ -29,6 +29,13 @@ The live documentation was read on 2026-10-28 (results in "Step 0 results" below
 - Difference that needed code (fixed, with regression tests): expiry margins and the status "expiring" window were a fixed 28 days, two Mainnet epochs, so every 5-day testnet memory would have been "expiring" at once. They now follow the network epoch (`walrusEpochMs`).
 - Connection problems seen on testnet too (A24): the startup `/config` connect timeout, and 1 of 6 `curl` connections to `relayer.dev.memwal.ai` failed with a TLS error.
 
+**Sui CLI and the testnet demo package (2026-11-11)**
+
+- Install routes for Windows (https://docs.sui.io/getting-started/onboarding/sui-install, https://docs.sui.io/getting-started/onboarding/install-binaries): suiup ("recommended", but installed by piping a script into `sh`, so not used), Chocolatey `choco install sui` (the package lists `github.com/MystenLabs/sui` as source; its maintainer and whether it is the testnet or Mainnet build were not shown), prebuilt binaries from GitHub releases, and building from source. The docs do not mention checksums; the GitHub release asset digest was used.
+- Route that worked: a single-stream resumable `curl` of the official release asset, complete in one attempt (about 106 KB/s). Earlier in the session a plain download and a 12-part parallel download kept failing with "Connection was reset"; Chocolatey and building from source were available but not needed.
+- CLI behaviours seen with 1.84.0: with `--install-dir`, `publish` writes `Published.toml` into the install directory but `upgrade` reads it from the package directory ("Cannot upgrade package without having a published id" until it was copied); the faucet credits the address balance rather than a coin object, and that balance pays gas; `new-address --json` returns the recovery phrase, so only the address is read from it.
+- The testnet package `0xed715e4509f98b2c4ee0d9af96e7f6d6417534d3f053e1cce50a830967b03cc9` (v1) and `0x51103216297896e56d6d2f5c4b61bcd8df030fdc7ec82a7087636399da1ff6c1` (v2) and both transactions are public chain data. Testnet can be wiped; the demo package would then have to be published again.
+
 **Walrus Memory testnet (Staging)**
 
 - Relayer: `https://relayer.dev.memwal.ai`, "| **Staging** (Testnet) | `https://relayer.dev.memwal.ai` |" (https://docs.wal.app/walrus-memory/relayer/public-relayer.md). Checked live 2026-11-11T00:47Z: `/health` 200 (`writes: ok`, `write_ready: true`), `/version` 200, `/config` `network: testnet`, `packageId` `0x0a625e2db2af6f591a4c80a3d8551ddf11656089cc3a20c5e9e7f8fb75b9265c`, `registryId` `0x736aef9906798fca4460490ccdf8e8502ef170122dc26ecae32111b78c6b42dd`, `suiGrpcUrl` `https://mysten-rpc.testnet.sui.io`.

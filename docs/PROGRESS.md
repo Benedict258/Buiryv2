@@ -30,6 +30,12 @@ Legend: **done** (implemented and tested), **mocked** (tested only against a moc
 
 - Baseline (`pnpm typecheck && pnpm lint && pnpm test`) also passes on Windows. The 0600 check on the credentials file is a conditional assertion inside its test: it is not made on Windows (NTFS has no POSIX modes) and still runs on Linux and macOS.
 
+## Testnet demo package (2026-11-11)
+
+- Sui CLI 1.84.0 (official release, SHA-256 checked) in `.buiry-local/sui-cli/`; a throwaway address with its own config in `.buiry-local/sui-testnet/`, funded by the CLI faucet.
+- `scripts/demo/move` published (`0xed715e4509f98b2c4ee0d9af96e7f6d6417534d3f053e1cce50a830967b03cc9`) and upgraded once (`0x51103216297896e56d6d2f5c4b61bcd8df030fdc7ec82a7087636399da1ff6c1`); `.env.testnet` has `DEMO_PACKAGE_ID` (original id), `DEMO_TX_DIGEST` (upgrade) and `DEMO_NETWORK=sui:testnet`.
+- Read-only verifiers on testnet: "package upgraded: cited version 1, latest 2"; the upgrade transaction passes. The live demo (`pnpm demo --live`) has not been run.
+
 ## Testnet live checks (2026-11-11)
 
 - Preflight on the testnet profile: `buiry doctor` shows Walrus, Tatum, relayer and project all on testnet.
