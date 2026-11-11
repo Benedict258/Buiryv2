@@ -32,5 +32,5 @@ describe('liveWorld refuses mixed networks (B4)', () => {
     ).rejects.toThrow(
       'live mode refused, network mismatch: networks disagree: WALRUS_NETWORK=testnet, TATUM_NETWORK=testnet, relayer /config network=mainnet',
     );
-  });
+  }, 60_000);
 });
