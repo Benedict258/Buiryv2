@@ -34,7 +34,7 @@ Legend: **done** (implemented and tested), **mocked** (tested only against a moc
 
 - Delegate private key supplied. Signed remember, bulk, job status, restore, stats and the Memory Read listing work against the public relayer (L-W1 partial, L-W2 verified).
 - Retention read live: 15 epochs, about 210 days, filled about 4 minutes after the write.
-- Recall answered `degraded: true` with every candidate dropped. Cause confirmed by A/B against the official SDK: recall needs a client-built Seal session (`x-seal-session`), which the adapter does not send (A23). Degraded recall is served from the index and flagged; the mock can now require a session (`requireSealSession`), and an `it.fails` test marks the pending adapter change. Live recall in L-W1 fails until then.
+- Recall answered `degraded: true` with every candidate dropped until the adapter sent a Seal session (A23). The adapter now builds one (`SealSessionProvider`, `@mysten/seal` 1.5.2, `@mysten/sui` 2.38.0, package check through the chain gateway) and recall returns every stored memory with text (L-W1 verified). The degraded fallback to the index stays. Reads retry once after a connect timeout (A24).
 
 ## Live verification (2026-10-28)
 

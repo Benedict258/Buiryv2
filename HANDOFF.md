@@ -94,7 +94,7 @@ Everything in section 3.
 
 ### Not verified
 
-- Recall from Buiry: every candidate is dropped because the adapter sends no Seal session (`x-seal-session`); confirmed against the official SDK, which recalls the same memories with a session (A23). Building the session (needs `@mysten/seal` and a Sui client inside `packages/storage`) is the next code change. Bulk rate limits and weight (A6) and operator renewal (A1) are also open.
+- Bulk rate limits and weight (A6) and operator renewal (A1) are open. Connect timeouts to the public relayer (A24) and one SDK 404 (A25) are unexplained.
 - The live demo (L-D1). Also needs an upgraded Mainnet package and its publish/upgrade digest.
 - OAuth sign-in with real apps (L-A1, A21).
 - Cursor config; OpenCode and Codex behaviour (need a model login).
@@ -211,7 +211,7 @@ Plan: keep it, do not expand it, decide after the prototype works. To decide, re
 
 ## 10. Prioritised next steps (each with an acceptance check)
 
-1. Finish L-W1: build and send a Seal `SessionKey` (`x-seal-session`) on recall in `packages/storage` (as the official SDK does), flip the `it.fails` test in `recall.test.ts` to `it`, turn on `requireSealSession` in the mock by default, then re-run the REAL contract suite. L-W2 (expiry) is verified: 15 epochs, about 210 days, filled about 4 minutes after the write. Do not run L-D1 until recall works.
+1. Done: L-W1 and L-W2 verified live. Recall sends a Seal session and returns every stored memory with text. Optional: re-run the REAL contract suite once to see its expiry polling pass live. Next is L-D1, the live demo.
 2. Run the live demo (L-D1). Accept when agent B is shown agent A's failure first, the package upgrade marks the deployment stale, the corrected memory is created from the digest, and the evidence report shows real blob ids and expiries.
 3. Done: hackathon framing stripped (section 8); CLAUDE.md rule 4 kept.
 4. Retention and renewal story for Walrus expiry. Accept when a memory near expiry can be exported or rewritten, and the dashboard says exactly what will happen.
@@ -226,6 +226,10 @@ Plan: keep it, do not expand it, decide after the prototype works. To decide, re
 Read first: `CLAUDE.md`, this file, `docs/PROGRESS.md`.
 Run: `git pull`, `pnpm install`, `pnpm typecheck && pnpm lint && pnpm test`, `pnpm demo`, `git log --oneline | head -20`.
 Then open `LOCAL_CHECKS.md` for the next live check.
+
+## Configuration found wrong in `.env` (owner to fix)
+
+- `TATUM_NETWORK` is `testnet` and `TATUM_GRPC_ENDPOINT` is a URL with a scheme and a path, not the documented `sui-mainnet-grpc.gateway.tatum.io:443`; with these values the gateway gets HTTP 400 (as the custom gateway host did on 2026-10-28). The Walrus Memory package is on mainnet, so the Seal session's package check needs the mainnet host. Live runs on 2026-11-10 overrode both values in-process; `.env` itself was not edited.
 
 ## Changes since the audit (owner's go-ahead)
 
