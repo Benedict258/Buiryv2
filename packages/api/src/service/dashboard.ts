@@ -9,6 +9,7 @@ import {
   generateBuiryMd,
   redact,
   scanInjection,
+  walrusEpochMs,
   type Evidence,
   type MemoryType,
   type Status,
@@ -285,7 +286,7 @@ export async function listMemories(
   if (f.expiring)
     add(
       '(m.expired = false and m.expires_at is not null and m.expires_at < ?)',
-      new Date(deps.now() + 28 * 86_400_000),
+      new Date(deps.now() + 2 * walrusEpochMs(deps.networks?.sui)),
     );
   if (f.flagged)
     w.push(`exists (select 1 from flags fl where fl.memory_id = m.id and fl.state <> 'resolved')`);

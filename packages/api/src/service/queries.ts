@@ -19,6 +19,7 @@ import {
   type RecallOutput,
   type StatusOutput,
   projectNetworkConflicts,
+  walrusEpochMs,
 } from '@buiry/core';
 import {
   PgWriteQueue,
@@ -543,7 +544,7 @@ export async function statusOp(deps: ServiceDeps, p: Principal, projectId: strin
       `select count(*) filter (where expired = false and expires_at is not null and expires_at < $2) as expiring,
               count(*) filter (where expired) as expired, min(expires_at) filter (where expired = false) as soonest
          from memories where project_id = $1`,
-      [project.id, new Date(deps.now() + 28 * 86_400_000)],
+      [project.id, new Date(deps.now() + 2 * walrusEpochMs(deps.networks?.sui))],
     );
     return { total: Number(total.rows[0]?.n ?? 0), exp: exp.rows[0]!, networks: project.networks };
   });

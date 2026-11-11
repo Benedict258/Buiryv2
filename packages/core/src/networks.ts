@@ -79,3 +79,20 @@ export function projectNetworkConflicts(
     (n) => n.trim().toLowerCase().startsWith('sui:') && normalizeSuiNetwork(n) !== deployment,
   );
 }
+
+/**
+ * Walrus epoch length per Sui network: "an epoch is about 2 weeks on Mainnet and about 1 day on Testnet"
+ * (https://docs.wal.app/walrus-memory/fundamentals/architecture/funding-storage.md). Consistent with live reads:
+ * Mainnet memories lived 15 x 14 days, testnet memories 5.00 days. Devnet and unknown networks use the Mainnet
+ * length, so expiry alerts come early rather than late.
+ */
+export const WALRUS_EPOCH_MS: Record<'mainnet' | 'testnet', number> = {
+  mainnet: 14 * 86_400_000,
+  testnet: 86_400_000,
+};
+
+export function walrusEpochMs(network?: string): number {
+  return network && normalizeSuiNetwork(network) === 'testnet'
+    ? WALRUS_EPOCH_MS.testnet
+    : WALRUS_EPOCH_MS.mainnet;
+}

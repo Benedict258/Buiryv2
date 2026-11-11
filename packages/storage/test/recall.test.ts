@@ -324,6 +324,9 @@ describe('expiry reconciliation', () => {
   it('margin is at least two epochs and more than two check intervals', () => {
     expect(expiryMargin(3_600_000)).toBe(2 * EPOCH_MS);
     expect(expiryMargin(30 * 86_400_000)).toBeGreaterThan(2 * 30 * 86_400_000);
+    // Testnet epochs are about a day: with a 6-hour scan the margin is two days, not 28 (5-day memories seen live).
+    expect(expiryMargin(6 * 3_600_000, 'testnet')).toBe(2 * 86_400_000);
+    expect(expiryMargin(6 * 3_600_000, 'mainnet')).toBe(2 * EPOCH_MS);
   });
 });
 

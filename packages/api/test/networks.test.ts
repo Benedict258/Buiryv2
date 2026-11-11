@@ -121,3 +121,37 @@ describe('project networks must match the deployment', () => {
     });
   });
 });
+
+describe('expiry windows follow the network epoch (found on testnet: 5-day memories, 28-day window)', () => {
+  const statusExpiring = async (network: 'mainnet' | 'testnet') => {
+    const s = await stack();
+    s.deps.networks = { sui: network };
+    const ws = await s.newWorkspace();
+    const prj = await s.newProject(ws.id, 'orbit', { networks: [`sui:${network}`] });
+    const a = await s.newAgent({
+      workspaceId: ws.id,
+      projectId: prj.id,
+      name: 'claude-code',
+      tool: 'claude-code',
+    });
+    const day = 86_400_000;
+    for (const [i, days] of [1, 3].entries()) {
+      const m = await a.backend.remember({ text: `Expiry probe number ${i}.`, type: 'fact' });
+      await s.deps.db.system((tx) =>
+        tx.query('update memories set expires_at = $2 where id = $1', [
+          m.memoryId,
+          new Date(s.deps.now() + days * day),
+        ]),
+      );
+    }
+    return (await s.service.status(systemPrincipal(ws.id), prj.id)).expiry.expiring;
+  };
+
+  it('testnet: only the memory inside two one-day epochs is expiring', async () => {
+    expect(await statusExpiring('testnet')).toBe(1);
+  });
+
+  it('mainnet: both are inside two fourteen-day epochs', async () => {
+    expect(await statusExpiring('mainnet')).toBe(2);
+  });
+});

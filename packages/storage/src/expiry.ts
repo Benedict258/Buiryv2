@@ -1,4 +1,5 @@
-import { EPOCH_MS, type WalrusMemoryAdapter } from './adapter.js';
+import { walrusEpochMs } from '@buiry/core';
+import type { WalrusMemoryAdapter } from './adapter.js';
 
 export interface StoredRef {
   memoryId: string;
@@ -32,14 +33,16 @@ export interface ExpiryOptions {
   store: ExpiryStore;
   now: number;
   checkIntervalMs: number;
+  /** Sui network of the deployment; sets the epoch length (Mainnet when unknown). */
+  network?: string;
   /** Feature flag; default off. */
   renewalEnabled?: boolean;
   renewer?: Renewer;
 }
 
 /** Margin: more than two check intervals and at least two epochs. */
-export function expiryMargin(checkIntervalMs: number): number {
-  return Math.max(2 * EPOCH_MS, 2 * checkIntervalMs + 1);
+export function expiryMargin(checkIntervalMs: number, network?: string): number {
+  return Math.max(2 * walrusEpochMs(network), 2 * checkIntervalMs + 1);
 }
 
 export async function reconcileExpiry(o: ExpiryOptions): Promise<ExpiryReport> {
@@ -71,7 +74,7 @@ export async function reconcileExpiry(o: ExpiryOptions): Promise<ExpiryReport> {
     renewed: [],
     scanned: refs.length,
   };
-  const margin = expiryMargin(o.checkIntervalMs);
+  const margin = expiryMargin(o.checkIntervalMs, o.network);
   for (const r of refs) {
     if (deleted.has(r.blobId)) {
       report.deleted.push(r.memoryId);

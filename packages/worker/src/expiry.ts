@@ -75,6 +75,7 @@ export async function expiryScan(deps: ServiceDeps, o: ExpiryJobOptions): Promis
       store: new PgExpiryStore(deps, pr.id),
       now: deps.now(),
       checkIntervalMs: o.checkIntervalMs,
+      ...(deps.networks?.sui ? { network: deps.networks.sui } : {}),
       ...(o.renewalEnabled ? { renewalEnabled: true } : {}),
       ...(o.renewer ? { renewer: o.renewer } : {}),
     }).catch(() => null);

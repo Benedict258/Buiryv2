@@ -64,3 +64,14 @@ describe('network consistency', () => {
     expect(projectNetworkConflicts(['sui:mainnet'], undefined)).toEqual([]);
   });
 });
+
+describe('Walrus epoch length per network', () => {
+  it('is about a day on testnet and two weeks on Mainnet; unknown networks use Mainnet', async () => {
+    const { walrusEpochMs } = await import('../src/index.js');
+    expect(walrusEpochMs('testnet')).toBe(86_400_000);
+    expect(walrusEpochMs('sui:testnet')).toBe(86_400_000);
+    expect(walrusEpochMs('mainnet')).toBe(14 * 86_400_000);
+    expect(walrusEpochMs(undefined)).toBe(14 * 86_400_000);
+    expect(walrusEpochMs('devnet')).toBe(14 * 86_400_000);
+  });
+});
