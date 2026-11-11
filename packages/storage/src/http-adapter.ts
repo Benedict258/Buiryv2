@@ -132,7 +132,7 @@ export class HttpWalrusAdapter implements WalrusMemoryAdapter {
 
   /** Unsigned `GET /config`: the Seal `packageId` and `network` the relayer decrypts for. */
   async relayerConfig(): Promise<{ packageId: string; network: string }> {
-    const { json: j } = await this.call('GET', this.paths.config, undefined, false);
+    const { json: j } = await this.withReadRetry(() => this.call('GET', this.paths.config, undefined, false));
     if (typeof j.packageId !== 'string' || !j.packageId || typeof j.network !== 'string' || !j.network)
       throw new RelayerError('unknown', 'relayer /config is missing packageId or network');
     return { packageId: j.packageId, network: j.network };

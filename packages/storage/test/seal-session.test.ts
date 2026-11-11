@@ -228,3 +228,24 @@ describe('the signed listing also retries a connect timeout once', () => {
     expect(n).toBe(3);
   });
 });
+
+describe('the relayer /config read also retries once', () => {
+  it('recovers from a connect failure (seen at server startup on testnet)', async () => {
+    let n = 0;
+    const sleeps: number[] = [];
+    const f = (async () => {
+      if (n++ === 0)
+        throw Object.assign(new TypeError('fetch failed'), { cause: { code: 'UND_ERR_CONNECT_TIMEOUT' } });
+      return new Response(JSON.stringify({ packageId: '0x' + '5e'.repeat(32), network: 'testnet' }));
+    }) as unknown as typeof fetch;
+    const adapter = new HttpWalrusAdapter({
+      baseUrl: 'https://relayer.example',
+      accountId: '0xacct',
+      signer: new Ed25519Signer(KEY),
+      fetch: f,
+      sleep: async (ms) => void sleeps.push(ms),
+    });
+    await expect(adapter.relayerConfig()).resolves.toMatchObject({ network: 'testnet' });
+    expect(sleeps).toEqual([500]);
+  });
+});
