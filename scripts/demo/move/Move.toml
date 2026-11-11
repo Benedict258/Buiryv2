@@ -1,0 +1,6 @@
+[package]
+name = "buiry_demo"
+edition = "2024"
+
+[addresses]
+buiry_demo = "0x0"
