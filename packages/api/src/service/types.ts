@@ -3,6 +3,7 @@ import type { GatewayLike } from '@buiry/chain';
 import type { AdmissionBudgets, WalrusMemoryAdapter } from '@buiry/storage';
 import type { GatewayStatus } from '@buiry/chain';
 import type { Db } from '../db/db.js';
+import type { RuntimeNetworks } from './networks.js';
 
 export type Permission = 'read' | 'write' | 'confirm';
 export type Role = 'owner' | 'admin' | 'writer' | 'reader';
@@ -54,6 +55,8 @@ export interface ServiceDeps {
   maxTextLength?: number;
   /** Re-verify chain evidence older than this at check time. */
   reverifyAfterMs?: number;
+  /** Networks resolved at startup; `sui` is the deployment's Sui network when known. */
+  networks?: RuntimeNetworks;
 }
 
 export const WRITE_PERMS: Permission[] = ['read', 'write'];

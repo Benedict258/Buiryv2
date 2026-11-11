@@ -16,6 +16,7 @@ import {
 import type { Tx } from '../db/db.js';
 import { createAgent, issueAgentToken, revokeAgent } from './admin.js';
 import { assertManage } from './members.js';
+import { assertProjectNetworks } from './networks.js';
 import { assertAllowed, createMemoryTx, loadMemoryRow, loadProject } from './ops.js';
 import { checkEntitlement, PLANS, usageFor, type PlanName } from './plans.js';
 import type { Principal, ServiceDeps, UserPrincipal } from './types.js';
@@ -131,6 +132,7 @@ export async function createProjectChecked(
 ): Promise<{ id: string }> {
   assertManage(p);
   if (!input.name?.trim()) throw new BuiryError('invalid_input', 'project name is required');
+  assertProjectNetworks(deps, input.networks);
   await checkEntitlement(tx, p.workspaceId, 'projects', enforce);
   const id = genId(deps, 'prj');
   const main = genId(deps, 'brn');
@@ -183,6 +185,7 @@ export async function updateProject(
 ) {
   assertManage(p);
   await loadProject(tx, p, projectId);
+  if (patch.networks !== undefined) assertProjectNetworks(deps, patch.networks);
   if (patch.name !== undefined && !patch.name.trim())
     throw new BuiryError('invalid_input', 'project name cannot be empty');
   const settings: Record<string, unknown> = {};

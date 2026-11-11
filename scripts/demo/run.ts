@@ -62,7 +62,13 @@ export async function runDemo(o: DemoOptions = {}): Promise<DemoResult> {
     throw new Error(
       'live demo needs DEMO_PACKAGE_ID (a package that has since been upgraded) and DEMO_TX_DIGEST (a successful publish/upgrade transaction)',
     );
-  const network = live ? (env.DEMO_NETWORK ?? 'sui:mainnet') : 'sui:mainnet';
+  // Live: the agreed deployment network (the world refuses to start on a mismatch); never a silent Mainnet default.
+  const agreed = world.stack.deps.networks?.sui;
+  const network = live ? (env.DEMO_NETWORK ?? (agreed ? `sui:${agreed}` : undefined)) : 'sui:mainnet';
+  if (!network)
+    throw new Error(
+      'live demo needs DEMO_NETWORK (for example sui:testnet), or WALRUS_NETWORK / TATUM_NETWORK set',
+    );
 
   heading(`Setup (${world.mode}): workspace, project, two agents with different tool identities`);
   const ws = await stack.newWorkspace('Northwind Labs');
@@ -126,7 +132,8 @@ export async function runDemo(o: DemoOptions = {}): Promise<DemoResult> {
     type: 'constraint',
   });
   const dep = await call(ca, 'buiry_remember', {
-    text: `Registry package deployed on ${network.replace('sui:', '')} at ${pkg}, version 3.`,
+    // Live mode does not know the cited version, so it does not claim one.
+    text: `Registry package deployed on ${network.replace('sui:', '')} at ${pkg}${live ? '' : ', version 3'}.`,
     type: 'deployment',
     evidence: [{ kind: 'package', id: pkg, network }],
   });

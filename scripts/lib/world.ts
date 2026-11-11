@@ -7,17 +7,20 @@ import {
   TatumGateway,
   createGatewayIfConfigured,
   loadFixtures,
+  suiNetwork,
 } from '../../packages/chain/src/index.js';
 import {
   Ed25519Signer,
   HttpWalrusAdapter,
   MockRelayer,
+  SealSessionProvider,
   type AdmissionBudgets,
   type WalrusMemoryAdapter,
 } from '../../packages/storage/src/index.js';
 import {
   PgDb,
   PgliteDb,
+  checkRuntimeNetworks,
   createStack,
   tatumCallSink,
   type Db,
@@ -135,6 +138,31 @@ export async function liveWorld(env: Record<string, string | undefined> = proces
   if (!gateway)
     throw new Error('live mode needs the Tatum gateway configured (see .env.example and LOCAL_CHECKS.md)');
   stack.deps.gateway = gateway;
+  // Recall decrypts only with a Seal session (A23); its package read goes through the gateway, as in server.ts.
+  adapter.useSealSession(
+    new SealSessionProvider({
+      delegateKey: env.WALRUS_DELEGATE_KEY!,
+      relayerConfig: () => adapter.relayerConfig(),
+      packageVersion: async (objectId, network) => {
+        const r = await gateway.getObject(objectId, { network: suiNetwork(network) });
+        if (!r.value.found) throw new Error('relayer Seal package not found on chain');
+        return String(r.value.object.version);
+      },
+    }),
+  );
+  // Same rule as the server: Walrus, the gateway, the relayer and DEMO_NETWORK must name one Sui network.
+  const net = await checkRuntimeNetworks({
+    env,
+    db,
+    gatewayConfigured: true,
+    relayerConfig: () => adapter.relayerConfig(),
+  });
+  if (net.mismatches.length) {
+    gateway.close();
+    await stack.close();
+    throw new Error(`live mode refused, network mismatch: ${net.mismatches.join('; ')}`);
+  }
+  stack.deps.networks = net.networks;
   return {
     mode: 'live',
     stack,

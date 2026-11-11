@@ -251,6 +251,15 @@ export interface StatusOutput {
   };
   expiry: { expiring: number; expired: number; soonest?: string };
   project: { id: string; memories: number };
+  /** Networks side by side: the deployment's sources and this project's declared networks. */
+  networks?: {
+    walrus?: string;
+    tatum?: string;
+    relayer?: string;
+    deployment?: string;
+    project: string[];
+    consistent: boolean;
+  };
 }
 
 export interface MemoryDetail {

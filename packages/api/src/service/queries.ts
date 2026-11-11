@@ -18,6 +18,7 @@ import {
   type RecallInput,
   type RecallOutput,
   type StatusOutput,
+  projectNetworkConflicts,
 } from '@buiry/core';
 import {
   PgWriteQueue,
@@ -544,7 +545,7 @@ export async function statusOp(deps: ServiceDeps, p: Principal, projectId: strin
          from memories where project_id = $1`,
       [project.id, new Date(deps.now() + 28 * 86_400_000)],
     );
-    return { total: Number(total.rows[0]?.n ?? 0), exp: exp.rows[0]! };
+    return { total: Number(total.rows[0]?.n ?? 0), exp: exp.rows[0]!, networks: project.networks };
   });
   const sys = await deps.db.system(async (tx) => {
     const r = await tx.query<{ state: string; n: string | number; oldest: string | number | null }>(
@@ -582,6 +583,22 @@ export async function statusOp(deps: ServiceDeps, p: Principal, projectId: strin
       ...(scoped.exp.soonest ? { soonest: new Date(scoped.exp.soonest).toISOString() } : {}),
     },
     project: { id: projectId, memories: scoped.total },
+    networks: runtimeNetworksFor(deps, scoped.networks),
+  };
+}
+
+function runtimeNetworksFor(
+  deps: ServiceDeps,
+  projectNetworks: string[],
+): NonNullable<StatusOutput['networks']> {
+  const n = deps.networks ?? {};
+  return {
+    ...(n.walrus ? { walrus: n.walrus } : {}),
+    ...(n.tatum ? { tatum: n.tatum } : {}),
+    ...(n.relayer ? { relayer: n.relayer } : {}),
+    ...(n.sui ? { deployment: n.sui } : {}),
+    project: projectNetworks,
+    consistent: projectNetworkConflicts(projectNetworks, n.sui).length === 0,
   };
 }
 

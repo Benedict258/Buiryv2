@@ -2,6 +2,7 @@ import { BuiryError, deriveNamespace, isValidBranchSlug, type IdPrefix } from '@
 import type { Tx } from '../db/db.js';
 import type { Permission, ServiceDeps } from './types.js';
 import { genId, hmac, logActivity } from './util.js';
+import { assertProjectNetworks } from './networks.js';
 
 export const AGENT_TOKEN_PREFIX = 'bry_at_';
 
@@ -41,6 +42,7 @@ export async function createProject(
   deps: ServiceDeps,
   p: NewProject,
 ): Promise<{ id: string; mainBranchId: string }> {
+  assertProjectNetworks(deps, p.networks);
   const id = genId(deps, 'prj');
   const mainId = genId(deps, 'brn');
   await deps.db.tenant(p.workspaceId, async (tx) => {

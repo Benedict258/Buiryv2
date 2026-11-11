@@ -603,6 +603,44 @@ describe('doctor', () => {
     },
   );
 
+  it.each([
+    [
+      {
+        walrus: 'testnet',
+        tatum: 'testnet',
+        relayer: 'testnet',
+        deployment: 'testnet',
+        project: ['sui:testnet'],
+        consistent: true,
+      },
+      /ok\s+networks \(testnet\): Walrus testnet \| Tatum testnet \| relayer testnet \| project sui:testnet/,
+    ],
+    [
+      {
+        walrus: 'testnet',
+        tatum: 'testnet',
+        relayer: 'testnet',
+        deployment: 'testnet',
+        project: ['sui:mainnet'],
+        consistent: false,
+      },
+      /FAIL\s+networks disagree: Walrus testnet \| Tatum testnet \| relayer testnet \| project sui:mainnet/,
+    ],
+  ])('prints the networks side by side (%#)', async (networks, pattern) => {
+    const { sb } = await ready();
+    const real = sb.rt.fetch;
+    sb.rt.fetch = (async (url: Parameters<typeof fetch>[0], init?: RequestInit) => {
+      const res = await real(url, init);
+      if (!String(url).endsWith('/status')) return res;
+      const body = (await res.json()) as { data: Record<string, unknown> };
+      body.data.networks = networks;
+      return new Response(JSON.stringify(body), { status: res.status, headers: res.headers });
+    }) as typeof fetch;
+    sb.out.length = 0;
+    await sb.run('doctor');
+    expect(sb.text()).toMatch(pattern);
+  });
+
   it('passes when healthy, warns about competing memory tools, and fails on a revoked token', async () => {
     const { sb, projectId, session } = await ready();
     await sb.run('connect', 'cursor', '--no-pointer');

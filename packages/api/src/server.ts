@@ -18,6 +18,7 @@ import { PgDb, PgliteDb, type Db } from './db/db.js';
 import { createApp, type BuiryApp } from './http/app.js';
 import { authenticateAgentToken } from './service/auth.js';
 import { tatumCallSink } from './service/dashboard.js';
+import { checkRuntimeNetworks } from './service/networks.js';
 import { AgentBackend } from './service/memory-service.js';
 import type { ServiceDeps } from './service/types.js';
 
@@ -92,6 +93,19 @@ export async function buildRuntime(env: Env = process.env): Promise<Runtime> {
     adapter = http;
     deps.adapter = adapter;
   }
+  // Refuse to start when Walrus, the gateway, the relayer, the demo or a project point at different Sui networks.
+  const net = await checkRuntimeNetworks({
+    env,
+    db,
+    gatewayConfigured: !!gateway,
+    ...(adapter instanceof HttpWalrusAdapter ? { relayerConfig: () => adapter.relayerConfig() } : {}),
+  });
+  if (net.mismatches.length) {
+    gateway?.close();
+    await db.close();
+    throw new Error(`[buiry] refusing to start, network mismatch: ${net.mismatches.join('; ')}`);
+  }
+  deps.networks = net.networks;
   return {
     deps,
     ...(adapter ? { adapter } : {}),

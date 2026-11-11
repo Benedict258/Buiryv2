@@ -289,6 +289,13 @@ const doctor: Cmd = async (a, rt) => {
             ? 'chain gateway: ok (chain checks run over gRPC only)'
             : `chain gateway: ${st.gateway.state}. Chain checks run over gRPC only; while it is down, evidence is reported unknown, never a stale pass`,
       );
+      if (st.networks) {
+        const n = st.networks;
+        const side = `Walrus ${n.walrus ?? '-'} | Tatum ${n.tatum ?? '-'} | relayer ${n.relayer ?? '-'} | project ${n.project.length ? n.project.join(',') : '-'}`;
+        if (!n.consistent) line('FAIL', `networks disagree: ${side}`);
+        else if (!n.deployment) line('warn', `networks not declared: ${side}`);
+        else line('ok', `networks (${n.deployment}): ${side}`);
+      }
       if (st.queue.dead > 0)
         line('FAIL', `${st.queue.dead} writes failed after retries (see Storage health)`);
       if (st.expiry.expiring > 0) line('warn', `${st.expiry.expiring} memories are approaching expiry`);
