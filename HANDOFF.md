@@ -86,6 +86,7 @@ Everything in section 3.
 
 - Walrus Memory on **Mainnet** (the relayer served Mainnet although `.env` said testnet, A27): signed remember, bulk, restore and listing; recall with the Seal session returned every stored memory with text (L-W1); expiry read, 15 epochs, about 210 days (L-W2).
 - Walrus Memory on **testnet** (`relayer.dev.memwal.ai`, `.env.testnet`): preflight with every network on testnet; REAL contract suite 4 of 4; recall with the Seal session, every memory with text and no `degraded`; expiry 5 days, `end_epoch` 583 (L-W1T, L-W2T). Tatum Sui **testnet** gRPC (L-T4).
+- Live demo on **testnet** (L-D1, 2026-11-16): every stage passed after two fixes; full output in `docs/EVIDENCE.md` (memories lapse around 2026-11-21).
 - Sui **testnet** demo package (L-D0): published `0xed715e4509f98b2c4ee0d9af96e7f6d6417534d3f053e1cce50a830967b03cc9` (tx `7gDcvEpquBTQv3RritmdCGyzvoDmdwKpiEpSjN8fL8b`), upgraded to `0x51103216297896e56d6d2f5c4b61bcd8df030fdc7ec82a7087636399da1ff6c1` (tx `3BwSg4N1h2afycg15oeMcjq4C6Hg6TfXtESC882D8N3g`); read-only package verifier reports "package upgraded: cited version 1, latest 2". Testnet resets would remove it.
 
 - Walrus relayer, unsigned endpoints only: `/health`, `/version`, `/config`. `/config` reports `securityDeleteEnabled: true` on the public relayer.
@@ -99,7 +100,7 @@ Everything in section 3.
 ### Not verified
 
 - Bulk rate limits and weight (A6) and operator renewal (A1) are open. Connect timeouts to the public relayer (A24) and one SDK 404 (A25) are unexplained.
-- The live demo (L-D1) on testnet: inputs are ready in `.env.testnet`; not run yet (owner decides). `expires_at` is approximate within an epoch (A29).
+- The live demo on Mainnet; `expires_at` is approximate (A29); relayer connection failures (A24).
 - OAuth sign-in with real apps (L-A1, A21).
 - Cursor config; OpenCode and Codex behaviour (need a model login).
 - Tatum credit usage and plan limits (A9). Credit figures in code are client-side estimates (2 per call).
@@ -221,7 +222,7 @@ Plan: keep it, do not expand it, decide after the prototype works. To decide, re
 
 1. Done: Parts A, B and C. Testnet preflight, L-W1T and L-W2T verified; two testnet-only differences fixed with regression tests.
 2. Done: testnet demo package (Part D). `DEMO_PACKAGE_ID` `0xed715e4509f98b2c4ee0d9af96e7f6d6417534d3f053e1cce50a830967b03cc9`, `DEMO_TX_DIGEST` `3BwSg4N1h2afycg15oeMcjq4C6Hg6TfXtESC882D8N3g`; the verifier reports the upgrade.
-3. Live demo on testnet (L-D1), only when the owner says so.
+3. Done: live demo on testnet (L-D1), see `docs/EVIDENCE.md`. Re-running it later needs the demo package still on testnet and writes new memories that last about 5 days.
 4. **Decide tenant isolation for managed mode.** One account holds every tenant and a Seal session reaches the whole account, with keys that outlive the session (A26). Options: (a) one Walrus Memory account per tenant managed by Buiry, (b) bring-your-own account per customer, (c) a self-hosted relayer and contract. Accept when the chosen mode is in the architecture doc and the isolation suite covers it.
 5. After the demo: retention and renewal for Walrus expiry (including A29); deployment, backups and monitoring; npm naming (the v1 package owns `@buiry/mcp`); the Tatum decision.
 6. **Mainnet cutover checklist** (a deliberate flip at the end):

@@ -30,6 +30,11 @@ Legend: **done** (implemented and tested), **mocked** (tested only against a moc
 
 - Baseline (`pnpm typecheck && pnpm lint && pnpm test`) also passes on Windows. The 0600 check on the credentials file is a conditional assertion inside its test: it is not made on Windows (NTFS has no POSIX modes) and still runs on Linux and macOS.
 
+## Live demo on testnet (2026-11-16)
+
+- `pnpm demo --live` on the testnet profile: failure shown first to the second agent, drift caught ("package upgraded: cited version 1, latest 2"), stale flag at the next check, correction from the upgrade digest at confidence 0.6 with 3 evidence items, five real blob ids with end epoch 588. Output in `docs/EVIDENCE.md`; the memories lapse around 2026-11-21.
+- Fixed from the live run, with regression tests: mutated objects are extracted from transactions; the demo waits for expiry.
+
 ## Testnet demo package (2026-11-11)
 
 - Sui CLI 1.84.0 (official release, SHA-256 checked) in `.buiry-local/sui-cli/`; a throwaway address with its own config in `.buiry-local/sui-testnet/`, funded by the CLI faucet.
