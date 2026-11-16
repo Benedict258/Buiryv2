@@ -30,6 +30,12 @@ Legend: **done** (implemented and tested), **mocked** (tested only against a moc
 
 - Baseline (`pnpm typecheck && pnpm lint && pnpm test`) also passes on Windows. The 0600 check on the credentials file is a conditional assertion inside its test: it is not made on Windows (NTFS has no POSIX modes) and still runs on Linux and macOS.
 
+## Dependency upgrades (2026-11-16)
+
+- vitest 2.1.9 -> 3.2.7 -> 4.1.12 (with @vitest/coverage-v8), vite 5.4.21 -> 6.4.5 (vitest 4 needs vite 6+), tsup 8 -> 9.0.0 (esbuild 0.28). Gate 428/428, dashboard build and the 94-screen Chrome pass clean.
+- New production advisories appeared since the morning audit (hono, @hono/node-server); patched to hono 4.13.16 and @hono/node-server 2.1.6, including inside the MCP SDK through narrow overrides. `pnpm audit --prod`: 0.
+- Left: minimatch 10.2.6 through typescript-eslint (dev-only, moderate); the newest typescript-eslint still requires minimatch ^10, so there is no fix within its supported range.
+
 ## Tatum latency (2026-11-16)
 
 - Measured on testnet: about 0.3 s per call once connected; slow, variable connection setup; one attempt in five retried. Details in HANDOFF section 9.

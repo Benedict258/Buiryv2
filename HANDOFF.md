@@ -73,6 +73,7 @@ Root `LICENSE` is now a short per-package notice (Apache-2.0 for core, mcp, cli;
 ### Gate (Windows, Node 24.16, pnpm 10.28.0 via corepack)
 
 - At `c182a34` (start of the audit; `ef146be` before the author rewrite): install ok; typecheck ok except that the old script's nested `pnpm` call failed when pnpm was not on PATH; lint ok; 33 files, 372 tests passed.
+- Dependencies (2026-11-16): vitest 4.1.12, vite 6.4.5, tsup 9.0.0, hono 4.13.16, @hono/node-server 2.1.6; `pnpm audit --prod` 0; one dev-only advisory left (minimatch via typescript-eslint, no fix in range).
 - Current: typecheck (plain `tsc` for the dashboard, no nested pnpm), lint and test pass before every commit; 38 files, 422 tests after Part C (2026-11-11).
 - `pnpm dev:api` was started from a Windows shell: `/v1/healthz` returned 200 and the built dashboard was served at `/`.
 - The "344 on the cloud copy" figure is unverified. The remote branch at `d7d2f7f` (then `0464026`) (`ccr-e0e1030c-5n01et`) was an ancestor of `main` and has been deleted.
