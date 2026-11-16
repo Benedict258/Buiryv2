@@ -29,6 +29,12 @@ The live documentation was read on 2026-10-28 (results in "Step 0 results" below
 - Difference that needed code (fixed, with regression tests): expiry margins and the status "expiring" window were a fixed 28 days, two Mainnet epochs, so every 5-day testnet memory would have been "expiring" at once. They now follow the network epoch (`walrusEpochMs`).
 - Connection problems seen on testnet too (A24): the startup `/config` connect timeout, and 1 of 6 `curl` connections to `relayer.dev.memwal.ai` failed with a TLS error.
 
+**Fresh-package demo (2026-11-16)**
+
+- Explicit verification now revalidates: the gateway cached package version lists for 60 s, so `buiry_verify` right after an upgrade reported the old latest version. The architecture already said "revalidation on demand"; the code now does it for explicit checks.
+- Write-time verification results are not stored on the evidence (`last_verified_at` stays empty), so the next `buiry_check` re-verifies new evidence on the chain. Measured and handled in Phase 2.
+- Sui CLI dependency fetching on a slow connection: the CLI fetches the Sui framework sources per framework revision into `~/.move` (testnet moved from `05ad86a3` to `e6f43880` between 2026-11-11 and 2026-11-16). A full fetch failed with "fetch-pack: invalid index-pack output"; a shallow, blob-less fetch of the one commit (`git fetch --depth 1 --filter=blob:none origin <rev>` in that cache) took 23 seconds, after which builds take about 30 seconds.
+
 **Live demo on testnet (2026-11-16, L-D1)**
 
 - Full output in `docs/EVIDENCE.md`. Two differences from the mock run were found and fixed with regression tests: (1) the transaction verifier extracted only created objects, but the architecture says created and mutated, so an upgrade lost its mutated UpgradeCap; SUI coins stay excluded; (2) the demo read expiry seconds after writing, before the relayer reported it; it now waits within a bound.

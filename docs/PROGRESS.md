@@ -30,6 +30,11 @@ Legend: **done** (implemented and tested), **mocked** (tested only against a moc
 
 - Baseline (`pnpm typecheck && pnpm lint && pnpm test`) also passes on Windows. The 0600 check on the credentials file is a conditional assertion inside its test: it is not made on Windows (NTFS has no POSIX modes) and still runs on Linux and macOS.
 
+## Fresh-package live demo (2026-11-16)
+
+- `pnpm demo --live --fresh-package`: a fresh package is published at version 1, agent A's deployment memory is verified (not stale), the package is upgraded between sessions, and only then is drift caught and corrected. Live on testnet; output in `docs/EVIDENCE.md`.
+- Fixed: explicit verification bypasses the 60 s cache (it could report a stale "latest version" right after an upgrade). Mock demo and ordering test kept; the mock upgrade now takes realistic time.
+
 ## Live demo on testnet (2026-11-16)
 
 - `pnpm demo --live` on the testnet profile: failure shown first to the second agent, drift caught ("package upgraded: cited version 1, latest 2"), stale flag at the next check, correction from the upgrade digest at confidence 0.6 with 3 evidence items, five real blob ids with end epoch 588. Output in `docs/EVIDENCE.md`; the memories lapse around 2026-11-21.
