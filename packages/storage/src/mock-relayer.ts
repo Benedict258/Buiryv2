@@ -34,6 +34,11 @@ export interface MockRelayerOptions {
   jobPolls?: number;
   /** Milliseconds after completion before recall can see a memory. */
   recallLagMs?: number;
+  /**
+   * Milliseconds after completion before the listing reports `end_epoch` and `expires_at` (null until then).
+   * The live relayers took about 4 to 5 minutes (L-W2, L-W2T).
+   */
+  expiryLagMs?: number;
   defaultEpochs?: number;
   /** Enforce documented-style limits (60 weighted/min, 500/hr per account; 30 req/min per key). */
   rateLimits?: boolean;
@@ -98,6 +103,7 @@ export class MockRelayer {
       now: o.now ?? Date.now,
       jobPolls: o.jobPolls ?? 1,
       recallLagMs: o.recallLagMs ?? 0,
+      expiryLagMs: o.expiryLagMs ?? 0,
       defaultEpochs: o.defaultEpochs ?? 3,
       rateLimits: o.rateLimits ?? false,
       bulkWeightPerItem: o.bulkWeightPerItem ?? 5,
@@ -370,8 +376,8 @@ export class MockRelayer {
           size: Buffer.byteLength(b.text),
           agent_id: b.agentId,
           status: this.hardDeleted.includes(b.blobId) ? 'deleted' : now >= b.expiresAt ? 'expired' : 'active',
-          end_epoch: b.endEpoch,
-          expires_at: b.expiresAt,
+          end_epoch: now >= b.doneAt + this.o.expiryLagMs ? b.endEpoch : null,
+          expires_at: now >= b.doneAt + this.o.expiryLagMs ? b.expiresAt : null,
         })),
         has_more: hasMore,
         ...(hasMore ? { next_cursor: String(start + limit) } : {}),

@@ -57,9 +57,16 @@ export interface World {
 const rand = (n: number) => new Uint8Array(randomBytes(n));
 
 /** Everything on mocks: MockRelayer (async jobs, recall lag off) and MockTatum over real gRPC. */
-export async function mockWorld(o: { realTime?: boolean; budgets?: AdmissionBudgets } = {}): Promise<World> {
+export async function mockWorld(
+  o: { realTime?: boolean; budgets?: AdmissionBudgets; expiryLagMs?: number } = {},
+): Promise<World> {
   const clock = o.realTime ? realClock() : fakeClock(Date.parse('2026-10-20T10:00:00Z'));
-  const mockRelayer = await MockRelayer.start({ now: clock.now, autoCompleteMs: 0, defaultEpochs: 3 });
+  const mockRelayer = await MockRelayer.start({
+    now: clock.now,
+    autoCompleteMs: 0,
+    defaultEpochs: 3,
+    ...(o.expiryLagMs ? { expiryLagMs: o.expiryLagMs } : {}),
+  });
   const signer = new Ed25519Signer(randomBytes(32).toString('hex'));
   const adapter = new HttpWalrusAdapter({
     baseUrl: mockRelayer.url,

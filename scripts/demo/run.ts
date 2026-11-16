@@ -42,6 +42,8 @@ export interface DemoOptions {
   live?: boolean;
   log?: (s: string) => void;
   env?: Record<string, string | undefined>;
+  /** Mock only: delay before the mock relayer reports expiry (the live relayers take minutes). */
+  mockExpiryLagMs?: number;
 }
 
 const text = (r: ToolResult) => r.content?.map((c) => c.text ?? '').join('\n') ?? '';
@@ -49,7 +51,9 @@ const text = (r: ToolResult) => r.content?.map((c) => c.text ?? '').join('\n') ?
 export async function runDemo(o: DemoOptions = {}): Promise<DemoResult> {
   const log = o.log ?? (() => {});
   const env = o.env ?? process.env;
-  const world: World = o.live ? await liveWorld(env) : await mockWorld();
+  const world: World = o.live
+    ? await liveWorld(env)
+    : await mockWorld(o.mockExpiryLagMs ? { expiryLagMs: o.mockExpiryLagMs } : {});
   const { stack, clock } = world;
   const live = world.mode === 'live';
   const heading = (s: string) => log(`\n== ${s}`);
@@ -255,7 +259,29 @@ export async function runDemo(o: DemoOptions = {}): Promise<DemoResult> {
   say(
     `score history of the deployment memory: ${hist.rows.map((h) => `${h.type}${h.payload.after !== undefined ? ` ${h.payload.before}->${h.payload.after}` : ''}`).join(' | ')}`,
   );
+  // The relayer reports end_epoch and expires_at a few minutes after a write (L-W2, L-W2T), so scan again
+  // until every stored memory has them, within a bound. Whatever is still missing is reported as pending.
+  const expiryWaitMs = Number(env.DEMO_EXPIRY_WAIT_MS ?? 10 * 60_000);
+  const pendingExpiry = async () =>
+    Number(
+      (
+        await stack.db.system((tx2) =>
+          tx2.query<{ n: string }>(
+            `select count(*) as n from memories where project_id = $1 and write_state = 'stored' and expired = false and expires_at is null`,
+            [prj.id],
+          ),
+        )
+      ).rows[0]!.n,
+    );
+  const expiryStarted = clock.now();
   await expiryScan(stack.deps, { adapter: world.adapter, checkIntervalMs: 6 * 3_600_000 });
+  while ((await pendingExpiry()) > 0 && clock.now() - expiryStarted < expiryWaitMs) {
+    if (live) await new Promise((r) => setTimeout(r, 20_000));
+    else clock.advance(20_000);
+    await expiryScan(stack.deps, { adapter: world.adapter, checkIntervalMs: 6 * 3_600_000 });
+  }
+  const expiryWaitedS = Math.round((clock.now() - expiryStarted) / 1000);
+  say(`expiry read from the relayer listing after ${expiryWaitedS} s`);
   const report = await stack.deps.db.tenant(ws.id, (tx2) =>
     evidenceReport(stack.deps, tx2, admin, prj.id, {
       walrusNetwork: env.WALRUS_NETWORK ?? 'mock',
@@ -267,7 +293,9 @@ export async function runDemo(o: DemoOptions = {}): Promise<DemoResult> {
     `Walrus: ${report.walrus.storedMemories} memories stored; agent id ${String(report.walrus.agentId_delegatePublicKey).slice(0, 16)}...`,
   );
   for (const m of report.walrus.memories)
-    say(`  blob ${m.blobId}  ${m.type.padEnd(10)} expires ${m.expiresAt ?? 'unknown'}`);
+    say(
+      `  blob ${m.blobId}  ${m.type.padEnd(10)} ${m.expiresAt ? `expires ${m.expiresAt}` : `expiry pending (not reported after ${expiryWaitedS} s)`}${m.endEpoch !== null && m.endEpoch !== undefined ? ` (end epoch ${m.endEpoch})` : ''}`,
+    );
   say(
     `Tatum: ${report.tatum.calls} gateway calls (gRPC ${report.tatum.grpcCalls}, JSON-RPC ${report.tatum.jsonrpcCalls}), avg ${report.tatum.avgLatencyMs} ms, ~${report.tatum.creditsEstimated} credits`,
   );

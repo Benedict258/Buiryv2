@@ -23,6 +23,14 @@ describe('two-agent demo on mocks', () => {
     expect(out).toContain('memory status is now: stale');
   }, 180_000);
 
+  it('waits for expiry when the relayer reports it minutes after the write (found live on testnet)', async () => {
+    const lines: string[] = [];
+    const r = await runDemo({ log: (s) => lines.push(s), mockExpiryLagMs: 5 * 60_000 });
+    expect(r.expiries.every(Boolean)).toBe(true);
+    expect(lines.join('\n')).toMatch(/expiry read from the relayer listing after [1-9]\d* s/);
+    expect(lines.join('\n')).toMatch(/\(end epoch \d+\)/);
+  }, 180_000);
+
   it('refuses to run live without the live configuration (no pretending)', async () => {
     await expect(runDemo({ live: true, env: {} })).rejects.toThrow(/live mode needs WALRUS_RELAYER_URL/);
   });

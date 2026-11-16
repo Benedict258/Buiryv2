@@ -231,6 +231,29 @@ describe('expiry reconciliation', () => {
     }
   }
 
+  it('picks up expiry on a later scan when the relayer reports it minutes after the write (live behaviour)', async () => {
+    const clock = new Clock();
+    const mock = await MockRelayer.start({ now: clock.now, autoCompleteMs: 0, expiryLagMs: 5 * 60_000 });
+    open.push(mock);
+    const adapter = new HttpWalrusAdapter({
+      baseUrl: mock.url,
+      accountId: 'a',
+      signer: new Ed25519Signer('33'.repeat(32)),
+      now: clock.now,
+    });
+    const ns = `buiry.v1.${PROJECT}.main`;
+    await adapter.remember(ns, 'fresh');
+    const store = new Store([{ memoryId: 'mem_0', blobId: mock.blobs[0]!.blobId, namespace: ns }]);
+    await reconcileExpiry({ adapter, store, now: clock.now(), checkIntervalMs: 6 * 3_600_000 });
+    expect(store.expiry.get('mem_0')).toEqual({}); // nothing known yet
+    clock.advance(6 * 60_000);
+    await reconcileExpiry({ adapter, store, now: clock.now(), checkIntervalMs: 6 * 3_600_000 });
+    expect(store.expiry.get('mem_0')).toMatchObject({
+      endEpoch: expect.any(Number),
+      expiresAt: expect.any(Number),
+    });
+  });
+
   it('records expiry, flags expiring within the margin and expired memories', async () => {
     const clock = new Clock();
     const mock = await MockRelayer.start({ now: clock.now, autoCompleteMs: 0, defaultEpochs: 3 });
