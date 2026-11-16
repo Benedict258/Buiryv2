@@ -7,7 +7,7 @@
  *   pnpm demo            # mocks
  *   pnpm demo --live     # live services from your machine
  */
-import { pathToFileURL } from 'node:url';
+import { fileURLToPath, pathToFileURL } from 'node:url';
 import { Client } from '@modelcontextprotocol/sdk/client/index.js';
 import { InMemoryTransport } from '@modelcontextprotocol/sdk/inMemory.js';
 import { StreamableHTTPClientTransport } from '@modelcontextprotocol/sdk/client/streamableHttp.js';
@@ -16,6 +16,7 @@ import { createDrain, evidenceReport, queryActivity, type Stack } from '../../pa
 import { expiryScan } from '../../packages/worker/src/index.js';
 import ids from '../../packages/chain/fixtures/_ids.json' with { type: 'json' };
 import { liveWorld, mockWorld, type World } from '../lib/world.js';
+import { mockPackageFlow, suiCliPackageFlow, type PackageFlow, type PackageStep } from './package-flow.js';
 
 type ToolResult = {
   isError?: boolean;
@@ -31,6 +32,11 @@ export interface DemoResult {
   deploymentMemoryId: string;
   staleDetected: boolean | 'not-applicable';
   staleFlagShownAtCheck: boolean;
+  /** Fresh-package mode: the deployment memory's status right after agent A wrote it, and in B's first briefing. */
+  deploymentStatusAfterWrite?: string;
+  deploymentStatusAtFirstBriefing?: string;
+  /** Fresh-package mode: the package published for this run and its upgrade. */
+  freshPackage?: { v1: string; publishDigest: string; v2: string; upgradeDigest: string };
   correctedMemoryId?: string;
   correctedConfidence?: number;
   blobIds: string[];
@@ -42,6 +48,11 @@ export interface DemoOptions {
   live?: boolean;
   log?: (s: string) => void;
   env?: Record<string, string | undefined>;
+  /**
+   * Publish a fresh package at version 1 before session 1 and upgrade it between the sessions, so the deployment
+   * memory is verified (not stale) when written and goes stale only after the upgrade. Live: Sui CLI on testnet.
+   */
+  freshPackage?: boolean;
   /** Mock only: delay before the mock relayer reports expiry (the live relayers take minutes). */
   mockExpiryLagMs?: number;
 }
@@ -60,9 +71,10 @@ export async function runDemo(o: DemoOptions = {}): Promise<DemoResult> {
   const say = (s: string) => log(`   ${s}`);
 
   // The package and transaction used for the drift story. Live mode needs your own (an upgraded package and a digest).
-  const pkg = live ? env.DEMO_PACKAGE_ID : ids.PKG_V3;
-  const tx = live ? env.DEMO_TX_DIGEST : ids.D_PUBLISH;
-  if (live && (!pkg || !tx))
+  const fresh = o.freshPackage === true;
+  let pkg = live ? env.DEMO_PACKAGE_ID : ids.PKG_V3;
+  let tx = live ? env.DEMO_TX_DIGEST : ids.D_PUBLISH;
+  if (live && !fresh && (!pkg || !tx))
     throw new Error(
       'live demo needs DEMO_PACKAGE_ID (a package that has since been upgraded) and DEMO_TX_DIGEST (a successful publish/upgrade transaction)',
     );
@@ -91,6 +103,27 @@ export async function runDemo(o: DemoOptions = {}): Promise<DemoResult> {
   });
   say(`project ${prj.id}`);
   say(`agent A: ${a.slug} (Claude Code)    agent B: ${b.slug} (OpenCode)`);
+
+  // Fresh-package mode: the package exists only at version 1 when agent A records the deployment.
+  let flow: PackageFlow | undefined;
+  let freshPackage: DemoResult['freshPackage'];
+  let published: PackageStep | undefined;
+  if (fresh) {
+    heading(`Package: publish a fresh package at version 1 (${live ? network : 'mock'})`);
+    flow = live
+      ? await suiCliPackageFlow({
+          root: fileURLToPath(new URL('../..', import.meta.url)),
+          network,
+          gatewayChainId: async () =>
+            String((await world.gateway!.getServiceInfo({ network })).value.chainId),
+          log: say,
+          env,
+        })
+      : mockPackageFlow(world.mockTatum!, network);
+    published = await flow.publish();
+    pkg = published.packageId;
+    say(`published ${published.packageId} (version ${published.version}) in transaction ${published.digest}`);
+  }
 
   const call = async (c: Client, name: string, args: Record<string, unknown> = {}) =>
     (await c.callTool({ name, arguments: args })) as ToolResult;
@@ -137,7 +170,7 @@ export async function runDemo(o: DemoOptions = {}): Promise<DemoResult> {
   });
   const dep = await call(ca, 'buiry_remember', {
     // Live mode does not know the cited version, so it does not claim one.
-    text: `Registry package deployed on ${network.replace('sui:', '')} at ${pkg}${live ? '' : ', version 3'}.`,
+    text: `Registry package deployed on ${network.replace('sui:', '')} at ${pkg}${fresh ? ', version 1' : live ? '' : ', version 3'}.`,
     type: 'deployment',
     evidence: [{ kind: 'package', id: pkg, network }],
   });
@@ -152,6 +185,26 @@ export async function runDemo(o: DemoOptions = {}): Promise<DemoResult> {
   say('buiry_handoff -> recorded');
   await ca.close();
   await settle('after session 1');
+  const statusOf = async (id: string) =>
+    (
+      await stack.db.system((tx2) =>
+        tx2.query<{ status: string }>('select status from memories where id = $1', [id]),
+      )
+    ).rows[0]?.status;
+  const deploymentStatusAfterWrite = await statusOf(deploymentMemoryId);
+  say(`deployment memory status after its write-time check: ${deploymentStatusAfterWrite}`);
+  if (fresh && flow && published) {
+    heading('Between sessions: the package is upgraded to version 2');
+    const up = await flow.upgrade();
+    tx = up.digest;
+    freshPackage = {
+      v1: published.packageId,
+      publishDigest: published.digest,
+      v2: up.packageId,
+      upgradeDigest: up.digest,
+    };
+    say(`upgraded to ${up.packageId} (version ${up.version}) in transaction ${up.digest}`);
+  }
 
   // ---------------- Session 2: agent B, different tool, is shown the failure first ----------------
   heading('Session 2 (agent B, Streamable HTTP, a different tool identity): onboarding briefing');
@@ -174,6 +227,8 @@ export async function runDemo(o: DemoOptions = {}): Promise<DemoResult> {
       md,
     );
   say(`buiry_check -> onboarding briefing; failure shown first: ${failureShownFirst}`);
+  const deploymentStatusAtFirstBriefing = await statusOf(deploymentMemoryId);
+  say(`deployment memory status in this briefing: ${deploymentStatusAtFirstBriefing}`);
   log(
     md
       .split('\n')
@@ -308,6 +363,7 @@ export async function runDemo(o: DemoOptions = {}): Promise<DemoResult> {
     deploymentMemoryId,
     staleDetected,
     staleFlagShownAtCheck,
+    ...(fresh ? { deploymentStatusAfterWrite, deploymentStatusAtFirstBriefing, freshPackage } : {}),
     ...(correctedMemoryId ? { correctedMemoryId } : {}),
     ...(correctedConfidence !== undefined ? { correctedConfidence } : {}),
     blobIds: report.walrus.memories.map((m) => m.blobId ?? ''),
@@ -320,7 +376,11 @@ export async function runDemo(o: DemoOptions = {}): Promise<DemoResult> {
 }
 
 if (import.meta.url === pathToFileURL(process.argv[1] ?? '').href) {
-  const r = await runDemo({ live: process.argv.includes('--live'), log: (s) => console.log(s) });
+  const r = await runDemo({
+    live: process.argv.includes('--live'),
+    freshPackage: process.argv.includes('--fresh-package'),
+    log: (s) => console.log(s),
+  });
   console.log('\nResult:', JSON.stringify(r, null, 2));
   process.exit(r.failureShownFirst ? 0 : 1);
 }
