@@ -47,6 +47,16 @@ describe('gateway over real gRPC (MockTatum)', () => {
     expect(mainnet.count('grpc', 'GetTransaction')).toBe(1);
   });
 
+  it('revalidates on demand: a fresh read skips the cache (found by the fresh-package demo)', async () => {
+    const { gateway, mainnet } = await make();
+    await gateway.listPackageVersions(ids.PKG_V3);
+    await gateway.listPackageVersions(ids.PKG_V3); // served from the 60 s cache
+    expect(mainnet.count('grpc', 'ListPackageVersions')).toBe(1);
+    const r = await gateway.listPackageVersions(ids.PKG_V3, { fresh: true });
+    expect(r.prov.cached).toBe(false);
+    expect(mainnet.count('grpc', 'ListPackageVersions')).toBe(2);
+  });
+
   it('caches current state briefly (60s) and negative results very briefly (5s)', async () => {
     const { gateway, mainnet, clock } = await make();
     await gateway.getObject(ids.OBJ_REG);

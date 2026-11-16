@@ -58,6 +58,11 @@ export interface GatewayStatus {
 
 export interface CallContext {
   workspaceId?: string;
+  /**
+   * Revalidate on demand (architecture section 11): skip cached and in-flight reads and ask the chain. Used for
+   * explicit verification, so a check right after an upgrade cannot return the version list from before it.
+   */
+  fresh?: boolean;
 }
 
 export interface Result<T> {
@@ -264,7 +269,7 @@ export class TatumGateway {
     fn: (b: ChainBackend) => Promise<T>,
   ): Promise<Result<T>> {
     const ck = key ? `${network}|${key}` : null;
-    if (ck) {
+    if (ck && !ctx.fresh) {
       const hit = this.cache.get<T>(ck);
       if (hit !== undefined) {
         await this.emit({

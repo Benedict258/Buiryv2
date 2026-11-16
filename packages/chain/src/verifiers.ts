@@ -26,6 +26,8 @@ export interface VerifyContext {
   /** Networks the project declares; used for network sanity. */
   declaredNetworks: Network[];
   workspaceId?: string;
+  /** Explicit verification: read current chain state, not the short-lived cache. */
+  fresh?: boolean;
   /** Results computed client-side by the CLI (path -> result). Only results reach the server. */
   repo?: Record<string, RepoFileResult>;
 }
@@ -61,6 +63,7 @@ export function normalizeSuiId(id: string): string {
 const call = (ctx: VerifyContext, network: Network): CallContext & { network: Network } => ({
   network,
   ...(ctx.workspaceId ? { workspaceId: ctx.workspaceId } : {}),
+  ...(ctx.fresh ? { fresh: true } : {}),
 });
 
 /** Outages, throttling and budget exhaustion yield `unknown` + degraded: never a fail. */

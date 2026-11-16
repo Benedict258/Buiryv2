@@ -150,8 +150,9 @@ export async function verifyOp(
       });
       continue;
     }
+    // An explicit verify (tool call or dashboard) revalidates; automatic checks may use the short cache.
     const vctx: VerifyContext = ctx
-      ? { ...ctx, ...(opts.repo ? { repo: opts.repo } : {}) }
+      ? { ...ctx, ...(opts.auto ? {} : { fresh: true }), ...(opts.repo ? { repo: opts.repo } : {}) }
       : {
           gateway: undefined as never,
           declaredNetworks: project.networks,
