@@ -30,6 +30,11 @@ Legend: **done** (implemented and tested), **mocked** (tested only against a moc
 
 - Baseline (`pnpm typecheck && pnpm lint && pnpm test`) also passes on Windows. The 0600 check on the credentials file is a conditional assertion inside its test: it is not made on Windows (NTFS has no POSIX modes) and still runs on Linux and macOS.
 
+## Security review (2026-11-16)
+
+- `docs/SECURITY_REVIEW.md`: no critical findings; three high findings fixed with regression tests (malformed URL crashing the request handler, unbounded request bodies, sign-in links in production logs); seven medium and two low findings listed with fixes, one low fixed.
+- Production now refuses email sign-in when no mailer is configured instead of printing links; the SMTP mailer is Phase 7.
+
 ## Dependency upgrades (2026-11-16)
 
 - vitest 2.1.9 -> 3.2.7 -> 4.1.12 (with @vitest/coverage-v8), vite 5.4.21 -> 6.4.5 (vitest 4 needs vite 6+), tsup 8 -> 9.0.0 (esbuild 0.28). Gate 428/428, dashboard build and the 94-screen Chrome pass clean.
