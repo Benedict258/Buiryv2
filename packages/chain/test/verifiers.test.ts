@@ -342,3 +342,57 @@ describe('Walrus health verifier (read-interface expiry + chain cross-check)', (
     expect(out).toMatchObject({ result: 'unknown', degraded: true, expired: [] });
   });
 });
+
+describe('transaction verifier on an upgrade (found live on testnet)', () => {
+  // Shape of the testnet upgrade 3BwSg4N1...: a new package is created and the existing UpgradeCap is mutated
+  // (version 1 -> 2). A gas coin, when one pays, is mutated too and must not become evidence.
+  const FRAMEWORK = '0x0000000000000000000000000000000000000000000000000000000000000002';
+  const fake = {
+    getTransaction: async () => ({
+      value: {
+        digest: 'upgrade',
+        success: true,
+        checkpoint: '405388154',
+        changed: [
+          {
+            objectId: '0x' + '51'.repeat(32),
+            idOperation: 'created',
+            outputKind: 'package',
+            outputVersion: '2',
+            objectType: 'package',
+          },
+          {
+            objectId: '0x' + 'a2'.repeat(32),
+            idOperation: 'none',
+            outputKind: 'object',
+            inputVersion: '1',
+            outputVersion: '2',
+            objectType: `${FRAMEWORK}::package::UpgradeCap`,
+          },
+          {
+            objectId: '0x' + 'c0'.repeat(32),
+            idOperation: 'none',
+            outputKind: 'object',
+            inputVersion: '7',
+            outputVersion: '8',
+            objectType: `${FRAMEWORK}::coin::Coin<${FRAMEWORK}::sui::SUI>`,
+          },
+          { objectId: '0x' + '16'.repeat(32), idOperation: 'none', outputKind: 'other' },
+        ],
+      },
+      prov: { transport: 'grpc', network: 'sui:testnet', cached: false, latencyMs: 1, credits: 2 },
+    }),
+  } as unknown as VerifyContext['gateway'];
+
+  it('extracts the new package and the mutated UpgradeCap, never the gas coin (architecture section 11)', async () => {
+    const out = await verifyEvidence(
+      { kind: 'tx', digest: 'upgrade', network: 'sui:testnet' },
+      { gateway: fake, declaredNetworks: ['sui:testnet'] },
+    );
+    expect(out.result).toBe('pass');
+    expect(out.extracted).toEqual([
+      { kind: 'package', id: '0x' + '51'.repeat(32), network: 'sui:testnet' },
+      { kind: 'object', id: '0x' + 'a2'.repeat(32), version: '2', network: 'sui:testnet' },
+    ]);
+  });
+});

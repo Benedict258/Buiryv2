@@ -153,6 +153,9 @@ export async function checkNetworkSanity(
 
 // ---------- chain verifiers ----------
 
+/** A SUI coin (gas), with the framework address in short or full form. */
+const SUI_COIN_TYPE = /^0x0*2::coin::Coin<0x0*2::sui::SUI>$/;
+
 export const transactionVerifier: Verifier = {
   kind: 'tx',
   verify(ev, ctx) {
@@ -180,9 +183,15 @@ export const transactionVerifier: Verifier = {
           detail: `transaction failed on chain: ${tx.error ?? 'unknown error'}`,
           observed: { checkpoint: tx.checkpoint, epoch: tx.epoch },
         };
+      // Architecture section 11: extract created and mutated objects and published packages. A mutated object is
+      // one that existed before (`idOperation` none, with an input version), such as the UpgradeCap an upgrade
+      // bumps. SUI coins are left out: a gas coin changes on every transaction and would read as drift at once.
       const extracted: Evidence[] = [];
       for (const c of tx.changed) {
-        if (c.idOperation !== 'created') continue;
+        const created = c.idOperation === 'created';
+        const mutated = c.idOperation === 'none' && c.inputVersion !== undefined && c.outputKind === 'object';
+        if (!created && !mutated) continue;
+        if (c.objectType && SUI_COIN_TYPE.test(c.objectType)) continue;
         if (c.outputKind === 'package')
           extracted.push({ kind: 'package', id: normalizeSuiId(c.objectId), network: ev.network });
         else if (c.outputKind === 'object')
