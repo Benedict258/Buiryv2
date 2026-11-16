@@ -1,8 +1,11 @@
 import { mkdirSync, mkdtempSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
+import { MAX_MCP_BODY_BYTES } from '@buiry/mcp';
 import { PgliteDb, startHttp, type Runtime } from '../src/index.js';
+import { ConsoleMailer, mailerFromEnv, UnconfiguredMailer } from '../src/server.js';
+import { MAX_BODY_BYTES } from '../src/http/context.js';
 
 let close: () => Promise<void>;
 let url: string;
@@ -26,7 +29,7 @@ beforeAll(async () => {
     await h.close();
     await db.close();
   };
-});
+}, 60_000);
 afterAll(() => close());
 
 describe('dashboard static serving', () => {
@@ -51,5 +54,69 @@ describe('dashboard static serving', () => {
     expect(await h.json()).toEqual({ ok: true, data: { status: 'ok' } });
     const unknown = await fetch(url + '/v1/nope');
     expect(unknown.status).toBe(404);
+  });
+});
+
+// Security review (docs/SECURITY_REVIEW.md, H1 and H2): requests that used to crash the process or buffer without limit.
+describe('hostile requests', () => {
+  it('answers a malformed percent escape with 400 and keeps serving', async () => {
+    const bad = await fetch(url + '/%E0%A4%A');
+    expect(bad.status).toBe(400);
+    const after = await fetch(url + '/v1/healthz');
+    expect(after.status).toBe(200);
+  });
+
+  it('refuses a REST body over the cap, declared or streamed without a length', async () => {
+    const big = 'x'.repeat(MAX_BODY_BYTES + 10);
+    const declared = await fetch(url + '/v1/auth/email/start', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ email: big }),
+    });
+    expect(declared.status).toBe(400);
+    expect(await declared.text()).toContain('larger than');
+    const enc = new TextEncoder();
+    const streamed = await fetch(url + '/v1/auth/email/start', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: new ReadableStream({
+        start(ctl) {
+          for (let i = 0; i < 3; i++) ctl.enqueue(enc.encode('y'.repeat(MAX_BODY_BYTES / 2)));
+          ctl.close();
+        },
+      }),
+      duplex: 'half',
+    } as RequestInit);
+    expect(streamed.status).toBe(400);
+    expect(await streamed.text()).toContain('larger than');
+  });
+
+  it('refuses an MCP body over the cap with 413 before authenticating', async () => {
+    const r = await fetch(url + '/mcp', {
+      method: 'POST',
+      headers: { authorization: 'Bearer anything', 'content-type': 'application/json' },
+      body: 'z'.repeat(MAX_MCP_BODY_BYTES + 1),
+    });
+    expect(r.status).toBe(413);
+  });
+});
+
+// Security review H3: the console mailer prints sign-in links, which are bearer secrets.
+describe('mailer selection', () => {
+  it('never uses the console mailer in production', async () => {
+    const log = vi.spyOn(console, 'log').mockImplementation(() => {});
+    try {
+      for (const env of [{ NODE_ENV: 'production' }, { NODE_ENV: 'production', BUIRY_MAILER: 'console' }]) {
+        const m = mailerFromEnv(env);
+        expect(m).toBeInstanceOf(UnconfiguredMailer);
+        await expect(
+          m.sendMagicLink('a@example.invalid', 'https://x/auth/email?token=secret'),
+        ).rejects.toThrow('not configured');
+      }
+      expect(log).not.toHaveBeenCalled();
+      expect(mailerFromEnv({})).toBeInstanceOf(ConsoleMailer);
+    } finally {
+      log.mockRestore();
+    }
   });
 });

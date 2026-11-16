@@ -95,8 +95,34 @@ export function parse<T extends z.ZodTypeAny>(schema: T, value: unknown): z.infe
   return r.data;
 }
 
+/** Largest JSON request body accepted (packs included). Bodies are read with this cap, whatever Content-Length says. */
+export const MAX_BODY_BYTES = 2 * 1024 * 1024;
+
+const tooLarge = () => new BuiryError('invalid_input', `request body is larger than ${MAX_BODY_BYTES} bytes`);
+
+/** Reads the request body as text, refusing more than MAX_BODY_BYTES before buffering it all. */
+export async function readCapped(req: Request, max = MAX_BODY_BYTES): Promise<string> {
+  const declared = Number(req.headers.get('content-length') ?? 0);
+  if (declared > max) throw tooLarge();
+  if (!req.body) return '';
+  const reader = req.body.getReader();
+  const parts: Uint8Array[] = [];
+  let size = 0;
+  for (;;) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    size += value.byteLength;
+    if (size > max) {
+      await reader.cancel().catch(() => {});
+      throw tooLarge();
+    }
+    parts.push(value);
+  }
+  return Buffer.concat(parts).toString('utf8');
+}
+
 export async function body(c: Context): Promise<unknown> {
-  const text = await c.req.text();
+  const text = await readCapped(c.req.raw);
   if (!text) return {};
   try {
     return JSON.parse(text);

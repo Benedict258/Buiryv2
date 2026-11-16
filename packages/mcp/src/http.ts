@@ -25,11 +25,35 @@ function bearer(req: IncomingMessage): string | null {
   return h && /^Bearer /i.test(h) ? h.slice(7).trim() : null;
 }
 
+/** Largest MCP request body accepted. */
+export const MAX_MCP_BODY_BYTES = 1024 * 1024;
+
+class BodyError extends Error {
+  constructor(
+    readonly status: number,
+    message: string,
+  ) {
+    super(message);
+  }
+}
+
 async function readJson(req: IncomingMessage): Promise<unknown> {
+  if (Number(req.headers['content-length'] ?? 0) > MAX_MCP_BODY_BYTES)
+    throw new BodyError(413, 'request body too large');
   const chunks: Buffer[] = [];
-  for await (const c of req) chunks.push(c as Buffer);
+  let size = 0;
+  for await (const c of req) {
+    size += (c as Buffer).length;
+    if (size > MAX_MCP_BODY_BYTES) throw new BodyError(413, 'request body too large');
+    chunks.push(c as Buffer);
+  }
   const raw = Buffer.concat(chunks).toString('utf8');
-  return raw ? JSON.parse(raw) : undefined;
+  if (!raw) return undefined;
+  try {
+    return JSON.parse(raw);
+  } catch {
+    throw new BodyError(400, 'request body is not valid JSON');
+  }
 }
 
 const deny = (res: ServerResponse, status: number, message: string) => {
@@ -74,6 +98,10 @@ export function createMcpHandler(o: Pick<HttpOptions, 'authenticate'>): {
       await transport.handleRequest(req, res, body);
     } catch (e) {
       if (res.headersSent) return;
+      if (e instanceof BodyError) {
+        res.setHeader('connection', 'close');
+        return deny(res, e.status, e.message);
+      }
       if (e instanceof BuiryError && e.code === 'unauthorized') return deny(res, 401, e.message);
       deny(res, 500, e instanceof Error ? e.message : 'internal error');
     }

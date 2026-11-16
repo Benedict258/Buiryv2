@@ -1,7 +1,7 @@
 import { randomBytes } from 'node:crypto';
 import { createReadStream, existsSync, statSync } from 'node:fs';
 import { createServer, type Server } from 'node:http';
-import { extname, join, normalize, resolve } from 'node:path';
+import { extname, join, normalize, resolve, sep } from 'node:path';
 import { getRequestListener } from '@hono/node-server';
 import { createMcpHandler } from '@buiry/mcp';
 import { createGatewayIfConfigured, suiNetwork } from '@buiry/chain';
@@ -11,6 +11,7 @@ import {
   SealSessionProvider,
   type WalrusMemoryAdapter,
 } from '@buiry/storage';
+import { BuiryError } from '@buiry/core';
 import { MemoryMailer, type Mailer } from './auth/auth-service.js';
 import { GitHubOAuth, GoogleOAuth, type OAuthProvider } from './auth/oauth.js';
 import { SuiPersonalMessageVerifier } from './auth/wallet.js';
@@ -32,11 +33,26 @@ export interface Runtime {
   close: () => Promise<void>;
 }
 
-/** Console mailer for development: prints the sign-in link (no SMTP integration is claimed). */
+/** Console mailer for development: prints the sign-in link (no SMTP integration is claimed). Never used in production. */
 export class ConsoleMailer implements Mailer {
   async sendMagicLink(to: string, link: string): Promise<void> {
     console.log(`[buiry] sign-in link for ${to}: ${link}`);
   }
+}
+
+/** Production without a configured mailer: email sign-in is refused, and the link (a bearer secret) is never logged. */
+export class UnconfiguredMailer implements Mailer {
+  async sendMagicLink(): Promise<void> {
+    throw new BuiryError('internal', 'email sign-in is not configured on this server');
+  }
+}
+
+/** Picks the mailer from the environment. The console mailer prints tokens, so production never gets it. */
+export function mailerFromEnv(env: Env): Mailer {
+  if (env.BUIRY_MAILER === 'memory') return new MemoryMailer();
+  const dev = env.NODE_ENV !== 'production';
+  if (dev && (!env.BUIRY_MAILER || env.BUIRY_MAILER === 'console')) return new ConsoleMailer();
+  return new UnconfiguredMailer();
 }
 
 /** Builds service dependencies from the documented environment variables. Nothing is read from files. */
@@ -141,7 +157,7 @@ export function buildApp(rt: Runtime): BuiryApp {
       baseUrl,
       wallet: new SuiPersonalMessageVerifier(),
       providers,
-      mailer: rt.env.BUIRY_MAILER === 'memory' ? new MemoryMailer() : new ConsoleMailer(),
+      mailer: mailerFromEnv(rt.env),
     },
     config: {
       allowedOrigins: (rt.env.BUIRY_ALLOWED_ORIGINS ?? baseUrl).split(',').map((s) => s.trim()),
@@ -171,9 +187,17 @@ const MIME: Record<string, string> = {
 
 /** Serves the built dashboard; unknown paths fall back to index.html so client-side routes work. */
 function serveStatic(root: string, url: string, res: import('node:http').ServerResponse): void {
-  const path = normalize(decodeURIComponent(url.split('?')[0]!)).replace(/^([/\\]\.\.)+/, '');
+  let decoded: string;
+  try {
+    decoded = decodeURIComponent(url.split('?')[0]!);
+  } catch {
+    // A malformed escape such as `/%E0%A4%A` must not throw inside the raw request listener.
+    res.writeHead(400, { 'content-type': 'text/plain' }).end('bad request');
+    return;
+  }
+  const path = normalize(decoded).replace(/^([/\\]\.\.)+/, '');
   let file = join(root, path);
-  if (!file.startsWith(root) || !existsSync(file) || statSync(file).isDirectory())
+  if (!(file === root || file.startsWith(root + sep)) || !existsSync(file) || statSync(file).isDirectory())
     file = join(root, 'index.html');
   if (!existsSync(file)) {
     res.writeHead(404).end('dashboard not built');
