@@ -29,6 +29,24 @@ The live documentation was read on 2026-10-28 (results in "Step 0 results" below
 - Difference that needed code (fixed, with regression tests): expiry margins and the status "expiring" window were a fixed 28 days, two Mainnet epochs, so every 5-day testnet memory would have been "expiring" at once. They now follow the network epoch (`walrusEpochMs`).
 - Connection problems seen on testnet too (A24): the startup `/config` connect timeout, and 1 of 6 `curl` connections to `relayer.dev.memwal.ai` failed with a TLS error.
 
+**Tatum latency (2026-11-16, Phase 2)**
+
+Measured on testnet, 2026-11-16 15:34Z and 15:35Z (`scripts/tatum-latency.ts`, every call `fresh`, paced at the default 3 calls a second, two runs of 20 package-version reads and 20 transaction reads each):
+
+|                                                                    | Run 1          | Run 2                               |
+| ------------------------------------------------------------------ | -------------- | ----------------------------------- |
+| TCP connect to `sui-testnet-grpc.gateway.tatum.io:443` (5 samples) | 170 to 2185 ms | 135 to 1012 ms                      |
+| TLS handshake including TCP (5 samples)                            | 389 to 5699 ms | 407 to 763 ms                       |
+| Package versions: first call (opens the connection)                | 1785 ms        | 1473 ms                             |
+| Package versions: later calls p50 / p95                            | 322 / 1851 ms  | 357 / 1127 ms                       |
+| Transactions: first call                                           | 368 ms         | 712 ms                              |
+| Transactions: later calls p50 / p95                                | 331 / 1039 ms  | 294 / 1044 ms                       |
+| Attempts that failed with `unavailable` and were retried           | 10 of 50       | 10 of 50 (4 package, 6 transaction) |
+
+The 4143 ms average in the earlier demo run came from connection setup and retries on this link; once connected a call takes about 0.3 s. The p95 is driven by retries.
+
+A9 stays open: compare the Tatum dashboard with these counts (two runs of 50 attempts, 10 of them retried, client estimate 100 credits each).
+
 **Fresh-package demo (2026-11-16)**
 
 - Explicit verification now revalidates: the gateway cached package version lists for 60 s, so `buiry_verify` right after an upgrade reported the old latest version. The architecture already said "revalidation on demand"; the code now does it for explicit checks.

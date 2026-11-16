@@ -217,7 +217,25 @@ What swapping it would take:
 - The gRPC backend speaks standard `sui.rpc.v2`, but it hardcodes the `x-api-key` metadata header and `createGatewayFromEnv` requires `TATUM_API_KEY`. A different Sui gRPC provider needs: a configurable auth header (or none), provider-neutral env names, fixtures recorded from that provider, the existing gateway tests re-pointed, and a live smoke run. Whether another provider serves the same proto revision is unverified.
 - The class and file names (`TatumGateway`, `tatum.ts`) and the confinement rule reference Tatum by name; renaming is optional.
 
-Plan: keep it, do not expand it, decide after the prototype works. To decide, read real Tatum credit usage, then test one other Sui gRPC provider against `scripts/chain-smoke.ts`.
+Latency (Phase 2):
+
+Measured on testnet, 2026-11-16 15:34Z and 15:35Z (`scripts/tatum-latency.ts`, every call `fresh`, paced at the default 3 calls a second, two runs of 20 package-version reads and 20 transaction reads each):
+
+|                                                                    | Run 1          | Run 2                               |
+| ------------------------------------------------------------------ | -------------- | ----------------------------------- |
+| TCP connect to `sui-testnet-grpc.gateway.tatum.io:443` (5 samples) | 170 to 2185 ms | 135 to 1012 ms                      |
+| TLS handshake including TCP (5 samples)                            | 389 to 5699 ms | 407 to 763 ms                       |
+| Package versions: first call (opens the connection)                | 1785 ms        | 1473 ms                             |
+| Package versions: later calls p50 / p95                            | 322 / 1851 ms  | 357 / 1127 ms                       |
+| Transactions: first call                                           | 368 ms         | 712 ms                              |
+| Transactions: later calls p50 / p95                                | 331 / 1039 ms  | 294 / 1044 ms                       |
+| Attempts that failed with `unavailable` and were retried           | 10 of 50       | 10 of 50 (4 package, 6 transaction) |
+
+The 4143 ms average in the earlier demo run came from connection setup and retries on this link; once connected a call takes about 0.3 s. The p95 is driven by retries.
+
+What the measurements changed: `buiry_check` used to wait for up to three re-verifications in sequence (4 s cap each). They now run in parallel and the briefing waits at most 1.5 s (`checkReverifyBudgetMs`); slower checks finish in the background. Remaining cost of keeping Tatum: credits per call are still unmeasured against the dashboard (A9; the client estimates 2 per attempt, including failed attempts: 100 for 40 reads in one run), and one attempt in five needed a retry on this connection.
+
+Plan: keep it, do not expand it. To decide, the owner reads real credit usage on the Tatum dashboard for the counts above (two latency runs: 50 attempts each; the fresh-package demo: 4 calls), then one other Sui gRPC provider can be tested with `scripts/tatum-latency.ts` through the same gateway interface.
 
 ## 10. Prioritised next steps (each with an acceptance check)
 

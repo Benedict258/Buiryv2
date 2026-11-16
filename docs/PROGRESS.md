@@ -30,6 +30,12 @@ Legend: **done** (implemented and tested), **mocked** (tested only against a moc
 
 - Baseline (`pnpm typecheck && pnpm lint && pnpm test`) also passes on Windows. The 0600 check on the credentials file is a conditional assertion inside its test: it is not made on Windows (NTFS has no POSIX modes) and still runs on Linux and macOS.
 
+## Tatum latency (2026-11-16)
+
+- Measured on testnet: about 0.3 s per call once connected; slow, variable connection setup; one attempt in five retried. Details in HANDOFF section 9.
+- `buiry_check` no longer waits more than 1.5 s for chain re-verification (parallel, bounded; slower checks finish in the background). Test with a 3 s gateway.
+- Not changed (recommendation): write-time verification results are not stored on the evidence, so the next check re-verifies new evidence once.
+
 ## Fresh-package live demo (2026-11-16)
 
 - `pnpm demo --live --fresh-package`: a fresh package is published at version 1, agent A's deployment memory is verified (not stale), the package is upgraded between sessions, and only then is drift caught and corrected. Live on testnet; output in `docs/EVIDENCE.md`.
