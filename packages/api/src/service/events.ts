@@ -181,30 +181,39 @@ export const defaultResolver: Resolver = async (host) =>
 
 export async function assertSafeWebhookUrl(
   url: string,
-  opts: { resolve?: Resolver; allowHttp?: boolean } = {},
+  opts: {
+    resolve?: Resolver;
+    allowHttp?: boolean;
+    /** Development and tests only: skip the private-address check. */
+    allowPrivate?: boolean;
+    /** What the URL is for, used in error messages. */
+    what?: string;
+  } = {},
 ): Promise<void> {
+  const what = opts.what ?? 'webhook';
   let u: URL;
   try {
     u = new URL(url);
   } catch {
-    throw new BuiryError('invalid_input', 'webhook url is not valid');
+    throw new BuiryError('invalid_input', `${what} url is not valid`);
   }
   if (u.protocol !== 'https:' && !(opts.allowHttp && u.protocol === 'http:'))
-    throw new BuiryError('invalid_input', 'webhook urls must use https');
+    throw new BuiryError('invalid_input', `${what} urls must use https`);
   if (u.username || u.password)
-    throw new BuiryError('invalid_input', 'webhook urls must not contain credentials');
+    throw new BuiryError('invalid_input', `${what} urls must not contain credentials`);
   const host = u.hostname.replace(/^\[|\]$/g, '');
   if (
-    host === 'localhost' ||
-    host.endsWith('.localhost') ||
-    host.endsWith('.internal') ||
-    host.endsWith('.local')
+    !opts.allowPrivate &&
+    (host === 'localhost' ||
+      host.endsWith('.localhost') ||
+      host.endsWith('.internal') ||
+      host.endsWith('.local'))
   )
-    throw new BuiryError('invalid_input', 'webhook host is not allowed');
+    throw new BuiryError('invalid_input', `${what} host is not allowed`);
   const addrs = isIP(host) ? [host] : await (opts.resolve ?? defaultResolver)(host).catch(() => []);
-  if (addrs.length === 0) throw new BuiryError('invalid_input', 'webhook host does not resolve');
-  if (addrs.some(isPrivateAddress))
-    throw new BuiryError('invalid_input', 'webhook host resolves to a private or internal address');
+  if (addrs.length === 0) throw new BuiryError('invalid_input', `${what} host does not resolve`);
+  if (!opts.allowPrivate && addrs.some(isPrivateAddress))
+    throw new BuiryError('invalid_input', `${what} host resolves to a private or internal address`);
 }
 
 export function formatForKind(

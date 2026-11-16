@@ -41,7 +41,8 @@ class PgExpiryStore implements ExpiryStore {
 }
 
 export interface ExpiryJobOptions {
-  adapter: WalrusMemoryAdapter;
+  /** The managed account's adapter. Projects with their own account use theirs (deps.storage). */
+  adapter?: WalrusMemoryAdapter;
   checkIntervalMs: number;
   renewalEnabled?: boolean;
   renewer?: Renewer;
@@ -70,8 +71,10 @@ export async function expiryScan(deps: ServiceDeps, o: ExpiryJobOptions): Promis
     renewed: 0,
   };
   for (const pr of projects.rows) {
+    const adapter = (deps.storage ? await deps.storage.forProject(deps, pr.id) : undefined) ?? o.adapter;
+    if (!adapter) continue;
     const rep = await reconcileExpiry({
-      adapter: o.adapter,
+      adapter,
       store: new PgExpiryStore(deps, pr.id),
       now: deps.now(),
       checkIntervalMs: o.checkIntervalMs,

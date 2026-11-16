@@ -23,6 +23,7 @@ export async function createStack(o: StackOptions = {}) {
     ...(o.adapter ? { adapter: o.adapter } : {}),
     ...(o.budgets ? { budgets: o.budgets } : {}),
     ...(o.gateway ? { gateway: o.gateway } : {}),
+    ...(o.storage ? { storage: o.storage } : {}),
     ...(o.verifyTimeoutMs !== undefined ? { verifyTimeoutMs: o.verifyTimeoutMs } : {}),
     ...(o.maxTextLength !== undefined ? { maxTextLength: o.maxTextLength } : {}),
     ...(o.reverifyAfterMs !== undefined ? { reverifyAfterMs: o.reverifyAfterMs } : {}),

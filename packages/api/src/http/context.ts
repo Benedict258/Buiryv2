@@ -7,6 +7,7 @@ import { authenticateApiToken } from '../service/dashboard.js';
 import { authenticateAgentToken } from '../service/auth.js';
 import type { AgentRateLimiter, MemoryService } from '../service/memory-service.js';
 import type { WebhookOpts } from '../service/webhooks.js';
+import type { ByoOpts } from '../service/byo-storage.js';
 import type { AgentPrincipal, ServiceDeps, UserPrincipal } from '../service/types.js';
 
 export interface AppConfig {
@@ -15,6 +16,8 @@ export interface AppConfig {
   cookieSecure: boolean;
   enforcePlans: boolean;
   webhook?: WebhookOpts;
+  /** Bring-your-own Walrus account checks (live probe, development-only private relayers). */
+  storage?: ByoOpts;
   /** Shown in the storage and verification report (`/v1/projects/:id/evidence-report`). */
   evidence: {
     walrusNetwork?: string;

@@ -1,4 +1,4 @@
-import { buildRuntime, createDrain, deliverDue, startHttp } from '@buiry/api';
+import { buildRuntime, createAccountDrains, createDrain, deliverDue, startHttp } from '@buiry/api';
 import { driftScan, expiryScan, isolationCanary, relayerProbe, snapshotRegen } from './index.js';
 import { Scheduler, type ScheduledJob } from './scheduler.js';
 
@@ -9,18 +9,34 @@ export async function main(env: Record<string, string | undefined> = process.env
   console.log(`[buiry] listening on ${http.url} (REST /v1, MCP /mcp)`);
   const min = 60_000;
   const jobs: ScheduledJob[] = [];
-  if (rt.adapter) {
-    const drain = createDrain(rt.deps, rt.adapter, { workerId: `worker-${process.pid}` });
-    jobs.push({ name: 'write-drain', intervalMs: 2_000, run: () => drain.tick() });
+  const workerId = `worker-${process.pid}`;
+  // One drain per storage account: the managed one and each project's own (bring your own).
+  if (rt.deps.storage) {
+    const drains = createAccountDrains(rt.deps, rt.deps.storage, { workerId });
+    jobs.push({ name: 'write-drain', intervalMs: 2_000, run: () => drains.tick() });
     jobs.push({
-      name: 'relayer-probe',
-      intervalMs: min,
-      run: () => relayerProbe(rt.deps, rt.adapter!, env.WALRUS_RELAYER_URL ?? ''),
+      name: 'expiry-scan',
+      intervalMs: 6 * 60 * min,
+      run: () =>
+        expiryScan(rt.deps, {
+          ...(rt.adapter ? { adapter: rt.adapter } : {}),
+          checkIntervalMs: 6 * 60 * min,
+        }),
     });
+  } else if (rt.adapter) {
+    const drain = createDrain(rt.deps, rt.adapter, { workerId });
+    jobs.push({ name: 'write-drain', intervalMs: 2_000, run: () => drain.tick() });
     jobs.push({
       name: 'expiry-scan',
       intervalMs: 6 * 60 * min,
       run: () => expiryScan(rt.deps, { adapter: rt.adapter!, checkIntervalMs: 6 * 60 * min }),
+    });
+  }
+  if (rt.adapter) {
+    jobs.push({
+      name: 'relayer-probe',
+      intervalMs: min,
+      run: () => relayerProbe(rt.deps, rt.adapter!, env.WALRUS_RELAYER_URL ?? ''),
     });
   }
   jobs.push({ name: 'webhooks', intervalMs: 5_000, run: () => deliverDue(rt.deps) });

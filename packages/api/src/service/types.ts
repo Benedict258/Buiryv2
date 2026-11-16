@@ -4,6 +4,7 @@ import type { AdmissionBudgets, WalrusMemoryAdapter } from '@buiry/storage';
 import type { GatewayStatus } from '@buiry/chain';
 import type { Db } from '../db/db.js';
 import type { RuntimeNetworks } from './networks.js';
+import type { StorageRegistry } from './byo-storage.js';
 
 export type Permission = 'read' | 'write' | 'confirm';
 export type Role = 'owner' | 'admin' | 'writer' | 'reader';
@@ -60,6 +61,8 @@ export interface ServiceDeps {
    * checks finish in the background and show at the next check; the briefing is never blocked on the chain longer.
    */
   checkReverifyBudgetMs?: number;
+  /** Per-project storage accounts (bring your own) and the managed-account tenancy guard. */
+  storage?: StorageRegistry;
   /** Networks resolved at startup; `sui` is the deployment's Sui network when known. */
   networks?: RuntimeNetworks;
 }

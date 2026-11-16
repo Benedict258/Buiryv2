@@ -458,12 +458,41 @@ create index activity_n_idx on activity_log (project_id, n);
 grant usage, select on sequence activity_log_n_seq to buiry_app;
 `;
 
+// Bring-your-own Walrus Memory account per project. The delegate key is sealed (AES-256-GCM, key derived from
+// BUIRY_SECRET_KEY); only its public half is ever returned. managed_tenant records the one workspace allowed to use
+// the deployment's managed account (single row, no tenant data, so no row-level policy).
+const PROJECT_STORAGE = `
+create table project_storage (
+  project_id text primary key references projects(id) on delete cascade,
+  workspace_id text not null references workspaces(id),
+  relayer_url text not null,
+  network text not null check (network in ('mainnet','testnet')),
+  account_id text not null,
+  delegate_key_sealed text not null,
+  delegate_public_key text not null,
+  created_by text,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+grant select, insert, update, delete on project_storage to buiry_app;
+alter table project_storage enable row level security;
+alter table project_storage force row level security;
+create policy tenant_isolation on project_storage using (workspace_id = current_setting('app.workspace_id', true)) with check (workspace_id = current_setting('app.workspace_id', true));
+create table managed_tenant (
+  id integer primary key check (id = 1),
+  workspace_id text not null references workspaces(id),
+  claimed_at timestamptz not null default now()
+);
+grant select, insert on managed_tenant to buiry_app;
+`;
+
 export const MIGRATIONS: Migration[] = [
   { id: '001_init', sql: INIT },
   { id: '002_write_jobs', sql: WRITE_JOBS_DDL },
   { id: '003_rls', sql: rls() },
   { id: '004_api_tokens_leases', sql: API_TOKENS },
   { id: '005_activity_seq', sql: ACTIVITY_SEQ },
+  { id: '006_project_storage', sql: PROJECT_STORAGE },
 ];
 
 export async function migrate(

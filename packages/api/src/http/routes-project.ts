@@ -28,6 +28,7 @@ import {
 } from '../service/dashboard.js';
 import { listFlags, listHandoffs, mergeBranchTx, replayAt, setFlagState } from '../service/collab.js';
 import { loadProject } from '../service/ops.js';
+import { getProjectStorage, removeProjectStorage, setProjectStorage } from '../service/byo-storage.js';
 import { verifyRepoEvidence } from '../service/verification.js';
 import { body, entityPrincipal, ok, parse, type Registrar } from './context.js';
 import type { Context } from 'hono';
@@ -41,6 +42,38 @@ export const registerProject: Registrar = (_app, ctx, r) => {
     entityPrincipal(ctx, c, 'project', c.req.param('id')!).then(({ p }) => ({ p, id: c.req.param('id')! }));
   const t = <T>(p: { workspaceId: string }, fn: Parameters<typeof ctx.deps.db.tenant<T>>[1]) =>
     ctx.deps.db.tenant(p.workspaceId, fn);
+
+  // ---- storage account (bring your own Walrus Memory account); the delegate key is write-only ----
+  r(
+    { method: 'GET', path: '/v1/projects/:id/storage/account', auth: 'user', scope: 'project' },
+    async (c) => {
+      const { p, id } = await proj(c);
+      return ok(c, await t(p, (tx) => getProjectStorage(ctx.deps, tx, p, id)));
+    },
+  );
+  r(
+    { method: 'PUT', path: '/v1/projects/:id/storage/account', auth: 'user', scope: 'project' },
+    async (c) => {
+      const { p, id } = await proj(c);
+      const b = parse(
+        z.object({
+          relayerUrl: z.string().url().max(300),
+          network: z.enum(['mainnet', 'testnet']),
+          accountId: z.string().min(3).max(66),
+          delegateKey: z.string().min(1).max(200),
+        }),
+        await body(c),
+      );
+      return ok(c, await t(p, (tx) => setProjectStorage(ctx.deps, tx, p, id, b, ctx.config.storage)));
+    },
+  );
+  r(
+    { method: 'DELETE', path: '/v1/projects/:id/storage/account', auth: 'user', scope: 'project' },
+    async (c) => {
+      const { p, id } = await proj(c);
+      return ok(c, await t(p, (tx) => removeProjectStorage(ctx.deps, tx, p, id)));
+    },
+  );
 
   r({ method: 'GET', path: '/v1/projects/:id', auth: 'user', scope: 'project' }, async (c) => {
     const { p, id } = await proj(c);

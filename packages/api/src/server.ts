@@ -4,15 +4,12 @@ import { createServer, type Server } from 'node:http';
 import { extname, join, normalize, resolve, sep } from 'node:path';
 import { getRequestListener } from '@hono/node-server';
 import { createMcpHandler } from '@buiry/mcp';
-import { createGatewayIfConfigured, suiNetwork } from '@buiry/chain';
-import {
-  Ed25519Signer,
-  HttpWalrusAdapter,
-  SealSessionProvider,
-  type WalrusMemoryAdapter,
-} from '@buiry/storage';
+import { createGatewayIfConfigured } from '@buiry/chain';
+import { Ed25519Signer, HttpWalrusAdapter, type WalrusMemoryAdapter } from '@buiry/storage';
 import { BuiryError } from '@buiry/core';
 import { MemoryMailer, type Mailer } from './auth/auth-service.js';
+import { StorageRegistry } from './service/byo-storage.js';
+import { buildWalrusAdapter } from './service/walrus.js';
 import { GitHubOAuth, GoogleOAuth, type OAuthProvider } from './auth/oauth.js';
 import { SuiPersonalMessageVerifier } from './auth/wallet.js';
 import { PgDb, PgliteDb, type Db } from './db/db.js';
@@ -82,33 +79,31 @@ export async function buildRuntime(env: Env = process.env): Promise<Runtime> {
   if (gateway) deps.gateway = gateway;
   let adapter: WalrusMemoryAdapter | undefined;
   if (env.WALRUS_RELAYER_URL && env.WALRUS_DELEGATE_KEY && env.WALRUS_ACCOUNT_ID) {
-    const http = new HttpWalrusAdapter({
-      baseUrl: env.WALRUS_RELAYER_URL,
-      accountId: env.WALRUS_ACCOUNT_ID,
-      signer: new Ed25519Signer(env.WALRUS_DELEGATE_KEY),
-    });
-    // Recall needs a Seal session (A23). Its one Sui read (the relayer package must be version 1) goes through the
-    // chain gateway; without a gateway, recall is served from Buiry's index and flagged as cached.
-    if (gateway) {
-      http.useSealSession(
-        new SealSessionProvider({
-          delegateKey: env.WALRUS_DELEGATE_KEY,
-          relayerConfig: () => http.relayerConfig(),
-          packageVersion: async (objectId, network) => {
-            const r = await gateway.getObject(objectId, { network: suiNetwork(network) });
-            if (!r.value.found) throw new Error('relayer Seal package not found on chain');
-            return String(r.value.object.version);
-          },
-        }),
-      );
-    } else {
+    adapter = buildWalrusAdapter(
+      {
+        relayerUrl: env.WALRUS_RELAYER_URL,
+        accountId: env.WALRUS_ACCOUNT_ID,
+        delegateKey: env.WALRUS_DELEGATE_KEY,
+      },
+      gateway,
+    );
+    if (!gateway)
       console.warn(
         '[buiry] no Tatum gateway configured: Walrus recall cannot build a Seal session and will be served from the index',
       );
-    }
-    adapter = http;
     deps.adapter = adapter;
   }
+  // Projects may bring their own Walrus Memory account. The managed account serves one workspace unless
+  // BUIRY_MANAGED_MULTI_TENANT=1 (one account's Seal session reaches every tenant on it, A26).
+  deps.storage = new StorageRegistry({
+    ...(adapter ? { managed: adapter } : {}),
+    build: (cfg) => buildWalrusAdapter(cfg, gateway),
+    tenancy: {
+      multi: env.BUIRY_MANAGED_MULTI_TENANT === '1',
+      ...(env.BUIRY_MANAGED_WORKSPACE_ID ? { workspaceId: env.BUIRY_MANAGED_WORKSPACE_ID } : {}),
+    },
+    ...(env.BUIRY_BYO_ADAPTER_CACHE ? { maxCached: Number(env.BUIRY_BYO_ADAPTER_CACHE) } : {}),
+  });
   // Refuse to start when Walrus, the gateway, the relayer, the demo or a project point at different Sui networks.
   const net = await checkRuntimeNetworks({
     env,
@@ -160,6 +155,23 @@ export function buildApp(rt: Runtime): BuiryApp {
       mailer: mailerFromEnv(rt.env),
     },
     config: {
+      storage: {
+        // Development only: a relayer on localhost or a private address (refused in production).
+        allowPrivate: rt.env.BUIRY_BYO_ALLOW_PRIVATE === '1' && rt.env.NODE_ENV !== 'production',
+        // Before saving, the relayer must answer and report the account's network.
+        // Before saving: the relayer answers, reports the account's network, and accepts a signed read with this
+        // delegate key for this account.
+        probe: async (cfg) => {
+          const a = new HttpWalrusAdapter({
+            baseUrl: cfg.relayerUrl,
+            accountId: cfg.accountId,
+            signer: new Ed25519Signer(cfg.delegateKey),
+          });
+          const conf = await a.relayerConfig();
+          await a.list({ limit: 1 });
+          return conf;
+        },
+      },
       allowedOrigins: (rt.env.BUIRY_ALLOWED_ORIGINS ?? baseUrl).split(',').map((s) => s.trim()),
       cookieSecure: baseUrl.startsWith('https://'),
       enforcePlans: rt.env.BUIRY_ENTITLEMENTS !== 'off',

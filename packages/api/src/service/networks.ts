@@ -40,7 +40,17 @@ export async function checkRuntimeNetworks(o: {
     const r = await tx.query<{ id: string; networks: string[] }>(
       'select id, networks from projects where archived_at is null',
     );
-    return r.rows;
+    // A project's own Walrus account is on one Sui network; it must agree with the deployment like any project.
+    const own = await tx.query<{ project_id: string; network: string }>(
+      'select project_id, network from project_storage',
+    );
+    return [
+      ...r.rows,
+      ...own.rows.map((x) => ({
+        id: `${x.project_id} (own Walrus account)`,
+        networks: [`sui:${x.network}`],
+      })),
+    ];
   });
   const sources = {
     ...(env.WALRUS_NETWORK ? { walrus: env.WALRUS_NETWORK } : {}),

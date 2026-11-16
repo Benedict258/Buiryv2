@@ -32,6 +32,7 @@ import {
 import type { Tx } from '../db/db.js';
 import { createBranchRow } from './admin.js';
 import { activeBranch, assertAllowed, loadBranch, loadMemoryRow, loadProject } from './ops.js';
+import { adapterForProject } from './byo-storage.js';
 import type { AgentPrincipal, Principal, ServiceDeps } from './types.js';
 import { actorOf, evidenceFor, iso, learningFor, loadMemories, logActivity, type MemoryRow } from './util.js';
 
@@ -96,7 +97,7 @@ export async function recallOp(
   });
   if (!i.query?.trim()) throw new BuiryError('invalid_input', 'query is required');
   const svc = new RecallService(
-    (deps.adapter ?? new OfflineAdapter()) as WalrusMemoryAdapter,
+    ((await adapterForProject(deps, projectId)) ?? new OfflineAdapter()) as WalrusMemoryAdapter,
     new PgMemoryIndex(deps, p.workspaceId),
     cfg,
   );
