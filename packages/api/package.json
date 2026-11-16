@@ -12,15 +12,15 @@
     "build": "tsup src/index.ts --format esm --dts"
   },
   "dependencies": {
+    "@buiry/chain": "workspace:*",
     "@buiry/core": "workspace:*",
-    "@hono/node-server": "^2.1.5",
-    "@noble/hashes": "^2.4.0",
-    "hono": "^4.13.13",
-    "pg": "^8.23.1",
-    "zod": "^4.6.7",
     "@buiry/mcp": "workspace:*",
     "@buiry/storage": "workspace:*",
-    "@buiry/chain": "workspace:*"
+    "@hono/node-server": "2.1.6",
+    "@noble/hashes": "^2.4.0",
+    "hono": "4.13.16",
+    "pg": "^8.23.1",
+    "zod": "^4.6.7"
   },
   "devDependencies": {
     "@types/pg": "^8.23.1"

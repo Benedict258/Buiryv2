@@ -30,7 +30,7 @@
     "fast-check": "^3.22.0",
     "playwright-core": "^1.64.1",
     "prettier": "^3.3.0",
-    "tsup": "^8.3.0",
+    "tsup": "9.0.0",
     "tsx": "^4.19.0",
     "typescript": "^5.6.0",
     "typescript-eslint": "^8.8.0",
@@ -40,7 +40,9 @@
   },
   "pnpm": {
     "overrides": {
-      "body-parser@>=2.0.0 <2.4.0": "2.4.0"
+      "body-parser@>=2.0.0 <2.4.0": "2.4.0",
+      "hono@>=4.0.0 <4.13.16": "4.13.16",
+      "@hono/node-server@>=2.0.0 <2.1.6": "2.1.6"
     }
   }
 }
