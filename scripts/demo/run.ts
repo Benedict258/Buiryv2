@@ -196,6 +196,9 @@ export async function runDemo(o: DemoOptions = {}): Promise<DemoResult> {
   if (fresh && flow && published) {
     heading('Between sessions: the package is upgraded to version 2');
     const up = await flow.upgrade();
+    // A real publish-and-upgrade takes minutes, so the gateway's 60 s cache of the version list has expired by
+    // session 2 (seen live). Let the mock clock pass the same time.
+    if (!live) clock.advance(5 * 60_000);
     tx = up.digest;
     freshPackage = {
       v1: published.packageId,

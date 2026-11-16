@@ -34,9 +34,10 @@ describe('two-agent demo on mocks', () => {
   it('fresh package: the deployment is verified when written and goes stale only after the upgrade', async () => {
     const lines: string[] = [];
     const r = await runDemo({ log: (s) => lines.push(s), freshPackage: true });
-    // Before the upgrade: the write-time check passes, so the memory is not stale, also in B's first briefing.
+    // Before the upgrade: the write-time check passes, so the memory is not stale.
     expect(r.deploymentStatusAfterWrite).toBe('proposed');
-    expect(r.deploymentStatusAtFirstBriefing).toBe('proposed');
+    // After the upgrade: B's first check re-verifies chain evidence and already sees the drift (as live did).
+    expect(r.deploymentStatusAtFirstBriefing).toBe('stale');
     // After the upgrade: drift is caught, flagged at the next check, and corrected from the upgrade digest.
     expect(r.staleDetected).toBe(true);
     expect(r.staleFlagShownAtCheck).toBe(true);
