@@ -376,10 +376,15 @@ export async function runDemo(o: DemoOptions = {}): Promise<DemoResult> {
 }
 
 if (import.meta.url === pathToFileURL(process.argv[1] ?? '').href) {
+  // One clean line on failure: no stack trace, no local paths.
   const r = await runDemo({
     live: process.argv.includes('--live'),
     freshPackage: process.argv.includes('--fresh-package'),
     log: (s) => console.log(s),
+  }).catch((e: unknown) => {
+    console.error(`
+demo failed: ${(e as Error).message}`);
+    process.exit(1);
   });
   console.log('\nResult:', JSON.stringify(r, null, 2));
   process.exit(r.failureShownFirst ? 0 : 1);

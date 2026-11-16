@@ -8,8 +8,7 @@
  */
 import { execFile } from 'node:child_process';
 import { existsSync } from 'node:fs';
-import { cp, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
-import { tmpdir } from 'node:os';
+import { cp, mkdir, readFile, rm, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { normalizeSuiNetwork } from '../../packages/core/src/index.js';
 import type { FixtureRecord, MockTatum } from '../../packages/chain/src/index.js';
@@ -117,6 +116,8 @@ interface CliOptions {
   env?: Record<string, string | undefined>;
 }
 
+/** Long enough for a first build that fetches the Sui framework over a slow connection. */
+const CLI_TIMEOUT_MS = 25 * 60_000;
 const MIN_BALANCE_MIST = 50_000_000n; // 0.05 SUI: a publish and an upgrade cost under 0.01 SUI on testnet.
 
 export async function suiCliPackageFlow(o: CliOptions): Promise<PackageFlow> {
@@ -142,9 +143,15 @@ export async function suiCliPackageFlow(o: CliOptions): Promise<PackageFlow> {
       execFile(
         bin,
         ['client', '--client.config', config, ...args],
-        { maxBuffer: 64 * 1024 * 1024, timeout: 600_000 },
+        { maxBuffer: 64 * 1024 * 1024, timeout: CLI_TIMEOUT_MS },
         (err, stdout, stderr) => {
-          if (err)
+          if (err?.killed)
+            reject(
+              new Error(
+                `sui client ${args[0]} timed out after ${CLI_TIMEOUT_MS / 60_000} minutes (on a slow connection the first build fetches the Sui framework sources)`,
+              ),
+            );
+          else if (err)
             reject(
               new Error(`sui client ${args[0]} failed: ${scrub(`${stderr}${stdout}`).trim().slice(-600)}`),
             );
@@ -180,11 +187,16 @@ export async function suiCliPackageFlow(o: CliOptions): Promise<PackageFlow> {
       'the throwaway address needs at least 0.05 testnet SUI: run `sui client faucet` with the .buiry-local config',
     );
 
-  const work = await mkdtemp(join(tmpdir(), 'buiry-demo-pkg-'));
+  // A persistent, gitignored work folder: its build cache survives between runs, so later runs do not refetch
+  // the Sui framework. Each run removes the previous publication record so it publishes a new package.
+  const work = join(o.root, '.buiry-local', 'demo-package');
   const pkgDir = join(work, 'pkg');
   const installDir = join(work, 'build');
   const source = join(o.root, 'scripts', 'demo', 'move');
-  await cp(join(source, 'Move.toml'), join(pkgDir, 'Move.toml'), { recursive: true });
+  await mkdir(pkgDir, { recursive: true });
+  await rm(join(pkgDir, 'Published.toml'), { force: true });
+  await rm(join(installDir, 'Published.toml'), { force: true });
+  await cp(join(source, 'Move.toml'), join(pkgDir, 'Move.toml'));
   await cp(join(source, 'sources'), join(pkgDir, 'sources'), { recursive: true });
   const setRevision = async (n: number) => {
     const f = join(pkgDir, 'sources', 'demo.move');
@@ -234,7 +246,6 @@ export async function suiCliPackageFlow(o: CliOptions): Promise<PackageFlow> {
         '-c',
         cap,
       ]);
-      await rm(work, { recursive: true, force: true });
       return step;
     },
   };
