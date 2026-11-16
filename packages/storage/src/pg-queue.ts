@@ -1,4 +1,12 @@
-import type { JobState, Lease, NewWriteJob, QueueStats, WriteJob, WriteQueue } from './queue.js';
+import type { JobState, Lease, LeaseScope, NewWriteJob, QueueStats, WriteJob, WriteQueue } from './queue.js';
+
+/** SQL for a lease scope; $n is the "only" array and $n+1 the "exclude" array (either may be null). */
+const SCOPE = (n: number) =>
+  `($${n}::text[] is null or project_id = any($${n}::text[])) and ($${n + 1}::text[] is null or not (project_id = any($${n + 1}::text[])))`;
+const scopeParams = (s?: LeaseScope): [string[] | null, string[] | null] => [
+  s?.only ?? null,
+  s?.exclude && s.exclude.length ? s.exclude : null,
+];
 
 /** Minimal client surface so `pg` and PGlite both fit. */
 export interface SqlClient {
@@ -100,35 +108,49 @@ export class PgWriteQueue implements WriteQueue {
     return r.rows[0] ? toJob(r.rows[0]) : null;
   }
 
-  async leaseSubmittable(now: number, workerId: string, leaseMs: number, max: number): Promise<Lease> {
+  async leaseSubmittable(
+    now: number,
+    workerId: string,
+    leaseMs: number,
+    max: number,
+    scope?: LeaseScope,
+  ): Promise<Lease> {
+    const [only, exclude] = scopeParams(scope);
     const unc = await this.db.query<Row>(
       `update write_jobs set leased_by = $1, lease_until = $2, updated_at = $3
-       where state = 'submitting' and (lease_until is null or lease_until <= $3) returning *`,
-      [workerId, now + leaseMs, now],
+       where state = 'submitting' and (lease_until is null or lease_until <= $3) and ${SCOPE(4)} returning *`,
+      [workerId, now + leaseMs, now, only, exclude],
     );
     const ready = await this.db.query<Row>(
       `update write_jobs set state = 'submitting', attempts = attempts + 1, leased_by = $1, lease_until = $2, updated_at = $3
        where id in (
          select id from write_jobs
-         where state = 'queued' and next_attempt_at <= $3 and (lease_until is null or lease_until <= $3)
-           and namespace = (select namespace from write_jobs where state = 'queued' and next_attempt_at <= $3 and (lease_until is null or lease_until <= $3)
+         where state = 'queued' and next_attempt_at <= $3 and (lease_until is null or lease_until <= $3) and ${SCOPE(5)}
+           and namespace = (select namespace from write_jobs where state = 'queued' and next_attempt_at <= $3 and (lease_until is null or lease_until <= $3) and ${SCOPE(5)}
                             order by created_at, id limit 1)
          order by created_at, id limit $4
          for update skip locked)
        returning *`,
-      [workerId, now + leaseMs, now, max],
+      [workerId, now + leaseMs, now, max, only, exclude],
     );
     const byCreated = (a: WriteJob, b: WriteJob) => a.createdAt - b.createdAt || a.id.localeCompare(b.id);
     return { ready: ready.rows.map(toJob).sort(byCreated), uncertain: unc.rows.map(toJob).sort(byCreated) };
   }
 
-  async leasePollable(now: number, workerId: string, leaseMs: number, max: number): Promise<WriteJob[]> {
+  async leasePollable(
+    now: number,
+    workerId: string,
+    leaseMs: number,
+    max: number,
+    scope?: LeaseScope,
+  ): Promise<WriteJob[]> {
+    const [only, exclude] = scopeParams(scope);
     const r = await this.db.query<Row>(
       `update write_jobs set leased_by = $1, lease_until = $2, updated_at = $3
-       where id in (select id from write_jobs where state = 'submitted' and next_attempt_at <= $3 and (lease_until is null or lease_until <= $3)
+       where id in (select id from write_jobs where state = 'submitted' and next_attempt_at <= $3 and (lease_until is null or lease_until <= $3) and ${SCOPE(5)}
                     order by next_attempt_at limit $4 for update skip locked)
        returning *`,
-      [workerId, now + leaseMs, now, max],
+      [workerId, now + leaseMs, now, max, only, exclude],
     );
     return r.rows.map(toJob);
   }

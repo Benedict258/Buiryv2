@@ -1,12 +1,14 @@
 import { createHash } from 'node:crypto';
 import { RelayerError, MAX_BULK, type WalrusMemoryAdapter, type WriteState } from './adapter.js';
 import { PointsLimiter, PUBLIC_RELAYER_LIMITS, writePoints, type RelayerLimits } from './budget.js';
-import type { WriteJob, WriteQueue } from './queue.js';
+import type { LeaseScope, WriteJob, WriteQueue } from './queue.js';
 
 export interface WorkerOptions {
   queue: WriteQueue;
   adapter: WalrusMemoryAdapter;
   workerId: string;
+  /** Which projects this worker drains (one worker per storage account), read at each lease. Default: all. */
+  scope?: LeaseScope | (() => LeaseScope);
   now: () => number;
   /** Uniform [0,1); injected for deterministic tests. */
   random?: () => number;
@@ -93,6 +95,11 @@ export class WriteWorker {
     await this.w.onStored?.(job, blobId);
   }
 
+  private scope(): LeaseScope | undefined {
+    const s = this.w.scope;
+    return typeof s === 'function' ? s() : s;
+  }
+
   /** One drain cycle: poll submitted jobs, reconcile uncertain ones, submit new ones. */
   async tick(): Promise<TickReport> {
     const report: TickReport = { relayer: 'ok', submitted: 0, stored: 0, retried: 0, dead: 0, reconciled: 0 };
@@ -117,7 +124,13 @@ export class WriteWorker {
   }
 
   private async pollPhase(report: TickReport): Promise<void> {
-    const jobs = await this.w.queue.leasePollable(this.w.now(), this.w.workerId, this.o.leaseMs, 50);
+    const jobs = await this.w.queue.leasePollable(
+      this.w.now(),
+      this.w.workerId,
+      this.o.leaseMs,
+      50,
+      this.scope(),
+    );
     for (const job of jobs) {
       try {
         const st = await this.w.adapter.getJob(job.relayerJobId!);
@@ -170,6 +183,7 @@ export class WriteWorker {
       this.w.workerId,
       this.o.leaseMs,
       Math.max(maxItems, 0),
+      this.scope(),
     );
     for (const j of lease.uncertain) await this.reconcile(j, report);
     const batch = lease.ready;

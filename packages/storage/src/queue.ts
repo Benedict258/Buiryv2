@@ -42,6 +42,23 @@ export interface QueueStats {
   oldestPendingAgeMs: number;
 }
 
+/**
+ * Restricts a lease to some projects: one worker per storage account (the managed account, or a project's own
+ * account) leases only the jobs that belong to it.
+ */
+export interface LeaseScope {
+  /** Only these projects. */
+  only?: string[];
+  /** Every project except these. */
+  exclude?: string[];
+}
+
+export function inScope(projectId: string, scope?: LeaseScope): boolean {
+  if (scope?.only && !scope.only.includes(projectId)) return false;
+  if (scope?.exclude && scope.exclude.includes(projectId)) return false;
+  return true;
+}
+
 export interface Lease {
   /** Ready to submit, all in one namespace (bulk-able). */
   ready: WriteJob[];
@@ -54,8 +71,20 @@ export interface WriteQueue {
   enqueue(job: NewWriteJob): Promise<{ job: WriteJob; created: boolean }>;
   get(id: string): Promise<WriteJob | null>;
   findByKey(idempotencyKey: string): Promise<WriteJob | null>;
-  leaseSubmittable(now: number, workerId: string, leaseMs: number, max: number): Promise<Lease>;
-  leasePollable(now: number, workerId: string, leaseMs: number, max: number): Promise<WriteJob[]>;
+  leaseSubmittable(
+    now: number,
+    workerId: string,
+    leaseMs: number,
+    max: number,
+    scope?: LeaseScope,
+  ): Promise<Lease>;
+  leasePollable(
+    now: number,
+    workerId: string,
+    leaseMs: number,
+    max: number,
+    scope?: LeaseScope,
+  ): Promise<WriteJob[]>;
   markSubmitted(id: string, relayerJobId: string, pollAt: number, now: number): Promise<void>;
   schedulePoll(id: string, pollAt: number, now: number): Promise<void>;
   markStored(id: string, blobId: string, now: number): Promise<void>;
@@ -120,8 +149,16 @@ export class InMemoryWriteQueue implements WriteQueue {
     return j.leaseUntil !== null && j.leaseUntil > now;
   }
 
-  async leaseSubmittable(now: number, workerId: string, leaseMs: number, max: number): Promise<Lease> {
-    const all = [...this.jobs.values()].sort((a, b) => a.createdAt - b.createdAt || a.id.localeCompare(b.id));
+  async leaseSubmittable(
+    now: number,
+    workerId: string,
+    leaseMs: number,
+    max: number,
+    scope?: LeaseScope,
+  ): Promise<Lease> {
+    const all = [...this.jobs.values()]
+      .filter((j) => inScope(j.projectId, scope))
+      .sort((a, b) => a.createdAt - b.createdAt || a.id.localeCompare(b.id));
     const uncertain = all.filter((j) => j.state === 'submitting' && !this.leased(j, now));
     const ready = all.filter((j) => j.state === 'queued' && j.nextAttemptAt <= now && !this.leased(j, now));
     const ns = ready[0]?.namespace;
@@ -141,9 +178,21 @@ export class InMemoryWriteQueue implements WriteQueue {
     return { ready: batch.map((j) => ({ ...j })), uncertain: uncertain.map((j) => ({ ...j })) };
   }
 
-  async leasePollable(now: number, workerId: string, leaseMs: number, max: number): Promise<WriteJob[]> {
+  async leasePollable(
+    now: number,
+    workerId: string,
+    leaseMs: number,
+    max: number,
+    scope?: LeaseScope,
+  ): Promise<WriteJob[]> {
     const due = [...this.jobs.values()]
-      .filter((j) => j.state === 'submitted' && j.nextAttemptAt <= now && !this.leased(j, now))
+      .filter(
+        (j) =>
+          inScope(j.projectId, scope) &&
+          j.state === 'submitted' &&
+          j.nextAttemptAt <= now &&
+          !this.leased(j, now),
+      )
       .sort((a, b) => a.nextAttemptAt - b.nextAttemptAt)
       .slice(0, max);
     for (const j of due) {

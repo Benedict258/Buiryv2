@@ -40,6 +40,27 @@ describe.each<[string, () => Promise<WriteQueue>]>([
     expect(l3.ready.map((j) => j.id)).toEqual(['job_4']);
   });
 
+  it('leases only the projects in scope (one worker per storage account)', async () => {
+    const q = await make();
+    const other = 'prj_own00000000000001';
+    await enq(q, 1);
+    await enq(q, 2, 1002, { project: other, namespace: `buiry.v1.${other}.main` });
+    const managed = await q.leaseSubmittable(5000, 'managed', 60_000, 20, { exclude: [other] });
+    expect(managed.ready.map((j) => j.id)).toEqual(['job_1']);
+    const none = await q.leaseSubmittable(5001, 'managed', 60_000, 20, { exclude: [other] });
+    expect(none.ready).toEqual([]);
+    const own = await q.leaseSubmittable(5002, 'own', 60_000, 20, { only: [other] });
+    expect(own.ready.map((j) => j.id)).toEqual(['job_2']);
+    await q.markSubmitted('job_1', 'r1', 6000, 5003);
+    await q.markSubmitted('job_2', 'r2', 6000, 5003);
+    expect((await q.leasePollable(7000, 'own', 60_000, 50, { only: [other] })).map((j) => j.id)).toEqual([
+      'job_2',
+    ]);
+    expect(
+      (await q.leasePollable(7001, 'managed', 60_000, 50, { exclude: [other] })).map((j) => j.id),
+    ).toEqual(['job_1']);
+  });
+
   it('does not hand a leased job to a second worker, and reports expired-lease submitting jobs as uncertain', async () => {
     const q = await make();
     await enq(q, 1);
