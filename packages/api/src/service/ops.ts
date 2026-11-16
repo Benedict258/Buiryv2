@@ -49,7 +49,12 @@ export interface ProjectRow {
   name: string;
   networks: string[];
   settings: Record<string, unknown>;
+  /** The project's own Walrus account when connected (bring your own), else the legacy per-project column. */
   walrus_account_id: string | null;
+  /** Set only when the project brings its own Walrus account. */
+  own_relayer_url: string | null;
+  own_network: string | null;
+  own_public_key: string | null;
 }
 export interface BranchRow {
   id: string;
@@ -107,7 +112,11 @@ export function scopeProject(p: Principal, projectId: string): void {
 export async function loadProject(tx: Tx, p: Principal, projectId: string): Promise<ProjectRow> {
   scopeProject(p, projectId);
   const r = await tx.query<ProjectRow>(
-    'select id, workspace_id, name, networks, settings, walrus_account_id from projects where id = $1 and archived_at is null',
+    `select p.id, p.workspace_id, p.name, p.networks, p.settings,
+            coalesce(ps.account_id, p.walrus_account_id) as walrus_account_id,
+            ps.relayer_url as own_relayer_url, ps.network as own_network, ps.delegate_public_key as own_public_key
+       from projects p left join project_storage ps on ps.project_id = p.id
+      where p.id = $1 and p.archived_at is null`,
     [projectId],
   );
   if (!r.rows[0]) throw notFound('project');

@@ -5,13 +5,13 @@ import { can, useApp, useQuery } from '../lib/app';
 import { useProject, useWs } from '../lib/ctx';
 import { ago, dateOnly, plural } from '../lib/format';
 import type { Storage, StatusOut } from '../lib/types';
+import { StorageAccountCard } from './StorageAccount';
 import {
   Async,
   Banner,
   Button,
   Card,
   ExpiryIndicator,
-  IdBlock,
   PageHead,
   Stat,
   Empty,
@@ -143,30 +143,7 @@ export function StoragePage() {
               )}
             </Card>
             <div className="grid g2 mt">
-              <Card title="Account">
-                <dl className="col small" style={{ margin: 0 }}>
-                  <div className="spread">
-                    <dt className="muted">Mode</dt>
-                    <dd style={{ margin: 0 }}>
-                      <span className="chip">{d.account.mode}</span>
-                    </dd>
-                  </div>
-                  <div className="spread">
-                    <dt className="muted">Storage account</dt>
-                    <dd style={{ margin: 0 }}>
-                      {d.account.accountId ? (
-                        <IdBlock value={d.account.accountId} />
-                      ) : (
-                        <span className="faint">not assigned yet</span>
-                      )}
-                    </dd>
-                  </div>
-                  <div className="spread">
-                    <dt className="muted">Stored memories</dt>
-                    <dd style={{ margin: 0 }}>{d.storedMemories}</dd>
-                  </div>
-                </dl>
-              </Card>
+              <StorageAccountCard storedMemories={d.storedMemories} onChange={() => q.reload()} />
               <Card title="Deletion options">
                 <div className="col small">
                   <div>

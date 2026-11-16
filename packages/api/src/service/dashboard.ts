@@ -677,7 +677,10 @@ export async function storageHealth(deps: ServiceDeps, tx: Tx, p: Principal, pro
       expiresAt: m.expires_at,
       expired: m.expired,
     })),
-    account: { mode: pr.walrus_account_id ? 'configured' : 'managed', accountId: pr.walrus_account_id },
+    account: {
+      mode: pr.own_relayer_url ? 'own account' : pr.walrus_account_id ? 'configured' : 'managed',
+      accountId: pr.walrus_account_id,
+    },
     storedMemories: Number(stored.rows[0]!.n),
     deletion: {
       tombstone: 'Withdraws a memory from recall; the stored blob remains. Reversible.',
@@ -748,10 +751,11 @@ export async function evidenceReport(
     generatedAt: new Date(deps.now()).toISOString(),
     project: { id: pr.id, name: pr.name },
     walrus: {
-      network: cfg.walrusNetwork ?? null,
+      // A project with its own account reports that account, never the managed one.
+      network: pr.own_network ?? cfg.walrusNetwork ?? null,
       memWalAccountId: pr.walrus_account_id,
-      agentId_delegatePublicKey: cfg.delegatePublicKey ?? null,
-      relayerUrl: cfg.relayerUrl ?? null,
+      agentId_delegatePublicKey: pr.own_public_key ?? cfg.delegatePublicKey ?? null,
+      relayerUrl: pr.own_relayer_url ?? cfg.relayerUrl ?? null,
       storedMemories: mem.rows.length,
       memories: mem.rows.map((m) => ({
         memoryId: m.id,

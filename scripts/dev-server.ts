@@ -11,10 +11,12 @@ import { fileURLToPath, pathToFileURL } from 'node:url';
 import {
   AuthService,
   MemoryMailer,
-  createDrain,
+  StorageRegistry,
+  createAccountDrains,
   startHttp,
   type Runtime,
 } from '../packages/api/src/index.js';
+import { Ed25519Signer, HttpWalrusAdapter, MockRelayer } from '../packages/storage/src/index.js';
 import { expiryScan, relayerProbe } from '../packages/worker/src/index.js';
 import ids from '../packages/chain/fixtures/_ids.json' with { type: 'json' };
 import { mockWorld } from './lib/world.js';
@@ -89,8 +91,21 @@ export async function startDevServer(
     BUIRY_BASE_URL: `http://localhost:${o.port ?? 8787}`,
     BUIRY_ALLOWED_ORIGINS: `http://localhost:${o.port ?? 8787},http://localhost:5173`,
     BUIRY_MAILER: 'memory',
+    // A second mock relayer stands in for a project's own Walrus account (Storage page, "Use your own account").
+    BUIRY_BYO_ALLOW_PRIVATE: '1',
     ...(o.dashboardDir ? { DASHBOARD_DIR: o.dashboardDir } : {}),
   } as Record<string, string>;
+  const ownRelayer = await MockRelayer.start({ autoCompleteMs: 0 });
+  stack.deps.storage = new StorageRegistry({
+    managed: world.adapter,
+    build: (cfg) =>
+      new HttpWalrusAdapter({
+        baseUrl: cfg.relayerUrl,
+        accountId: cfg.accountId,
+        signer: new Ed25519Signer(cfg.delegateKey),
+      }),
+    tenancy: { multi: true },
+  });
   const rt: Runtime = { deps: stack.deps, adapter: world.adapter, db: stack.db, env, close: async () => {} };
   const http = await startHttp(rt, o.port ?? 8787);
 
@@ -113,7 +128,7 @@ export async function startDevServer(
 
   await enrich(stack, seeded, session.token, http.url);
 
-  const drain = createDrain(stack.deps, world.adapter, { pollIntervalMs: 500 });
+  const drain = createAccountDrains(stack.deps, stack.deps.storage, { pollIntervalMs: 500 });
   const timer = setInterval(() => {
     drain.tick().catch(() => {});
   }, 1000);
@@ -125,6 +140,7 @@ export async function startDevServer(
   log(`Buiry dev server on ${http.url}`);
   log(`workspace ${seeded.workspaceId}   project ${seeded.projectId}`);
   log(`session token (paste on the sign-in page): ${session.token}`);
+  log(`own-account mock relayer (any 0x account id, any test key): ${ownRelayer.url}`);
   if (o.sessionFile)
     writeFileSync(
       o.sessionFile,
@@ -133,6 +149,7 @@ export async function startDevServer(
         workspaceId: seeded.workspaceId,
         projectId: seeded.projectId,
         url: http.url,
+        ownRelayerUrl: ownRelayer.url,
       }),
     );
   return {
@@ -144,6 +161,7 @@ export async function startDevServer(
     close: async () => {
       clearInterval(timer);
       await http.close();
+      await ownRelayer.close();
       await world.close();
     },
   };

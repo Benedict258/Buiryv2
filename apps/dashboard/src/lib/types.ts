@@ -257,3 +257,14 @@ export interface Member {
   email?: string | null;
   display_name?: string | null;
 }
+
+/** A project's storage account. The delegate private key is never returned. */
+export interface ProjectStorageView {
+  mode: 'managed' | 'byo';
+  relayerUrl?: string;
+  network?: 'mainnet' | 'testnet';
+  accountId?: string;
+  delegatePublicKey?: string;
+  updatedAt?: string;
+  managedAllowed: boolean;
+}
