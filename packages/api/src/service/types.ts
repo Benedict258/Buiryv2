@@ -55,6 +55,11 @@ export interface ServiceDeps {
   maxTextLength?: number;
   /** Re-verify chain evidence older than this at check time. */
   reverifyAfterMs?: number;
+  /**
+   * How long `buiry_check` waits for re-verification before building the briefing (default 1500 ms). Slower
+   * checks finish in the background and show at the next check; the briefing is never blocked on the chain longer.
+   */
+  checkReverifyBudgetMs?: number;
   /** Networks resolved at startup; `sui` is the deployment's Sui network when known. */
   networks?: RuntimeNetworks;
 }

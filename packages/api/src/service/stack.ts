@@ -26,6 +26,7 @@ export async function createStack(o: StackOptions = {}) {
     ...(o.verifyTimeoutMs !== undefined ? { verifyTimeoutMs: o.verifyTimeoutMs } : {}),
     ...(o.maxTextLength !== undefined ? { maxTextLength: o.maxTextLength } : {}),
     ...(o.reverifyAfterMs !== undefined ? { reverifyAfterMs: o.reverifyAfterMs } : {}),
+    ...(o.checkReverifyBudgetMs !== undefined ? { checkReverifyBudgetMs: o.checkReverifyBudgetMs } : {}),
   };
   const service = new MemoryService(deps);
   const limiter = new AgentRateLimiter(o.agentCallsPerMinute ?? 600, deps.now);

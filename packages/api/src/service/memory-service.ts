@@ -230,7 +230,15 @@ export class AgentBackend implements BuiryBackend {
   }
   async check(i: CheckInput) {
     return this.guard('check', async () => {
-      await reverifyForTask(this.svc.deps, this.p, this.pid, i.task).catch(() => 0);
+      // Re-verify the most relevant chain evidence, but never hold the briefing longer than the budget: Tatum calls
+      // measured about 0.3 s each with occasional retries and slow connection setup (Phase 2 measurements).
+      const reverify = reverifyForTask(this.svc.deps, this.p, this.pid, i.task).catch(() => 0);
+      let timer: ReturnType<typeof setTimeout> | undefined;
+      await Promise.race([
+        reverify,
+        new Promise<void>((r) => (timer = setTimeout(r, this.svc.deps.checkReverifyBudgetMs ?? 1500))),
+      ]);
+      clearTimeout(timer);
       return this.svc.deps.db.tenant(this.p.workspaceId, (tx) => checkTx(this.svc.deps, tx, this.p, i));
     });
   }

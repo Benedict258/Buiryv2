@@ -322,14 +322,15 @@ export async function reverifyForTask(
     .map((m) => ({ m, s: task ? relevance(task, m.text) : 0, deploy: m.type === 'deployment' ? 1 : 0 }))
     .sort((a, b) => b.s + b.deploy * 0.2 - (a.s + a.deploy * 0.2))
     .slice(0, 3);
-  let n = 0;
-  for (const { m } of ranked) {
-    const r = await withTimeout(deps.verifyTimeoutMs ?? 4000, () =>
-      verifyOp(deps, p, projectId, { memoryId: m.id }, { auto: true }).catch(() => null),
-    );
-    if (r && r !== 'timeout') n++;
-  }
-  return n;
+  // In parallel: the caller waits at most its budget, so sequential calls would only waste it.
+  const done = await Promise.all(
+    ranked.map(({ m }) =>
+      withTimeout(deps.verifyTimeoutMs ?? 4000, () =>
+        verifyOp(deps, p, projectId, { memoryId: m.id }, { auto: true }).catch(() => null),
+      ),
+    ),
+  );
+  return done.filter((r) => r && r !== 'timeout').length;
 }
 
 // ---------- chain read / simulate ----------
