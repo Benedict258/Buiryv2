@@ -29,6 +29,13 @@ The live documentation was read on 2026-10-28 (results in "Step 0 results" below
 - Difference that needed code (fixed, with regression tests): expiry margins and the status "expiring" window were a fixed 28 days, two Mainnet epochs, so every 5-day testnet memory would have been "expiring" at once. They now follow the network epoch (`walrusEpochMs`).
 - Connection problems seen on testnet too (A24): the startup `/config` connect timeout, and 1 of 6 `curl` connections to `relayer.dev.memwal.ai` failed with a TLS error.
 
+**Bring-your-own Walrus account (2026-11-16, Phase 5)**
+
+- Assumed: one relayer serves many accounts, and each request is authorised by the account id plus a signature from a delegate registered on that account (the same signed-request rules as the managed account, A13 to A15). If false: a project's own account may need its own relayer; the design already stores a relayer URL per project, so only the probe and docs change.
+- Assumed: relayer rate limits apply per account, so one drain per account (its own budget) is right. Source: the documented limits are stated per account and per key (A14). If false: the per-account drains need a shared budget for a shared relayer.
+- Not verified live yet: L-BYO1 (a second testnet account). Mock-verified only.
+- Sealed keys depend on `BUIRY_SECRET_KEY`: rotating it makes stored delegate keys unreadable (and webhook secrets). Key custody (Phase 11) must cover re-sealing.
+
 **Tatum latency (2026-11-16, Phase 2)**
 
 Measured on testnet, 2026-11-16 15:34Z and 15:35Z (`scripts/tatum-latency.ts`, every call `fresh`, paced at the default 3 calls a second, two runs of 20 package-version reads and 20 transaction reads each):

@@ -73,6 +73,7 @@ Root `LICENSE` is now a short per-package notice (Apache-2.0 for core, mcp, cli;
 ### Gate (Windows, Node 24.16, pnpm 10.28.0 via corepack)
 
 - At `c182a34` (start of the audit; `ef146be` before the author rewrite): install ok; typecheck ok except that the old script's nested `pnpm` call failed when pnpm was not on PATH; lint ok; 33 files, 372 tests passed.
+- Bring-your-own Walrus account per project (2026-11-16): done on mocks, with a single-tenant guard on the managed account; live check L-BYO1 waits for a second testnet account.
 - Security review (2026-11-16): `docs/SECURITY_REVIEW.md`; three high findings fixed with tests, mediums open with stated fixes.
 - Dependencies (2026-11-16): vitest 4.1.12, vite 6.4.5, tsup 9.0.0, hono 4.13.16, @hono/node-server 2.1.6; `pnpm audit --prod` 0; one dev-only advisory left (minimatch via typescript-eslint, no fix in range).
 - Current: typecheck (plain `tsc` for the dashboard, no nested pnpm), lint and test pass before every commit; 38 files, 422 tests after Part C (2026-11-11).
@@ -244,7 +245,7 @@ Plan: keep it, do not expand it. To decide, the owner reads real credit usage on
 1. Done: Parts A, B and C. Testnet preflight, L-W1T and L-W2T verified; two testnet-only differences fixed with regression tests.
 2. Done: testnet demo package (Part D). `DEMO_PACKAGE_ID` `0xed715e4509f98b2c4ee0d9af96e7f6d6417534d3f053e1cce50a830967b03cc9`, `DEMO_TX_DIGEST` `3BwSg4N1h2afycg15oeMcjq4C6Hg6TfXtESC882D8N3g`; the verifier reports the upgrade.
 3. Done: live demo on testnet (L-D1), including the fresh-package run where the upgrade happens between sessions (`pnpm demo --live --fresh-package`); see `docs/EVIDENCE.md`.
-4. **Decide tenant isolation for managed mode.** One account holds every tenant and a Seal session reaches the whole account, with keys that outlive the session (A26). Options: (a) one Walrus Memory account per tenant managed by Buiry, (b) bring-your-own account per customer, (c) a self-hosted relayer and contract. Accept when the chosen mode is in the architecture doc and the isolation suite covers it.
+4. Tenant isolation: decided, bring-your-own first (BD36). Built and tested on mocks; the managed account is single-tenant unless `BUIRY_MANAGED_MULTI_TENANT=1`. Remaining: L-BYO1 live (needs a second testnet account). Superseded note follows. **Decide tenant isolation for managed mode.** One account holds every tenant and a Seal session reaches the whole account, with keys that outlive the session (A26). Options: (a) one Walrus Memory account per tenant managed by Buiry, (b) bring-your-own account per customer, (c) a self-hosted relayer and contract. Accept when the chosen mode is in the architecture doc and the isolation suite covers it.
 5. Security review done (`docs/SECURITY_REVIEW.md`): highs fixed; open mediums M1 to M7 each have a stated fix. Accept M1 (trusted proxy hops) and M6 (production startup check) before any public deployment.
 6. After the demo: retention and renewal for Walrus expiry (including A29); deployment, backups and monitoring; npm naming (the v1 package owns `@buiry/mcp`); the Tatum decision.
 7. **Mainnet cutover checklist** (a deliberate flip at the end):

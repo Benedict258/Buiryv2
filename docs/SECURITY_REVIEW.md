@@ -76,6 +76,13 @@ No critical findings.
 - Showcase pages: opt-in per project.
 - Dashboard: no `dangerouslySetInnerHTML`, `eval` or `innerHTML`; links are built from internal ids.
 
+## Bring-your-own Walrus accounts (added after the review, Phase 5)
+
+- Delegate keys: sealed with AES-256-GCM under a key derived from `BUIRY_SECRET_KEY` (own label), never returned by the API (only the public key), never logged (tested: API, activity log, console output, dashboard page). Decrypted keys live only inside cached adapters in process memory.
+- Relayer URLs are user-supplied, so they go through the same destination check as webhooks (https, no private or internal addresses; development override refused in production). The DNS rebinding window of M2 applies here too and is fixed the same way.
+- Only admins and owners can connect, rotate or disconnect; row-level security hides another workspace's rows (tested).
+- Open: `BUIRY_SECRET_KEY` rotation needs a re-seal procedure (Phase 11, key custody).
+
 ## Not reviewed
 
 - Dependencies beyond `pnpm audit` (no supply-chain review of transitive packages).

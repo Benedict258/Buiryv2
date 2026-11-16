@@ -30,6 +30,14 @@ Legend: **done** (implemented and tested), **mocked** (tested only against a moc
 
 - Baseline (`pnpm typecheck && pnpm lint && pnpm test`) also passes on Windows. The 0600 check on the credentials file is a conditional assertion inside its test: it is not made on Windows (NTFS has no POSIX modes) and still runs on Linux and macOS.
 
+## Bring-your-own Walrus account (2026-11-16)
+
+- Done (mocks): a project can connect its own Walrus Memory account (Storage page, or `PUT /v1/projects/:id/storage/account`). Writes, recall, the expiry scan and the write drain use that account; the worker runs one drain per account. The delegate key is sealed at rest (AES-256-GCM) and never returned or logged; only its public half is shown. Adapters are cached per project (bounded, rebuilt on key rotation).
+- Done: the managed account serves one workspace unless `BUIRY_MANAGED_MULTI_TENANT=1`; other workspaces must connect their own account.
+- Done: saving checks the URL (no private addresses), the deployment's Sui network, and a live probe (relayer network plus a signed read with the key); the startup network check includes each project's own account.
+- Tests: isolation suite (`packages/api/test/byo-storage.test.ts`), scoped queue leases, and a Chrome check of the Storage page (connect refused for a project with data, accepted for a new one; the key appears nowhere in the page, API or server log).
+- Needs live check: L-BYO1 (`scripts/byo-live.ts`) waits for a second testnet account in `.env.testnet`.
+
 ## Security review (2026-11-16)
 
 - `docs/SECURITY_REVIEW.md`: no critical findings; three high findings fixed with regression tests (malformed URL crashing the request handler, unbounded request bodies, sign-in links in production logs); seven medium and two low findings listed with fixes, one low fixed.
