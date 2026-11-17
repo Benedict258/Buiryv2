@@ -16,7 +16,7 @@ Severity: **critical** = remote compromise or cross-tenant data access without c
 | M3  | medium   | No cap on concurrent SSE streams; streams outlive a revoked session        | Open                                               |
 | M4  | medium   | Agent tokens never expire; API token expiry is optional and off by default | Open                                               |
 | M5  | medium   | Unexpected (500) errors are not logged                                     | Open                                               |
-| M6  | medium   | Production can start on an in-memory database                              | Open (Phase 11 startup check)                      |
+| M6  | medium   | Production can start on an in-memory database                              | Fixed (production startup check, tested)           |
 | M7  | medium   | No item count cap on pack import (only the 2 MiB body cap from H2)         | Open                                               |
 | L1  | low      | MCP sessions live in process memory with no idle expiry                    | Open                                               |
 | L2  | low      | Dashboard static path check used a bare prefix match                       | Fixed in `83b58e9` (separator-aware)               |
@@ -54,7 +54,7 @@ No critical findings.
 - **M3, SSE streams.** `packages/api/src/http/routes-project.ts:402`: no per-user or global cap on open event streams, and a stream opened with a session keeps running after that session is revoked. Fix: a per-user cap, and re-check the session on each heartbeat.
 - **M4, token lifetime.** Agent tokens have no expiry; revocation is the only control. API tokens take an optional `expiresInDays` (`packages/api/src/service/dashboard.ts`) but default to none. Both tables record `last_used_at`. Fix: an expiry for agent tokens and a default expiry for API tokens, shown in the dashboard.
 - **M5, unlogged 500s.** `app.onError` returns a generic 500 with the request id but does not log the error, so incidents leave no trace. Fix: log the error with the request id (message and stack, never request bodies).
-- **M6, in-memory database in production.** `packages/api/src/server.ts:66` only warns when `DATABASE_URL` is missing. A production start would accept writes and lose them on restart. Fix: the production startup check in Phase 11 refuses to start.
+- **M6, in-memory database in production.** `packages/api/src/server.ts:66` only warns when `DATABASE_URL` is missing. A production start would accept writes and lose them on restart. Fixed in Phase 11: the production startup check refuses to start without `DATABASE_URL` (tested).
 - **M7, pack import size.** `packages/api/src/service/dashboard.ts` `importPack` has no item count limit beyond the 2 MiB body cap; a project writer could still import thousands of small memories in one call, each queued for storage. Fix: an item cap per import (and per plan).
 
 ## Low
@@ -82,6 +82,13 @@ No critical findings.
 - Relayer URLs are user-supplied, so they go through the same destination check as webhooks (https, no private or internal addresses; development override refused in production). The DNS rebinding window of M2 applies here too and is fixed the same way.
 - Only admins and owners can connect, rotate or disconnect; row-level security hides another workspace's rows (tested).
 - Open: `BUIRY_SECRET_KEY` rotation needs a re-seal procedure (Phase 11, key custody).
+
+## Found after the review (Phases 5 to 12)
+
+- **Fixed (Phase 9):** the isolation canary planted memories through the normal write path. It claimed the single-tenant managed account on a fresh deployment, which locked out the first real workspace, and it queued a real Walrus write every hour. Internal workspaces now never write to Walrus. Tested.
+- **Fixed (Phase 9):** the server closed idle connections after 5 s, shorter than load balancer idle timeouts, so connections were reset (ECONNRESET). It now keeps them for 65 s.
+- **Fixed (Phase 11):** production now refuses to start with weak or missing settings, development switches left on, or pending migrations (`config-check.ts`). This also covers M6 (no in-memory database in production).
+- **Dev-only advisory, accepted:** picomatch 4.0.7 ReDoS (GHSA-fc5q-39xc-vjpf), reachable only through build tooling (tsup, tinyglobby) with our own glob patterns. No fixed release exists; revisit when one does.
 
 ## Not reviewed
 

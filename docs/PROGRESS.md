@@ -30,6 +30,12 @@ Legend: **done** (implemented and tested), **mocked** (tested only against a moc
 
 - Baseline (`pnpm typecheck && pnpm lint && pnpm test`) also passes on Windows. The 0600 check on the credentials file is a conditional assertion inside its test: it is not made on Windows (NTFS has no POSIX modes) and still runs on Linux and macOS.
 
+## State at the end of the 12-phase run (2026-11-17)
+
+- Gate green: typecheck (root and dashboard), ESLint, Prettier, 461 tests in 44 files. Conformance 30/30. Coverage of packages/*/src: statements 88.35%, branches 78.65%, functions 87.25%, lines 90.95%.
+- `pnpm audit --prod`: 0. Dev-only: minimatch (moderate, via typescript-eslint, no fix in range) and picomatch 4.0.7 (high, ReDoS GHSA-fc5q-39xc-vjpf, via tsup and tinyglobby; no fixed release exists). Both only see our own build globs, never request input.
+- Waiting for the owner: L-BYO1, L-M1, npm names and publishing, L-AWS1 to L-AWS3, Tatum credit reading (A9), the onboarding workspace question.
+
 ## AWS deployment artifacts (2026-11-17, prepared offline)
 
 - Done: Dockerfile (server bundle, hoisted production install, protos, dashboard), Terraform for ECS Fargate (api, worker, migration task), ALB with ACM TLS, RDS Postgres, Secrets Manager, CloudWatch logs and alarms (`terraform validate` passes without credentials), `.env.production.example`, `scripts/smoke-deploy.ts`, `docs/DEPLOYMENT.md`, `docs/KEY_CUSTODY.md`.
