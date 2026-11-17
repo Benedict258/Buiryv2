@@ -56,6 +56,9 @@ export function productionProblems(env: Env): string[] {
     p.push(
       'BUIRY_MAILER must be smtp (or off) in production; the console and memory mailers are for development',
     );
+  const hops = env.BUIRY_TRUSTED_PROXY_HOPS;
+  if (hops !== undefined && !/^[0-5]$/.test(hops))
+    p.push('BUIRY_TRUSTED_PROXY_HOPS must be a whole number from 0 to 5 (1 behind one AWS ALB)');
   if (env.BUIRY_ROLE && !['all', 'api', 'worker'].includes(env.BUIRY_ROLE))
     p.push('BUIRY_ROLE must be all, api or worker');
   return p;

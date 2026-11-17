@@ -176,6 +176,7 @@ export function buildApp(rt: Runtime): BuiryApp {
       mailer: mailerFromEnv(rt.env),
     },
     config: {
+      trustedProxyHops: Number(rt.env.BUIRY_TRUSTED_PROXY_HOPS ?? 0),
       storage: {
         // Development only: a relayer on localhost or a private address (refused in production).
         allowPrivate: rt.env.BUIRY_BYO_ALLOW_PRIVATE === '1' && rt.env.NODE_ENV !== 'production',

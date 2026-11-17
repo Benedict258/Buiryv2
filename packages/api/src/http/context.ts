@@ -27,6 +27,11 @@ export interface AppConfig {
   };
   /** SSE poll interval. */
   feedIntervalMs: number;
+  /**
+   * Proxies in front of the server that append to X-Forwarded-For (BUIRY_TRUSTED_PROXY_HOPS). 0 (default): use
+   * the socket address and ignore the header. Behind one AWS ALB: 1.
+   */
+  trustedProxyHops: number;
 }
 
 export interface AppContext {

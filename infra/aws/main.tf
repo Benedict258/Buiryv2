@@ -341,6 +341,8 @@ locals {
     { name = "BUIRY_BASE_URL", value = "https://${var.domain_name}" },
     { name = "BUIRY_ALLOWED_ORIGINS", value = "https://${var.domain_name}" },
     { name = "BUIRY_MAILER", value = "smtp" },
+    # One ALB in front: it appends the client address to X-Forwarded-For (SECURITY_REVIEW M1).
+    { name = "BUIRY_TRUSTED_PROXY_HOPS", value = "1" },
     { name = "WALRUS_NETWORK", value = var.sui_network },
     { name = "TATUM_NETWORK", value = var.sui_network },
   ]

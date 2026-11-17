@@ -1,4 +1,5 @@
 import { Hono } from 'hono';
+import { getConnInfo } from '@hono/node-server/conninfo';
 import { BuiryError } from '@buiry/core';
 import { AuthService, type AuthConfig } from '../auth/auth-service.js';
 import { AgentRateLimiter, MemoryService } from '../service/memory-service.js';
@@ -23,6 +24,27 @@ export interface BuiryApp {
   app: Hono;
   routes: RouteInfo[];
   ctx: AppContext;
+}
+
+/**
+ * The client address used for per-address limits. With no trusted proxies (the default) it is the socket peer and
+ * X-Forwarded-For is ignored, since any client can send it. Behind N trusted proxies that each append the address
+ * they received from (the AWS ALB does), the client is the Nth entry from the right; entries further left were
+ * written by the client and are never used.
+ */
+export function clientAddress(c: Parameters<Handler>[0], trustedProxyHops: number): string {
+  let socket = 'local';
+  try {
+    socket = getConnInfo(c).remote.address ?? 'local';
+  } catch {
+    // Not served by the Node adapter (in-process tests): no socket address.
+  }
+  if (trustedProxyHops <= 0) return socket;
+  const hops = (c.req.header('x-forwarded-for') ?? '')
+    .split(',')
+    .map((s) => s.trim())
+    .filter(Boolean);
+  return hops.length >= trustedProxyHops ? hops[hops.length - trustedProxyHops]! : socket;
 }
 
 /** Small fixed-window limiter for unauthenticated endpoints, keyed by client address. */
@@ -59,6 +81,7 @@ export function createApp(o: CreateAppOptions): BuiryApp {
       enforcePlans: true,
       evidence: {},
       feedIntervalMs: 1000,
+      trustedProxyHops: 0,
       ...(o.config ?? {}),
     },
   };
@@ -75,8 +98,7 @@ export function createApp(o: CreateAppOptions): BuiryApp {
     c.header('referrer-policy', 'no-referrer');
     await next();
   });
-  const ipOf = (c: { req: { header: (n: string) => string | undefined } }) =>
-    c.req.header('x-forwarded-for')?.split(',')[0]?.trim() ?? 'local';
+  const ipOf = (c: Parameters<Handler>[0]) => clientAddress(c, ctx.config.trustedProxyHops);
   // Only the endpoints that take no credentials are limited per address; signed-in calls such as /auth/me are not.
   for (const path of ['/v1/auth/wallet/*', '/v1/auth/oauth/*', '/v1/auth/email/*'])
     app.use(path, async (c, next) => {

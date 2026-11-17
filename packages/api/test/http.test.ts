@@ -266,4 +266,47 @@ describe('auth endpoint rate limit', () => {
     expect(Number(blocked.headers.get('retry-after'))).toBeGreaterThan(0);
     await lim.close();
   }, 60_000);
+
+  // SECURITY_REVIEW M1: X-Forwarded-For is client-controlled; it must not choose the limiter bucket.
+  const limited = async (trustedProxyHops: number) => {
+    const lim = await makeWorld({});
+    const { createApp, FakeWalletVerifier } = await import('../src/index.js');
+    const app = createApp({
+      deps: lim.stack.deps,
+      authRequestsPerMinute: 3,
+      auth: {
+        domain: 'x',
+        baseUrl: ORIGIN,
+        wallet: new FakeWalletVerifier(),
+        providers: {},
+        mailer: lim.mailer,
+      },
+      config: { trustedProxyHops },
+    });
+    const call = async (xff?: string) =>
+      (
+        await app.app.request('/v1/auth/wallet/challenge', {
+          method: 'POST',
+          headers: xff ? { 'x-forwarded-for': xff } : {},
+        })
+      ).status;
+    return { call, close: () => lim.close() };
+  };
+
+  it('ignores X-Forwarded-For by default, so spoofed addresses share one bucket', async () => {
+    const { call, close } = await limited(0);
+    const statuses = [];
+    for (let i = 0; i < 5; i++) statuses.push(await call(`203.0.113.${i}`));
+    expect(statuses).toEqual([200, 200, 200, 429, 429]);
+    await close();
+  }, 60_000);
+
+  it('behind one trusted proxy, keys on the entry that proxy appended, not on entries the client wrote', async () => {
+    const { call, close } = await limited(1);
+    const statuses = [];
+    for (let i = 0; i < 4; i++) statuses.push(await call(`198.51.100.${i}, 192.0.2.7`));
+    expect(statuses).toEqual([200, 200, 200, 429]);
+    expect(await call('192.0.2.7, 192.0.2.8')).toBe(200); // a different real client has its own bucket
+    await close();
+  }, 60_000);
 });
