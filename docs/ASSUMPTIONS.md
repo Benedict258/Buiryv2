@@ -29,6 +29,11 @@ The live documentation was read on 2026-10-28 (results in "Step 0 results" below
 - Difference that needed code (fixed, with regression tests): expiry margins and the status "expiring" window were a fixed 28 days, two Mainnet epochs, so every 5-day testnet memory would have been "expiring" at once. They now follow the network epoch (`walrusEpochMs`).
 - Connection problems seen on testnet too (A24): the startup `/config` connect timeout, and 1 of 6 `curl` connections to `relayer.dev.memwal.ai` failed with a TLS error.
 
+**Key rotation (2026-11-18, Phase B)**
+
+- The rotation transaction locks the rows it re-seals (`select ... for update`); a server writing a new webhook or delegate key during the run waits for it. Verified on PGlite only; on Postgres the same SQL applies (L-KEY1).
+- Tokens hashed with the old key and never used during the overlap cannot be migrated (HMAC is one-way); they stop working when `BUIRY_SECRET_KEY_PREVIOUS` is removed and must be rotated. This is by design, not an assumption about a service.
+
 **Security fixes (2026-11-18, Phase A)**
 
 - The AWS ALB appends the client address to `X-Forwarded-For` (one hop). Source: AWS Elastic Load Balancing documentation, "HTTP headers and Application Load Balancers" (X-Forwarded-For, append mode is the default `routing.http.xff_header_processing.mode`). Not verified against a live ALB; if a deployment uses a second proxy (CloudFront in front of the ALB), set the hop count to 2.
