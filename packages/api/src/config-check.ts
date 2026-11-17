@@ -56,6 +56,9 @@ export function productionProblems(env: Env): string[] {
     p.push(
       'BUIRY_MAILER must be smtp (or off) in production; the console and memory mailers are for development',
     );
+  const days = env.BUIRY_AGENT_TOKEN_MAX_DAYS;
+  if (days !== undefined && !/^\d{1,4}$/.test(days))
+    p.push('BUIRY_AGENT_TOKEN_MAX_DAYS must be a whole number of days (0 for no expiry)');
   const hops = env.BUIRY_TRUSTED_PROXY_HOPS;
   if (hops !== undefined && !/^[0-5]$/.test(hops))
     p.push('BUIRY_TRUSTED_PROXY_HOPS must be a whole number from 0 to 5 (1 behind one AWS ALB)');

@@ -193,8 +193,15 @@ export async function issueAgentToken(
     ]);
     if (!ag.rows[0]) throw new BuiryError('not_found', 'agent not found');
     await tx.query(
-      `insert into agent_tokens (id, workspace_id, agent_id, token_hash, prefix) values ($1,$2,$3,$4,$5)`,
-      [id, workspaceId, agentId, hmac(deps.secretKey, token), token.slice(0, 12)],
+      `insert into agent_tokens (id, workspace_id, agent_id, token_hash, prefix, expires_at) values ($1,$2,$3,$4,$5,$6)`,
+      [
+        id,
+        workspaceId,
+        agentId,
+        hmac(deps.secretKey, token),
+        token.slice(0, 12),
+        deps.agentTokenMaxDays ? new Date(deps.now() + deps.agentTokenMaxDays * 86_400_000) : null,
+      ],
     );
     await logActivity(tx, deps, {
       workspaceId,

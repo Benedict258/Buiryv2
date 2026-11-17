@@ -405,13 +405,15 @@ export async function listAgents(deps: ServiceDeps, tx: Tx, p: Principal, projec
     helped: string;
     wrong: string;
     token_last_used: Date | null;
+    token_expires: Date | null;
   }>(
     `select a.id, a.slug, a.name, a.tool, a.client_version, a.permissions, a.branch_scope, a.created_at, a.revoked_at, a.last_seen_at,
             (select count(*) from activity_log l where l.project_id = a.project_id and l.actor_id = a.slug and l.operation in ('remember','handoff') and l.created_at >= $2) as writes,
             (select count(*) from activity_log l where l.project_id = a.project_id and l.actor_id = a.slug and l.operation = 'recall' and l.created_at >= $2) as recalls,
             (select count(*) from memory_events e where e.project_id = a.project_id and e.actor_id = a.slug and e.type = 'memory.reported' and e.payload->>'outcome' = 'helped' and e.created_at >= $2) as helped,
             (select count(*) from memory_events e where e.project_id = a.project_id and e.actor_id = a.slug and e.type = 'memory.reported' and e.payload->>'outcome' in ('wrong','outdated') and e.created_at >= $2) as wrong,
-            (select max(last_used_at) from agent_tokens t where t.agent_id = a.id) as token_last_used
+            (select max(last_used_at) from agent_tokens t where t.agent_id = a.id) as token_last_used,
+            (select min(expires_at) from agent_tokens t where t.agent_id = a.id and t.revoked_at is null) as token_expires
        from agents a where a.project_id = $1 order by a.created_at`,
     [projectId, since],
   );
@@ -436,6 +438,12 @@ export async function listAgents(deps: ServiceDeps, tx: Tx, p: Principal, projec
     helped7d: Number(a.helped),
     wrong7d: Number(a.wrong),
     tokenLastUsed: a.token_last_used,
+    // Rotation reminder: shown in the dashboard when the token expires within 14 days.
+    tokenExpiresAt: a.token_expires,
+    tokenExpiresSoon:
+      !a.revoked_at &&
+      !!a.token_expires &&
+      new Date(a.token_expires).getTime() - deps.now() < 14 * 86_400_000,
   }));
 }
 

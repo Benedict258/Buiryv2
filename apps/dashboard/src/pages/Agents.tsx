@@ -4,7 +4,7 @@ import { Plus, RotateCw, ShieldOff } from 'lucide-react';
 import { api } from '../lib/api';
 import { can, useApp, useQuery } from '../lib/app';
 import { useProject, useWs } from '../lib/ctx';
-import { ago } from '../lib/format';
+import { ago, dateOnly } from '../lib/format';
 import type { Agent, Memory } from '../lib/types';
 import {
   Async,
@@ -65,6 +65,17 @@ export function Agents() {
           Connect an agent
         </Button>
       </PageHead>
+      {(q.data ?? []).some((a) => a.tokenExpiresSoon) && (
+        <Banner kind="warning">
+          {(q.data ?? [])
+            .filter((a) => a.tokenExpiresSoon)
+            .map((a) => a.name)
+            .join(', ')}{' '}
+          {(q.data ?? []).filter((a) => a.tokenExpiresSoon).length === 1 ? 'has a token' : 'have tokens'}{' '}
+          expiring within 14 days. Rotate the token (the old one stops working at once) and update the tool
+          with `buiry connect`.
+        </Banner>
+      )}
       <Card flush>
         <Async q={q} rows={3}>
           {(list) =>
@@ -88,6 +99,7 @@ export function Agents() {
                       <th>Reports</th>
                       <th>Last seen</th>
                       <th>Token used</th>
+                      <th>Token expires</th>
                       <th />
                     </tr>
                   </thead>
@@ -153,6 +165,10 @@ export function Agents() {
                           </td>
                           <td className="small muted">{ago(a.lastSeenAt)}</td>
                           <td className="small muted">{ago(a.tokenLastUsed)}</td>
+                          <td className={`small ${a.tokenExpiresSoon ? '' : 'muted'}`}>
+                            {a.tokenExpiresAt ? dateOnly(a.tokenExpiresAt) : 'no expiry'}
+                            {a.tokenExpiresSoon && <span className="chip">rotate soon</span>}
+                          </td>
                           <td onClick={(e) => e.stopPropagation()}>
                             {a.status !== 'revoked' && (
                               <span className="row">
@@ -462,8 +478,12 @@ function AgentDrawer({
       {tab === 'token' && (
         <div className="col">
           <div className="small muted">
-            Last used {ago(agent.tokenLastUsed)}. Token values are shown once at creation; rotate to get a new
-            one.
+            Last used {ago(agent.tokenLastUsed)}.{' '}
+            {agent.tokenExpiresAt
+              ? `Expires ${dateOnly(agent.tokenExpiresAt)}.`
+              : 'No expiry (issued before token lifetimes were set, or lifetimes are off).'}{' '}
+            Token values are shown once at creation; rotate to get a new one. Rotation revokes the old token
+            at once.
           </div>
           <div className="code">bry_at_••••••••••••••••</div>
           <Banner kind="info">

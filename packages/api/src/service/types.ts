@@ -61,6 +61,8 @@ export interface ServiceDeps {
    * checks finish in the background and show at the next check; the briefing is never blocked on the chain longer.
    */
   checkReverifyBudgetMs?: number;
+  /** Days until a newly issued agent token expires (BUIRY_AGENT_TOKEN_MAX_DAYS); unset or 0: no expiry. */
+  agentTokenMaxDays?: number;
   /** BUIRY_RENEWAL=on: memories close to expiry are rewritten (renewal by rewrite). Default off. */
   renewalEnabled?: boolean;
   /** Per-project storage accounts (bring your own) and the managed-account tenancy guard. */

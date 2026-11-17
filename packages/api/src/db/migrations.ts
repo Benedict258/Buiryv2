@@ -497,6 +497,11 @@ const RECENT_IDX = `
 create index memories_recent_idx on memories (project_id, branch_slug, updated_at desc);
 `;
 
+// Agent token lifetime (SECURITY_REVIEW M4). Existing tokens keep no expiry until rotated.
+const AGENT_TOKEN_EXPIRY = `
+alter table agent_tokens add column expires_at timestamptz;
+`;
+
 export const MIGRATIONS: Migration[] = [
   { id: '001_init', sql: INIT },
   { id: '002_write_jobs', sql: WRITE_JOBS_DDL },
@@ -506,6 +511,7 @@ export const MIGRATIONS: Migration[] = [
   { id: '006_project_storage', sql: PROJECT_STORAGE },
   { id: '007_renewal', sql: RENEWAL },
   { id: '008_recent_idx', sql: RECENT_IDX },
+  { id: '009_agent_token_expiry', sql: AGENT_TOKEN_EXPIRY },
 ];
 
 export async function migrate(

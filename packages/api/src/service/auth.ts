@@ -17,6 +17,7 @@ export async function authenticateAgentToken(
     const r = await tx.query<{
       token_id: string;
       token_revoked: Date | null;
+      token_expires: Date | null;
       last_used_at: Date | null;
       agent_id: string;
       slug: string;
@@ -27,7 +28,7 @@ export async function authenticateAgentToken(
       branch_scope: string | null;
       agent_revoked: Date | null;
     }>(
-      `select t.id as token_id, t.revoked_at as token_revoked, t.last_used_at, a.id as agent_id, a.slug, a.tool, a.workspace_id, a.project_id,
+      `select t.id as token_id, t.revoked_at as token_revoked, t.expires_at as token_expires, t.last_used_at, a.id as agent_id, a.slug, a.tool, a.workspace_id, a.project_id,
               a.permissions, a.branch_scope, a.revoked_at as agent_revoked
          from agent_tokens t join agents a on a.id = t.agent_id where t.token_hash = $1`,
       [hash],
@@ -46,6 +47,18 @@ export async function authenticateAgentToken(
       });
       return { revoked: true as const };
     }
+    if (x.token_expires && new Date(x.token_expires).getTime() <= deps.now()) {
+      await logActivity(tx, deps, {
+        workspaceId: x.workspace_id,
+        projectId: x.project_id,
+        actor: { kind: 'agent', id: x.slug },
+        operation: 'auth.rejected',
+        target: { agentId: x.agent_id, tokenId: x.token_id },
+        result: 'error',
+        detail: { reason: 'expired' },
+      });
+      return { expired: true as const };
+    }
     const last = x.last_used_at ? new Date(x.last_used_at).getTime() : 0;
     if (deps.now() - last > 60_000)
       await tx.query('update agent_tokens set last_used_at = $1 where id = $2', [
@@ -56,6 +69,11 @@ export async function authenticateAgentToken(
   });
   if (!row) throw new BuiryError('unauthorized', 'invalid agent token');
   if ('revoked' in row) throw new BuiryError('unauthorized', 'this agent token has been revoked');
+  if ('expired' in row)
+    throw new BuiryError(
+      'unauthorized',
+      'this agent token has expired; rotate it in the dashboard (Agents) or run `buiry connect` again',
+    );
   return {
     kind: 'agent',
     workspaceId: row.workspace_id,

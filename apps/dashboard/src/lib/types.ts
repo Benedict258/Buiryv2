@@ -113,6 +113,8 @@ export interface Agent {
   helped7d: number;
   wrong7d: number;
   tokenLastUsed: string | null;
+  tokenExpiresAt?: string | null;
+  tokenExpiresSoon?: boolean;
 }
 export interface Activity {
   id: string;
