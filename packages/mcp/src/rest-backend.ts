@@ -39,6 +39,18 @@ export interface RestBackendOptions {
   timeoutMs?: number;
 }
 
+/** Operations that only read; they may be retried once after a network failure. */
+const READ_OPS = new Set([
+  'connect',
+  'check',
+  'recall',
+  'status',
+  'memory',
+  'briefing',
+  'project',
+  'chain_read',
+]);
+
 /** Talks to the Buiry API's agent surface (/v1/agent/*). The MCP server holds no state beyond this. */
 export class RestBackend implements BuiryBackend {
   private readonly f: typeof fetch;
@@ -50,7 +62,15 @@ export class RestBackend implements BuiryBackend {
   }
 
   private async post<T>(op: string, body: unknown): Promise<T> {
-    return this.call('POST', `/v1/agent/${op}`, body);
+    // Reads are retried once after a network failure with no response (seen in the Phase 10 load run: the first
+    // call after a long idle period failed with "fetch failed"). Writes are never retried here.
+    const read = READ_OPS.has(op);
+    try {
+      return await this.call('POST', `/v1/agent/${op}`, body);
+    } catch (e) {
+      if (!read || !(e instanceof BuiryError) || !(e as { network?: boolean }).network) throw e;
+      return this.call('POST', `/v1/agent/${op}`, body);
+    }
   }
 
   private async call<T>(method: 'GET' | 'POST', path: string, body?: unknown): Promise<T> {
@@ -69,11 +89,16 @@ export class RestBackend implements BuiryBackend {
         signal: ctrl.signal,
       });
     } catch (e) {
-      throw new BuiryError(
+      const cause = (e as { cause?: { code?: string; message?: string } }).cause;
+      const why = cause?.code ?? cause?.message;
+      const err = new BuiryError(
         'storage_unavailable',
-        `Buiry service is unreachable (${(e as Error).message}); continue without project memory and retry later`,
+        `Buiry service is unreachable (${(e as Error).message}${why ? `: ${why}` : ''}); continue without project memory and retry later`,
         15_000,
       );
+      // A network failure (no response at all), as opposed to a timeout we caused: safe to retry a read.
+      if (!ctrl.signal.aborted) Object.assign(err, { network: true });
+      throw err;
     } finally {
       clearTimeout(timer);
     }
