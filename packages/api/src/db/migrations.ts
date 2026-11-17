@@ -492,6 +492,11 @@ alter table memories add column renewal_generation integer not null default 0;
 alter table memories add column previous_blob_id text;
 `;
 
+// The per-write conflict scan reads a project's most recently updated memories (Phase 10 load run).
+const RECENT_IDX = `
+create index memories_recent_idx on memories (project_id, branch_slug, updated_at desc);
+`;
+
 export const MIGRATIONS: Migration[] = [
   { id: '001_init', sql: INIT },
   { id: '002_write_jobs', sql: WRITE_JOBS_DDL },
@@ -500,6 +505,7 @@ export const MIGRATIONS: Migration[] = [
   { id: '005_activity_seq', sql: ACTIVITY_SEQ },
   { id: '006_project_storage', sql: PROJECT_STORAGE },
   { id: '007_renewal', sql: RENEWAL },
+  { id: '008_recent_idx', sql: RECENT_IDX },
 ];
 
 export async function migrate(

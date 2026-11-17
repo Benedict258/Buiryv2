@@ -545,8 +545,9 @@ export async function createMemoryTx(
   // Conflict candidates (text similarity only; never changes status).
   let candidates: RememberOutput['conflictCandidates'] = [];
   if (!opts.skipConflicts) {
-    const pool = await tx.query<MemoryRow>(
-      `select * from memories where project_id = $1 and branch_slug = any($2) and status not in ('superseded','tombstoned') and expired = false
+    // Only the columns the similarity check reads: at 10k memories this halved the query (Phase 10 load run).
+    const pool = await tx.query<Pick<MemoryRow, 'id' | 'text' | 'type' | 'status'>>(
+      `select id, text, type, status from memories where project_id = $1 and branch_slug = any($2) and status not in ('superseded','tombstoned') and expired = false
          and type in ('decision','constraint','fact','procedure','preference') order by updated_at desc limit 300`,
       [projectId, slug === 'main' ? ['main'] : [slug, 'main']],
     );
