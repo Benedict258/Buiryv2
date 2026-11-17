@@ -1,0 +1,14 @@
+# Backup and restore image: pg_dump/pg_restore/psql, the AWS CLI and the scripts in scripts/backup.
+#   docker build -f Dockerfile.backup -t buiry-backup .
+#   docker run --rm -e DATABASE_URL=... -e BACKUP_S3_URI=s3://... buiry-backup              # backup
+#   docker run --rm -e RESTORE_DATABASE_URL=... -e BACKUP_S3_URI=s3://... buiry-backup restore.sh
+# The client major version must be the server's or newer (RDS Postgres 16 in infra/aws). Pin by digest before use.
+FROM postgres:16-bookworm
+RUN apt-get update \
+ && apt-get install -y --no-install-recommends awscli ca-certificates \
+ && rm -rf /var/lib/apt/lists/*
+COPY scripts/backup/backup.sh scripts/backup/restore.sh scripts/backup/lib.sh /usr/local/bin/
+RUN chmod 0755 /usr/local/bin/backup.sh /usr/local/bin/restore.sh
+USER postgres
+ENTRYPOINT []
+CMD ["backup.sh"]
