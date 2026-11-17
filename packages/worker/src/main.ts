@@ -9,11 +9,26 @@ import {
 import { driftScan, expiryScan, isolationCanary, relayerProbe, snapshotRegen } from './index.js';
 import { Scheduler, type ScheduledJob } from './scheduler.js';
 
-/** Runs the API, the MCP endpoint and the background jobs in one process. */
+/**
+ * Runs the API and MCP endpoint, the background jobs, or both (BUIRY_ROLE = api | worker | all, default all). On
+ * AWS the API and the worker run as separate services; job leases make several workers safe.
+ */
 export async function main(env: Record<string, string | undefined> = process.env): Promise<void> {
+  const role = env.BUIRY_ROLE ?? 'all';
   const rt = await buildRuntime(env);
-  const http = await startHttp(rt);
-  console.log(`[buiry] listening on ${http.url} (REST /v1, MCP /mcp)`);
+  const http = role === 'worker' ? undefined : await startHttp(rt);
+  if (http) console.log(`[buiry] listening on ${http.url} (REST /v1, MCP /mcp)`);
+  if (role === 'api') {
+    const stopApi = async () => {
+      await http!.close();
+      await rt.close();
+      process.exit(0);
+    };
+    process.on('SIGINT', () => void stopApi());
+    process.on('SIGTERM', () => void stopApi());
+    return;
+  }
+  console.log(`[buiry] background jobs running (role ${role})`);
   const min = 60_000;
   const jobs: ScheduledJob[] = [];
   const workerId = `worker-${process.pid}`;
@@ -67,7 +82,7 @@ export async function main(env: Record<string, string | undefined> = process.env
   );
   const stop = async () => {
     clearInterval(timer);
-    await http.close();
+    await http?.close();
     await rt.close();
     process.exit(0);
   };

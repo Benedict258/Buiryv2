@@ -8,6 +8,7 @@ import { createGatewayIfConfigured } from '@buiry/chain';
 import { Ed25519Signer, HttpWalrusAdapter, type WalrusMemoryAdapter } from '@buiry/storage';
 import { BuiryError } from '@buiry/core';
 import { MemoryMailer, type Mailer } from './auth/auth-service.js';
+import { productionProblems } from './config-check.js';
 import { SmtpMailer, smtpConfigFromEnv } from './auth/smtp.js';
 import { StorageRegistry } from './service/byo-storage.js';
 import { buildWalrusAdapter } from './service/walrus.js';
@@ -56,10 +57,27 @@ export function mailerFromEnv(env: Env): Mailer {
 
 /** Builds service dependencies from the documented environment variables. Nothing is read from files. */
 export async function buildRuntime(env: Env = process.env): Promise<Runtime> {
+  const production = env.NODE_ENV === 'production';
+  if (production) {
+    const problems = productionProblems(env);
+    if (problems.length)
+      throw new Error(
+        ['[buiry] refusing to start in production:', ...problems.map((x) => ` - ${x}`)].join('\n'),
+      );
+  }
   let db: Db;
   if (env.DATABASE_URL) {
     const pg = PgDb.fromUrl(env.DATABASE_URL);
-    await pg.migrate();
+    // In production the migration task applies migrations (scripts: buiry-migrate); servers only check, so several
+    // tasks starting together never race on the schema. BUIRY_MIGRATE_ON_START=1 restores migrate-on-start.
+    if (!production || env.BUIRY_MIGRATE_ON_START === '1') await pg.migrate();
+    else {
+      const pending = await pg.pending();
+      if (pending.length)
+        throw new Error(
+          `[buiry] refusing to start: ${pending.length} database migration(s) pending (${pending.join(', ')}); run the migration task first`,
+        );
+    }
     db = pg;
   } else {
     console.warn('[buiry] DATABASE_URL is not set: using an in-memory database (data is lost on exit)');

@@ -583,6 +583,13 @@ export function suiNetwork(name: string): Network {
  * The gateway is gRPC only. Tatum does not serve Sui JSON-RPC (A8: live 404), so the JSON-RPC backend is
  * added only when TATUM_JSONRPC_URL is explicitly set. Leave it unset.
  */
+/** Production configuration problems for the gateway (names only); used by the server's startup check. */
+export function tatumConfigProblems(env: EnvLike): string[] {
+  return env.TATUM_NETWORK?.trim() && !env.TATUM_API_KEY?.trim()
+    ? ['TATUM_NETWORK is set but TATUM_API_KEY is not']
+    : [];
+}
+
 export function createGatewayFromEnv(env: EnvLike, extra: Partial<GatewayOptions> = {}): TatumGateway {
   const apiKey = env.TATUM_API_KEY;
   if (!apiKey) throw new ChainError('config', 'TATUM_API_KEY is not set');

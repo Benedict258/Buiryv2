@@ -10,7 +10,9 @@ import { loadSync } from '@grpc/proto-loader';
 import { ChainError, type ChangedObject, type EpochInfo, type ObjectResult, type TxInfo } from '../types.js';
 import type { ChainBackend, MethodName } from './backend.js';
 
-export const PROTO_ROOT = fileURLToPath(new URL('../../proto', import.meta.url));
+// BUIRY_PROTO_ROOT points a bundled server (the container image) at its copy of the vendored protos.
+export const PROTO_ROOT =
+  process.env.BUIRY_PROTO_ROOT ?? fileURLToPath(new URL('../../proto', import.meta.url));
 const FILES = [
   'sui/rpc/v2/ledger_service.proto',
   'sui/rpc/v2/state_service.proto',

@@ -6,7 +6,7 @@ const ROOT = join(import.meta.dirname, '../../..');
 
 function walk(dir: string, out: string[] = []): string[] {
   for (const f of readdirSync(dir)) {
-    if (['node_modules', 'dist', 'coverage', '.git'].includes(f)) continue;
+    if (['node_modules', 'dist', 'dist-server', '.terraform', 'coverage', '.git'].includes(f)) continue;
     const p = join(dir, f);
     if (statSync(p).isDirectory()) walk(p, out);
     else if (/\.(ts|tsx|js|mjs)$/.test(f)) out.push(p);

@@ -2,7 +2,16 @@ import js from '@eslint/js';
 import tseslint from 'typescript-eslint';
 
 export default tseslint.config(
-  { ignores: ['**/dist/**', '**/node_modules/**', 'coverage/**', 'apps/dashboard/.next/**'] },
+  {
+    ignores: [
+      '**/dist/**',
+      '**/dist-server/**',
+      '**/.terraform/**',
+      '**/node_modules/**',
+      'coverage/**',
+      'apps/dashboard/.next/**',
+    ],
+  },
   js.configs.recommended,
   ...tseslint.configs.recommended,
   {

@@ -1,7 +1,7 @@
-import { PGlite } from '@electric-sql/pglite';
+import type { PGlite } from '@electric-sql/pglite';
 import pg from 'pg';
 import type { SqlClient } from '@buiry/storage';
-import { migrate } from './migrations.js';
+import { MIGRATIONS, migrate } from './migrations.js';
 
 export type Tx = SqlClient;
 
@@ -22,7 +22,9 @@ export class PgliteDb implements Db {
   private constructor(private readonly db: PGlite) {}
 
   static async create(): Promise<PgliteDb> {
-    const db = new PGlite();
+    // Loaded only when used: production (Postgres) never needs it, and the production image does not install it.
+    const { PGlite: Lite } = await import('@electric-sql/pglite');
+    const db = new Lite();
     await migrate({ query: (q, p) => db.query(q, p) as never, exec: (q) => db.exec(q) });
     return new PgliteDb(db);
   }
@@ -51,6 +53,9 @@ export class PgliteDb implements Db {
   }
 }
 
+/** Advisory lock key held while migrating (any constant shared by all Buiry processes). */
+const MIGRATION_LOCK = 4_242_001;
+
 /** Production Postgres via a connection pool. */
 export class PgDb implements Db {
   constructor(private readonly pool: pg.Pool) {}
@@ -59,8 +64,32 @@ export class PgDb implements Db {
     return new PgDb(new pg.Pool({ connectionString: url }));
   }
 
+  /**
+   * Applies pending migrations while holding a Postgres advisory lock, so two runs (a migration task and a server
+   * starting, or two tasks) never apply the same migration at once.
+   */
   async migrate(): Promise<string[]> {
-    return migrate({ query: (q, p) => this.pool.query(q, p as unknown[]) as never });
+    const c = await this.pool.connect();
+    try {
+      await c.query('select pg_advisory_lock($1)', [MIGRATION_LOCK]);
+      return await migrate({ query: (q, p) => c.query(q, p as unknown[]) as never });
+    } finally {
+      await c.query('select pg_advisory_unlock($1)', [MIGRATION_LOCK]).catch(() => {});
+      c.release();
+    }
+  }
+
+  /** Migration ids not yet applied (all of them on an empty database). */
+  async pending(): Promise<string[]> {
+    const done = await this.pool
+      .query<{ id: string }>('select id from schema_migrations')
+      .then((r) => new Set(r.rows.map((x) => x.id)))
+      .catch((e: { code?: string }) => {
+        // Only "no such table" means an empty database; anything else (unreachable, auth) is a real error.
+        if (e.code === '42P01') return new Set<string>();
+        throw e;
+      });
+    return MIGRATIONS.map((m) => m.id).filter((id) => !done.has(id));
   }
 
   private async run<T>(setup: (tx: Tx) => Promise<void>, fn: (tx: Tx) => Promise<T>): Promise<T> {
