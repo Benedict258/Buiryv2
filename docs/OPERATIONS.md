@@ -15,7 +15,7 @@ Requirements:
 
 1. Automated backups with point-in-time recovery (for example, RDS automated backups with a retention period chosen by the owner), plus a periodic logical dump kept in a separate account or region.
 2. A restore test on a schedule the owner sets: restore into a scratch database, run `buiry doctor` against it, and check that a known memory's blob id still lists on the relayer.
-3. `BUIRY_SECRET_KEY` held in a secrets manager with its own backup. Rotating it requires re-sealing `project_storage.delegate_key_sealed` and `webhooks.secret` first; there is no automatic re-seal yet.
+3. `BUIRY_SECRET_KEY` held in a secrets manager with its own backup. Rotation follows the runbook in `docs/KEY_CUSTODY.md` (`dist-server/rotate-key.js` re-seals stored secrets; `BUIRY_SECRET_KEY_PREVIOUS` keeps tokens working during the overlap). Label each backup with the key generation it needs.
 4. Renewal (`BUIRY_RENEWAL=on`) depends on `write_jobs.text`: do not prune stored write jobs for memories that are still current.
 
 ## Storage lifetime and renewal

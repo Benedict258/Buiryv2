@@ -30,6 +30,14 @@ Legend: **done** (implemented and tested), **mocked** (tested only against a moc
 
 - Baseline (`pnpm typecheck && pnpm lint && pnpm test`) also passes on Windows. The 0600 check on the credentials file is a conditional assertion inside its test: it is not made on Windows (NTFS has no POSIX modes) and still runs on Linux and macOS.
 
+## Key custody tooling (Phase B, 2026-11-18)
+
+- `BUIRY_SECRET_KEY` rotation:
+  - `dist-server/rotate-key.js` (dry run by default) re-seals webhook secrets and per-project delegate keys in one verified transaction. It never logs plaintext and changes nothing when it fails.
+  - `BUIRY_SECRET_KEY_PREVIOUS` keeps sessions and tokens working through the overlap and re-hashes them on use.
+  - Tested on a database with both key versions, including a failure halfway through.
+- Runbook for this key and for the Walrus delegates, with the order of operations and rollback: `docs/KEY_CUSTODY.md`.
+
 ## Security findings closed (Phase A, 2026-11-18)
 
 - M1 trusted proxy hops (`BUIRY_TRUSTED_PROXY_HOPS`, ALB = 1); M2 webhook connections pinned to the checked address, more reserved ranges refused; M3 SSE caps per user and per project, streams end on revocation; M4 agent token expiry (`BUIRY_AGENT_TOKEN_MAX_DAYS`, default 90) with dashboard reminders, rotation revokes at once (BD40); M5 500s logged with a request id and no message, MCP no longer echoes errors; M7 pack item, text and evidence caps; L1 idle MCP sessions closed after 30 minutes. Each has a regression test. Still open: listed in `docs/SECURITY_REVIEW.md`.
