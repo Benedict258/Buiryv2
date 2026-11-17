@@ -1,4 +1,7 @@
 import { createCipheriv, createDecipheriv, createHash, randomBytes } from 'node:crypto';
+import { request as httpRequest } from 'node:http';
+import { request as httpsRequest } from 'node:https';
+import { isIP } from 'node:net';
 import { BuiryError } from '@buiry/core';
 import type { Tx } from '../db/db.js';
 import { WEBHOOK_EVENTS, assertSafeWebhookUrl, formatForKind, signWebhook, type Resolver } from './events.js';
@@ -33,6 +36,8 @@ export interface WebhookInput {
 export interface WebhookOpts {
   resolve?: Resolver;
   allowHttp?: boolean;
+  /** Tests only: allow private addresses (a local receiver). */
+  allowPrivate?: boolean;
 }
 
 export async function createWebhook(
@@ -173,8 +178,51 @@ export async function testWebhook(deps: ServiceDeps, tx: Tx, p: Principal, webho
 
 // ---------- delivery (called by the worker) ----------
 
+/**
+ * Sends one webhook request to an address that was already checked. The connection goes to `address` (no second
+ * DNS lookup, so a rebinding answer cannot redirect it); TLS still verifies the certificate for the URL's host.
+ */
+export type WebhookSender = (r: {
+  url: URL;
+  address: string;
+  headers: Record<string, string>;
+  body: string;
+  timeoutMs: number;
+}) => Promise<number>;
+
+export const pinnedSender: WebhookSender = ({ url, address, headers, body, timeoutMs }) =>
+  new Promise((resolve, reject) => {
+    const family = isIP(address) === 6 ? 6 : 4;
+    const req = (url.protocol === 'https:' ? httpsRequest : httpRequest)(
+      {
+        protocol: url.protocol,
+        hostname: url.hostname,
+        port: url.port || undefined,
+        path: url.pathname + url.search,
+        method: 'POST',
+        headers: { ...headers, 'content-length': String(Buffer.byteLength(body)) },
+        servername: url.hostname,
+        agent: false,
+        timeout: timeoutMs,
+        // Pin the connection to the checked address whatever DNS says now.
+        lookup: ((_host: string, opts: { all?: boolean }, cb: (...a: unknown[]) => void) =>
+          opts?.all ? cb(null, [{ address, family }]) : cb(null, address, family)) as never,
+      },
+      (res) => {
+        res.resume();
+        resolve(res.statusCode ?? 0);
+      },
+    );
+    req.on('timeout', () => req.destroy(new Error(`timed out after ${timeoutMs} ms`)));
+    req.on('error', reject);
+    req.end(body);
+  });
+
 export interface DeliveryOpts extends WebhookOpts {
+  /** Test double for the whole HTTP call (bypasses the pinned connection). */
   fetch?: typeof fetch;
+  /** Replaces the pinned sender (tests). */
+  send?: WebhookSender;
   maxAttempts?: number;
   timeoutMs?: number;
   /** Consecutive failed deliveries after which an endpoint is paused. */
@@ -192,7 +240,6 @@ export interface DeliveryReport {
 const BACKOFF_MS = [30_000, 120_000, 600_000, 1_800_000, 3_600_000];
 
 export async function deliverDue(deps: ServiceDeps, o: DeliveryOpts = {}): Promise<DeliveryReport> {
-  const f = o.fetch ?? fetch;
   const rep: DeliveryReport = { delivered: 0, failed: 0, retried: 0, paused: [] };
   const due = await deps.db.system((tx) =>
     tx.query<{
@@ -222,29 +269,44 @@ export async function deliverDue(deps: ServiceDeps, o: DeliveryOpts = {}): Promi
     let status: number | null = null;
     let error: string | null = null;
     try {
-      await assertSafeWebhookUrl(hook.url, o); // re-checked at send time (DNS may have changed)
+      // Resolved and checked once; the request then connects to exactly the checked address (M2: no rebinding
+      // window between the check and the connection).
+      const addrs = await assertSafeWebhookUrl(hook.url, o);
       const body = JSON.stringify(formatForKind(hook.kind, d.payload));
       const ts = Math.floor(deps.now() / 1000);
-      const ctrl = new AbortController();
-      const timer = setTimeout(() => ctrl.abort(), o.timeoutMs ?? 8000);
-      try {
-        const res = await f(hook.url, {
-          method: 'POST',
-          headers: {
-            'content-type': 'application/json',
-            'buiry-signature': signWebhook(openSecret(deps.secretKey, hook.secret), ts, body),
-            'buiry-event': d.event_type,
-            'buiry-delivery': d.id,
-          },
+      const headers = {
+        'content-type': 'application/json',
+        'buiry-signature': signWebhook(openSecret(deps.secretKey, hook.secret), ts, body),
+        'buiry-event': d.event_type,
+        'buiry-delivery': d.id,
+      };
+      const timeoutMs = o.timeoutMs ?? 8000;
+      if (o.fetch) {
+        const ctrl = new AbortController();
+        const timer = setTimeout(() => ctrl.abort(), timeoutMs);
+        try {
+          status = (
+            await o.fetch(hook.url, {
+              method: 'POST',
+              headers,
+              body,
+              signal: ctrl.signal,
+              redirect: 'manual',
+            })
+          ).status;
+        } finally {
+          clearTimeout(timer);
+        }
+      } else {
+        status = await (o.send ?? pinnedSender)({
+          url: new URL(hook.url),
+          address: addrs[0]!,
+          headers,
           body,
-          signal: ctrl.signal,
-          redirect: 'manual',
+          timeoutMs,
         });
-        status = res.status;
-        if (res.status < 200 || res.status >= 300) error = `HTTP ${res.status}`;
-      } finally {
-        clearTimeout(timer);
       }
+      if (status < 200 || status >= 300) error = `HTTP ${status}`;
     } catch (e) {
       error = e instanceof BuiryError ? e.message : (e as Error).message;
     }

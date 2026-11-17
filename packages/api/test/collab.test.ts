@@ -332,7 +332,9 @@ describe('webhooks', () => {
     ]) {
       expect((await err(assertSafeWebhookUrl(u, { resolve })))?.code, u).toBe('invalid_input');
     }
-    await expect(assertSafeWebhookUrl('https://hooks.example.com/x', { resolve })).resolves.toBeUndefined();
+    await expect(assertSafeWebhookUrl('https://hooks.example.com/x', { resolve })).resolves.toEqual([
+      '93.184.216.34',
+    ]); // the checked addresses, which delivery connects to (M2)
     expect(
       ['10.1.2.3', '172.20.0.1', '192.168.1.1', '127.0.0.1', '::1', 'fd00::1', '100.64.0.1', '0.0.0.0'].every(
         isPrivateAddress,

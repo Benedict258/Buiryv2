@@ -156,6 +156,8 @@ function privateIPv4(a: number[]): boolean {
     (x === 172 && y >= 16 && y <= 31) ||
     (x === 192 && y === 168) ||
     (x === 100 && y >= 64 && y <= 127) ||
+    (x === 198 && (y === 18 || y === 19)) || // benchmarking, 198.18.0.0/15
+    (x === 192 && y === 0 && a[2] === 0) || // IETF protocol assignments, 192.0.0.0/24
     x >= 224
   );
 }
@@ -167,6 +169,9 @@ export function isPrivateAddress(ip: string): boolean {
   return (
     l === '::1' ||
     l === '::' ||
+    l.startsWith('64:ff9b:') || // NAT64, maps to any IPv4 address
+    l.startsWith('2002:') || // 6to4, embeds an IPv4 address
+    l.startsWith('::ffff:') ||
     l.startsWith('fc') ||
     l.startsWith('fd') ||
     l.startsWith('fe8') ||
@@ -190,7 +195,7 @@ export async function assertSafeWebhookUrl(
     /** What the URL is for, used in error messages. */
     what?: string;
   } = {},
-): Promise<void> {
+): Promise<string[]> {
   const what = opts.what ?? 'webhook';
   let u: URL;
   try {
@@ -215,6 +220,7 @@ export async function assertSafeWebhookUrl(
   if (addrs.length === 0) throw new BuiryError('invalid_input', `${what} host does not resolve`);
   if (!opts.allowPrivate && addrs.some(isPrivateAddress))
     throw new BuiryError('invalid_input', `${what} host resolves to a private or internal address`);
+  return addrs;
 }
 
 export function formatForKind(
