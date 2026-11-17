@@ -249,6 +249,10 @@ export async function startHttp(
       serveStatic(staticDir, req.url ?? '/', res);
     else void rest(req, res);
   });
+  // Keep idle connections open longer than clients and load balancers do (the AWS ALB idle timeout defaults to
+  // 60 s), so the server never closes a socket a client is about to reuse; that race surfaced as ECONNRESET.
+  server.keepAliveTimeout = 65_000;
+  server.headersTimeout = 66_000;
   await new Promise<void>((r) => server.listen(port, r));
   const actual = (server.address() as { port: number }).port;
   return {

@@ -2,7 +2,7 @@ import { randomBytes } from 'node:crypto';
 import { describe, expect, it } from 'vitest';
 import { FIXTURES_DIR, GrpcBackend, MockTatum, TatumGateway, loadFixtures } from '@buiry/chain';
 import { EPOCH_MS, Ed25519Signer, HttpWalrusAdapter, MockRelayer } from '@buiry/storage';
-import { createDrain, createStack, type UserPrincipal } from '@buiry/api';
+import { StorageRegistry, createDrain, createStack, type UserPrincipal } from '@buiry/api';
 import {
   Scheduler,
   driftScan,
@@ -368,6 +368,33 @@ describe('isolation canary', () => {
     const stack = await createStack({ now: new Clock().now, random: rand });
     stack.deps.networks = { sui: 'testnet' };
     expect((await isolationCanary(stack.deps)).ok).toBe(true);
+    await stack.close();
+  }, 120_000);
+
+  it('never writes to Walrus or claims the single-tenant managed account', async () => {
+    // Found in the Phase 9 runs: the canary's planted memory claimed the managed account on a fresh deployment, so
+    // the first real workspace was refused, and every hourly run queued a real Walrus write.
+    const storage = new StorageRegistry({
+      build: () => {
+        throw new Error('no own accounts in this test');
+      },
+      tenancy: { multi: false },
+    });
+    const stack = await createStack({ now: new Clock().now, random: rand, storage });
+    expect((await isolationCanary(stack.deps)).ok).toBe(true);
+    const sys = (q: string) => stack.db.system(async (tx) => (await tx.query(q)).rows.length);
+    expect(await sys('select 1 from managed_tenant')).toBe(0);
+    expect(await sys('select 1 from write_jobs')).toBe(0);
+    const ws = await stack.newWorkspace('First real tenant');
+    const prj = await stack.newProject(ws.id);
+    const agent = await stack.newAgent({
+      workspaceId: ws.id,
+      projectId: prj.id,
+      name: 'a',
+      tool: 'claude-code',
+    });
+    await agent.backend.remember({ text: 'The first real workspace can write.', type: 'fact' });
+    expect(await sys('select 1 from write_jobs')).toBe(1);
     await stack.close();
   }, 120_000);
 });

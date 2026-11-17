@@ -126,9 +126,22 @@ async function managedAllowed(
 }
 
 /**
- * Called before a write is queued. A project with its own account is always allowed; otherwise the managed account
- * must serve this workspace (one workspace unless multi-tenancy is explicitly enabled).
+ * Called before a write is queued. Returns 'skip' for internal workspaces (the isolation canary): their events stay
+ * in the database and never reach Walrus or claim the managed account. A project with its own account is always
+ * allowed; otherwise the managed account must serve this workspace (one workspace unless multi-tenancy is on).
  */
+export async function storageMode(
+  deps: ServiceDeps,
+  tx: Tx,
+  workspaceId: string,
+  projectId: string,
+): Promise<'store' | 'skip'> {
+  const plan = await tx.query<{ plan: string }>('select plan from workspaces where id = $1', [workspaceId]);
+  if (plan.rows[0]?.plan === 'internal') return 'skip';
+  await assertStorageAllowed(deps, tx, workspaceId, projectId);
+  return 'store';
+}
+
 export async function assertStorageAllowed(
   deps: ServiceDeps,
   tx: Tx,

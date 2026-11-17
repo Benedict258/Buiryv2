@@ -25,7 +25,7 @@ import {
   MEMORY_TYPES,
 } from '@buiry/core';
 import { PgWriteQueue, WriteService, type IndexedMemory } from '@buiry/storage';
-import { assertStorageAllowed } from './byo-storage.js';
+import { storageMode } from './byo-storage.js';
 import type { Tx } from '../db/db.js';
 import type { AgentPrincipal, Principal, ServiceDeps } from './types.js';
 import { publishEvent } from './events.js';
@@ -217,7 +217,7 @@ export async function emitDurable(
       new Date(deps.now()),
     ],
   );
-  await assertStorageAllowed(deps, tx, a.p.workspaceId, a.project.id);
+  if ((await storageMode(deps, tx, a.p.workspaceId, a.project.id)) === 'skip') return { eventId };
   const svc = new WriteService(new PgWriteQueue(tx), deps.now, deps.random, deps.budgets);
   const r = await svc.accept(
     {
