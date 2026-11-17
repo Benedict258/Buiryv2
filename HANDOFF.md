@@ -73,6 +73,7 @@ Root `LICENSE` is now a short per-package notice (Apache-2.0 for core, mcp, cli;
 ### Gate (Windows, Node 24.16, pnpm 10.28.0 via corepack)
 
 - At `c182a34` (start of the audit; `ef146be` before the author rewrite): install ok; typecheck ok except that the old script's nested `pnpm` call failed when pnpm was not on PATH; lint ok; 33 files, 372 tests passed.
+- SMTP mailer (2026-11-17): `BUIRY_MAILER=smtp`, TLS required; tested against a fake SMTP server; a live send (L-M1) needs the owner's SMTP account.
 - Renewal by rewrite (2026-11-17): behind `BUIRY_RENEWAL=on`, verified live on testnet (L-R1). Database backups are required (`docs/OPERATIONS.md`).
 - Bring-your-own Walrus account per project (2026-11-16): done on mocks, with a single-tenant guard on the managed account; live check L-BYO1 waits for a second testnet account.
 - Security review (2026-11-16): `docs/SECURITY_REVIEW.md`; three high findings fixed with tests, mediums open with stated fixes.

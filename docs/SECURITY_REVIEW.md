@@ -44,7 +44,7 @@ No critical findings.
 
 - **Evidence:** `packages/api/src/server.ts`, `ConsoleMailer` logs the full magic link (`/auth/email?token=...`) and was selected whenever `BUIRY_MAILER` was unset, including in production.
 - **Exploit:** anyone with read access to production logs (log aggregation, a support engineer, a leaked log export) signs in as any user who requested a link in the last 15 minutes.
-- **Fix:** `mailerFromEnv` never returns the console mailer when `NODE_ENV=production`; production without a configured mailer refuses email sign-in with a clear error and logs nothing. Development still prints links. A real mailer is Phase 7.
+- **Fix:** `mailerFromEnv` never returns the console mailer when `NODE_ENV=production`; production without a configured mailer refuses email sign-in with a clear error and logs nothing. Development still prints links. The SMTP mailer (Phase 7) keeps the same rule: the link goes only into the message body; errors and logs never contain it or the SMTP password (tested with a fake SMTP server).
 - **Test:** `static.test.ts`, "never uses the console mailer in production" (asserts the mailer type, the refusal and that `console.log` is never called).
 
 ## Medium

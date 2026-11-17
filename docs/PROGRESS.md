@@ -30,6 +30,12 @@ Legend: **done** (implemented and tested), **mocked** (tested only against a moc
 
 - Baseline (`pnpm typecheck && pnpm lint && pnpm test`) also passes on Windows. The 0600 check on the credentials file is a conditional assertion inside its test: it is not made on Windows (NTFS has no POSIX modes) and still runs on Linux and macOS.
 
+## SMTP mailer (2026-11-17)
+
+- Done: `BUIRY_MAILER=smtp` sends sign-in links through SMTP (nodemailer 10.3.1, pinned, no dependencies, MIT-0). TLS is required (implicit TLS or STARTTLS; clear text refused in production). Neither the link nor the SMTP password reaches a log or an error message; nodemailer's logger and debug output are off.
+- Tests: an in-process fake SMTP server (delivery with AUTH, refused recipient, refusal to send without TLS, configuration rules).
+- Needs a live check with a real provider: L-M1 (owner's SMTP account).
+
 ## Renewal by rewrite (2026-11-17)
 
 - Done: behind `BUIRY_RENEWAL=on`, the expiry scan rewrites memories close to expiry (same text, generation-suffixed idempotency key, normal queue). The memory switches to the new blob only once stored; `memory.renewed` is recorded and sent to webhooks; a failed rewrite leaves the old blob in place. Writers can renew selected memories from the Storage page.
