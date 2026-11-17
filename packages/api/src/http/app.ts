@@ -54,6 +54,35 @@ export function clientAddress(c: Parameters<Handler>[0], trustedProxyHops: numbe
   return hops.length >= trustedProxyHops ? hops[hops.length - trustedProxyHops]! : socket;
 }
 
+/**
+ * One JSON line per unexpected server error: request id, method, route pattern (never the concrete URL, which can
+ * carry ids or query text), error class, Postgres code and stack frames. The error message is left out on purpose.
+ */
+export function logServerError(
+  e: unknown,
+  at: { requestId?: string | undefined; method?: string; route?: string },
+  log: (line: string) => void = (l) => console.error(l),
+): void {
+  const err = e as { name?: string; code?: unknown; stack?: string };
+  const frames = (err.stack ?? '')
+    .split('\n')
+    .filter((l) => /^\s+at /.test(l))
+    .slice(0, 8)
+    .map((l) => l.trim());
+  log(
+    JSON.stringify({
+      level: 'error',
+      event: 'server_error',
+      requestId: at.requestId ?? null,
+      method: at.method ?? null,
+      route: at.route ?? null,
+      error: err.name ?? typeof e,
+      ...(typeof err.code === 'string' && /^[A-Z0-9_]{1,12}$/.test(err.code) ? { code: err.code } : {}),
+      frames,
+    }),
+  );
+}
+
 /** Small fixed-window limiter for unauthenticated endpoints, keyed by client address. */
 class IpLimiter {
   private hits = new Map<string, { n: number; reset: number }>();
@@ -102,7 +131,12 @@ export function createApp(o: CreateAppOptions): BuiryApp {
   const publicLimiter = new IpLimiter(o.publicRequestsPerMinute ?? 120, 60_000, o.deps.now);
 
   app.use('*', async (c, next) => {
-    const rid = c.req.header('x-request-id') ?? `req_${Math.random().toString(36).slice(2, 12)}`;
+    // A client-supplied request id is kept only if it is short and plain, so it cannot forge log lines.
+    const given = c.req.header('x-request-id');
+    const rid =
+      given && /^[A-Za-z0-9_.-]{1,64}$/.test(given)
+        ? given
+        : `req_${Math.random().toString(36).slice(2, 12)}`;
     c.header('x-request-id', rid);
     c.header('x-content-type-options', 'nosniff');
     c.header('cache-control', 'no-store');
@@ -122,7 +156,7 @@ export function createApp(o: CreateAppOptions): BuiryApp {
   });
 
   app.onError((e, c) => {
-    const rid = c.res.headers.get('x-request-id') ?? c.req.header('x-request-id') ?? undefined;
+    const rid = c.res.headers.get('x-request-id') ?? undefined;
     if (e instanceof BuiryError) {
       const headers: Record<string, string> = {};
       if (e.retryAfterMs) headers['retry-after'] = String(Math.ceil(e.retryAfterMs / 1000));
@@ -132,6 +166,9 @@ export function createApp(o: CreateAppOptions): BuiryApp {
         headers,
       );
     }
+    // M5: unexpected errors are logged with the request id so they can be traced; the client gets a generic
+    // message. The error message itself is not logged: database errors can quote row values (memory text).
+    logServerError(e, { requestId: rid, method: c.req.method, route: c.req.routePath });
     return c.json(
       {
         ok: false,

@@ -103,7 +103,17 @@ export function createMcpHandler(o: Pick<HttpOptions, 'authenticate'>): {
         return deny(res, e.status, e.message);
       }
       if (e instanceof BuiryError && e.code === 'unauthorized') return deny(res, 401, e.message);
-      deny(res, 500, e instanceof Error ? e.message : 'internal error');
+      // Never echo an unexpected error to the client (it can quote internal detail); log its class only.
+      const rid = randomUUID();
+      console.error(
+        JSON.stringify({
+          level: 'error',
+          event: 'mcp_server_error',
+          requestId: rid,
+          error: (e as Error)?.name ?? typeof e,
+        }),
+      );
+      deny(res, 500, `internal error (request ${rid})`);
     }
   };
   return {
