@@ -4,6 +4,7 @@
 // `buiry connect --print` shows the snippet instead of writing, and `buiry doctor` reports what it finds.
 import { existsSync, mkdirSync, readFileSync, writeFileSync, copyFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
+import release from '../../../release.json' with { type: 'json' };
 
 export const TOOLS = ['claude-code', 'opencode', 'cursor', 'codex', 'generic'] as const;
 export type Tool = (typeof TOOLS)[number];
@@ -14,13 +15,16 @@ export interface McpServerSpec {
   env: Record<string, string>;
 }
 
+/** The npm package that runs the MCP server, from the single release setting (release.json). */
+export const MCP_PACKAGE: string = release.packages.mcp;
+
 /**
- * `launch` replaces the default `npx -y @buiry/mcp` (for example to run a local build). The npm name `@buiry/mcp`
- * currently resolves to the Buiry v1 package, so a v2 install must override it until v2 is published.
+ * `launch` replaces the default `npx -y <MCP_PACKAGE>` (for example to run a local build). The name comes from
+ * release.json because `@buiry/mcp` on npm is the Buiry v1 package.
  */
 export const serverSpec = (token: string, apiUrl: string, launch?: string[]): McpServerSpec => ({
   command: launch?.[0] ?? 'npx',
-  args: launch ? launch.slice(1) : ['-y', '@buiry/mcp'],
+  args: launch ? launch.slice(1) : ['-y', MCP_PACKAGE],
   env: { BUIRY_TOKEN: token, BUIRY_API_URL: apiUrl },
 });
 

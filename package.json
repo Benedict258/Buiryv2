@@ -18,7 +18,9 @@
     "demo": "tsx scripts/demo/run.ts",
     "dev:api": "tsx scripts/dev-server.ts",
     "dev:dashboard": "pnpm --filter @buiry/dashboard dev",
-    "dashboard:shots": "tsx scripts/dashboard-shots.ts"
+    "dashboard:shots": "tsx scripts/dashboard-shots.ts",
+    "release:pack": "tsx scripts/release/pack.ts --dry-run",
+    "release:smoke": "tsx scripts/release/smoke.ts"
   },
   "devDependencies": {
     "@electric-sql/pglite": "^0.5.11",

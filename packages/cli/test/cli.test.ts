@@ -4,6 +4,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { parseBuiryMd } from '@buiry/core';
+import { MCP_PACKAGE } from '../src/tools.js';
 import { makeWorld, type World } from '../../api/test/http-helpers.js';
 import {
   parseArgs,
@@ -241,7 +242,7 @@ describe('connect', () => {
     expect(claude.mcpServers.buiry).toMatchObject({
       type: 'stdio',
       command: 'npx',
-      args: ['-y', '@buiry/mcp'],
+      args: ['-y', MCP_PACKAGE],
       env: { BUIRY_API_URL: API },
     });
     expect(claude.mcpServers.buiry.env.BUIRY_TOKEN).toMatch(/^bry_at_/);
@@ -267,7 +268,7 @@ describe('connect', () => {
     expect(oc.$schema).toBe('https://opencode.ai/config.json');
     expect(oc.mcp.buiry).toMatchObject({
       type: 'local',
-      command: ['npx', '-y', '@buiry/mcp'],
+      command: ['npx', '-y', MCP_PACKAGE],
       enabled: true,
     });
     expect(readFileSync(join(sb.cwd, 'AGENTS.md'), 'utf8')).toContain(POINTER_START);

@@ -5,7 +5,8 @@ import { defineConfig } from 'tsup';
 export default defineConfig({
   entry: ['src/index.ts', 'src/bin.ts'],
   format: ['esm'],
-  dts: true,
+  // Bundled workspace types are inlined so the published declarations stand alone.
+  dts: { resolve: ['@buiry/core'] },
   clean: true,
   noExternal: ['@buiry/core'],
 });

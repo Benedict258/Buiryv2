@@ -1,4 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
+import release from '../../../release.json' with { type: 'json' };
 import { McpServer, ResourceTemplate } from '@modelcontextprotocol/sdk/server/mcp.js';
 import type { CallToolResult } from '@modelcontextprotocol/sdk/types.js';
 import { z } from 'zod';
@@ -44,7 +45,7 @@ export const INSTRUCTIONS = [
 /** Builds the MCP server. Tool descriptions are written so agents call check at the start and handoff at the end. */
 export function createBuiryMcpServer(opts: ServerOptions): McpServer {
   const server = new McpServer(
-    { name: opts.name ?? 'buiry', version: opts.version ?? '0.1.0' },
+    { name: opts.name ?? 'buiry', version: opts.version ?? release.version },
     { instructions: INSTRUCTIONS },
   );
   const get = async (): Promise<BuiryBackend> =>

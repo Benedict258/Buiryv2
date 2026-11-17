@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 import { BuiryError } from '@buiry/core';
+import release from '../../../release.json' with { type: 'json' };
 import { parseArgs } from './args.js';
 import { COMMANDS, UsageError } from './commands.js';
 import type { Runtime } from './config.js';
@@ -27,12 +28,12 @@ Environment: BUIRY_API_URL, BUIRY_TOKEN (override stored credentials)
 export async function run(argv: string[], rt: Runtime): Promise<number> {
   const a = parseArgs(argv);
   if (a.flags.version === true) {
-    rt.stdout('0.1.0\n');
+    rt.stdout(`${release.version}\n`);
     return 0;
   }
   const cmd = COMMANDS[a.command];
   if (!cmd || a.flags.help === true || a.command === 'help') {
-    rt.stdout(HELP('0.1.0'));
+    rt.stdout(HELP(release.version));
     return cmd || a.command === 'help' ? 0 : 2;
   }
   try {
