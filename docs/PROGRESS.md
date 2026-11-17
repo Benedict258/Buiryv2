@@ -30,6 +30,12 @@ Legend: **done** (implemented and tested), **mocked** (tested only against a moc
 
 - Baseline (`pnpm typecheck && pnpm lint && pnpm test`) also passes on Windows. The 0600 check on the credentials file is a conditional assertion inside its test: it is not made on Windows (NTFS has no POSIX modes) and still runs on Linux and macOS.
 
+## Publishable packages (2026-11-17)
+
+- Done: `release.json` is the single setting for npm names and the version (default `@buiry/core`, `@buiry/mcp-server`, `@buiry/cli` at 0.1.0; `@buiry/mcp` on npm is the v1 package). The CLI's default MCP launch command and both version strings read it.
+- `pnpm release:pack` builds, stages publish-ready manifests (dist entry points, exact runtime dependencies derived from the bundles, with a failure if a bundle imports something undeclared) and runs `npm pack` plus `npm publish --dry-run`. Nothing is published.
+- `pnpm release:smoke` installs the three tarballs in a fresh directory outside the repository: `buiry --help` and `--version` work, `buiry doctor` reports "not signed in" without crashing, and an MCP stdio handshake lists 13 tools. Passed 2026-11-17.
+
 ## SMTP mailer (2026-11-17)
 
 - Done: `BUIRY_MAILER=smtp` sends sign-in links through SMTP (nodemailer 10.3.1, pinned, no dependencies, MIT-0). TLS is required (implicit TLS or STARTTLS; clear text refused in production). Neither the link nor the SMTP password reaches a log or an error message; nodemailer's logger and debug output are off.
