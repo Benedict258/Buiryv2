@@ -30,6 +30,10 @@ Legend: **done** (implemented and tested), **mocked** (tested only against a moc
 
 - Baseline (`pnpm typecheck && pnpm lint && pnpm test`) also passes on Windows. The 0600 check on the credentials file is a conditional assertion inside its test: it is not made on Windows (NTFS has no POSIX modes) and still runs on Linux and macOS.
 
+## Agent behaviour and walkthrough (2026-11-17)
+
+- Claude Code 10/10 and OpenCode 2/2 behaviour runs on testnet; dashboard walkthrough with invitations 18/18. Six product defects found and fixed with tests. Details in `docs/BEHAVIOUR.md`.
+
 ## Publishable packages (2026-11-17)
 
 - Done: `release.json` is the single setting for npm names and the version (default `@buiry/core`, `@buiry/mcp-server`, `@buiry/cli` at 0.1.0; `@buiry/mcp` on npm is the v1 package). The CLI's default MCP launch command and both version strings read it.
