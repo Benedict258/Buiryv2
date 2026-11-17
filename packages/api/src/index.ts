@@ -21,6 +21,7 @@ export * from './service/dashboard.js';
 export * from './service/plans.js';
 export * from './auth/auth-service.js';
 export * from './auth/wallet.js';
+export * from './auth/smtp.js';
 export * from './auth/oauth.js';
 export * from './http/app.js';
 export * from './http/context.js';

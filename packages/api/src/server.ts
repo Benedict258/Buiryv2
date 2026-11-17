@@ -8,6 +8,7 @@ import { createGatewayIfConfigured } from '@buiry/chain';
 import { Ed25519Signer, HttpWalrusAdapter, type WalrusMemoryAdapter } from '@buiry/storage';
 import { BuiryError } from '@buiry/core';
 import { MemoryMailer, type Mailer } from './auth/auth-service.js';
+import { SmtpMailer, smtpConfigFromEnv } from './auth/smtp.js';
 import { StorageRegistry } from './service/byo-storage.js';
 import { buildWalrusAdapter } from './service/walrus.js';
 import { GitHubOAuth, GoogleOAuth, type OAuthProvider } from './auth/oauth.js';
@@ -47,6 +48,7 @@ export class UnconfiguredMailer implements Mailer {
 /** Picks the mailer from the environment. The console mailer prints tokens, so production never gets it. */
 export function mailerFromEnv(env: Env): Mailer {
   if (env.BUIRY_MAILER === 'memory') return new MemoryMailer();
+  if (env.BUIRY_MAILER === 'smtp') return new SmtpMailer(smtpConfigFromEnv(env));
   const dev = env.NODE_ENV !== 'production';
   if (dev && (!env.BUIRY_MAILER || env.BUIRY_MAILER === 'console')) return new ConsoleMailer();
   return new UnconfiguredMailer();
