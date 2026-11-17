@@ -18,7 +18,17 @@ export function sealSecret(secretKey: string, plain: string): string {
   return `enc:v1:${iv.toString('base64url')}:${c.getAuthTag().toString('base64url')}:${enc.toString('base64url')}`;
 }
 
-export function openSecret(secretKey: string, sealed: string): string {
+/** Opens a webhook secret; during a key rotation it falls back to the previous key. */
+export function openSecret(secretKey: string, sealed: string, previousKey?: string): string {
+  try {
+    return openWith(secretKey, sealed);
+  } catch (e) {
+    if (!previousKey) throw e;
+    return openWith(previousKey, sealed);
+  }
+}
+
+function openWith(secretKey: string, sealed: string): string {
   const [, , iv, tag, enc] = sealed.split(':');
   const d = createDecipheriv('aes-256-gcm', key(secretKey), Buffer.from(iv!, 'base64url'));
   d.setAuthTag(Buffer.from(tag!, 'base64url'));
@@ -276,7 +286,11 @@ export async function deliverDue(deps: ServiceDeps, o: DeliveryOpts = {}): Promi
       const ts = Math.floor(deps.now() / 1000);
       const headers = {
         'content-type': 'application/json',
-        'buiry-signature': signWebhook(openSecret(deps.secretKey, hook.secret), ts, body),
+        'buiry-signature': signWebhook(
+          openSecret(deps.secretKey, hook.secret, deps.previousSecretKey),
+          ts,
+          body,
+        ),
         'buiry-event': d.event_type,
         'buiry-delivery': d.id,
       };

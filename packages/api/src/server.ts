@@ -95,6 +95,9 @@ export async function buildRuntime(env: Env = process.env): Promise<Runtime> {
     random: (n) => new Uint8Array(randomBytes(n)),
     secretKey: secretKey.length >= 32 ? secretKey : randomBytes(32).toString('hex'),
   };
+  // During a BUIRY_SECRET_KEY rotation the previous key is still accepted (docs/KEY_CUSTODY.md, runbook).
+  const previous = env.BUIRY_SECRET_KEY_PREVIOUS ?? '';
+  if (previous.length >= 32 && previous !== deps.secretKey) deps.previousSecretKey = previous;
   if (env.BUIRY_RENEWAL === 'on') deps.renewalEnabled = true;
   if (env.BUIRY_PACK_MAX_ITEMS) deps.packMaxItems = Number(env.BUIRY_PACK_MAX_ITEMS);
   // Agent tokens expire after BUIRY_AGENT_TOKEN_MAX_DAYS (default 90; 0 = no expiry). Rotation revokes at once.

@@ -1,6 +1,6 @@
 import { BuiryError } from '@buiry/core';
 import type { AgentPrincipal, Permission, ServiceDeps } from './types.js';
-import { genId, hmac, logActivity } from './util.js';
+import { genId, logActivity, tokenHashes, upgradeTokenHash } from './util.js';
 
 /**
  * Resolves an agent token to a principal. Only a keyed hash is stored; revoked tokens and revoked
@@ -12,11 +12,12 @@ export async function authenticateAgentToken(
   sessionId?: string,
 ): Promise<AgentPrincipal> {
   if (!token.startsWith('bry_at_')) throw new BuiryError('unauthorized', 'invalid agent token');
-  const hash = hmac(deps.secretKey, token);
+  const hashes = tokenHashes(deps, token);
   const row = await deps.db.system(async (tx) => {
     const r = await tx.query<{
       token_id: string;
       token_revoked: Date | null;
+      token_hash: string;
       token_expires: Date | null;
       last_used_at: Date | null;
       agent_id: string;
@@ -28,10 +29,10 @@ export async function authenticateAgentToken(
       branch_scope: string | null;
       agent_revoked: Date | null;
     }>(
-      `select t.id as token_id, t.revoked_at as token_revoked, t.expires_at as token_expires, t.last_used_at, a.id as agent_id, a.slug, a.tool, a.workspace_id, a.project_id,
+      `select t.id as token_id, t.token_hash, t.revoked_at as token_revoked, t.expires_at as token_expires, t.last_used_at, a.id as agent_id, a.slug, a.tool, a.workspace_id, a.project_id,
               a.permissions, a.branch_scope, a.revoked_at as agent_revoked
-         from agent_tokens t join agents a on a.id = t.agent_id where t.token_hash = $1`,
-      [hash],
+         from agent_tokens t join agents a on a.id = t.agent_id where t.token_hash = any($1)`,
+      [hashes],
     );
     const x = r.rows[0];
     if (!x) return null;
@@ -59,6 +60,7 @@ export async function authenticateAgentToken(
       });
       return { expired: true as const };
     }
+    await upgradeTokenHash(tx, deps, 'agent_tokens', x.token_id, x.token_hash, token);
     const last = x.last_used_at ? new Date(x.last_used_at).getTime() : 0;
     if (deps.now() - last > 60_000)
       await tx.query('update agent_tokens set last_used_at = $1 where id = $2', [

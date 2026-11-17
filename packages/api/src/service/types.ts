@@ -46,6 +46,11 @@ export interface ServiceDeps {
   random: (n: number) => Uint8Array;
   /** Used to hash agent tokens (HMAC-SHA256). */
   secretKey: string;
+  /**
+   * The previous BUIRY_SECRET_KEY during a rotation (BUIRY_SECRET_KEY_PREVIOUS): token lookups and decryption also
+   * accept it, and tokens are re-hashed under the current key on first use. Remove it after the overlap.
+   */
+  previousSecretKey?: string;
   learning?: LearningConfig;
   adapter?: WalrusMemoryAdapter;
   budgets?: AdmissionBudgets;

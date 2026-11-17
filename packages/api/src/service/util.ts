@@ -19,6 +19,32 @@ export const sha = (s: string): string => createHash('sha256').update(s).digest(
 export const hmac = (secret: string, s: string): string =>
   createHmac('sha256', secret).update(s).digest('hex');
 
+/**
+ * Hashes of a token to look up: under the current key and, during a BUIRY_SECRET_KEY rotation, the previous key.
+ * The first entry is always the current-key hash.
+ */
+export const tokenHashes = (
+  d: Pick<ServiceDeps, 'secretKey' | 'previousSecretKey'>,
+  token: string,
+): string[] =>
+  d.previousSecretKey
+    ? [hmac(d.secretKey, token), hmac(d.previousSecretKey, token)]
+    : [hmac(d.secretKey, token)];
+
+/** After a lookup matched a previous-key hash, store the current-key hash so the token keeps working afterwards. */
+export async function upgradeTokenHash(
+  tx: { query: (q: string, p?: unknown[]) => Promise<unknown> },
+  d: Pick<ServiceDeps, 'secretKey'>,
+  table: 'sessions' | 'agent_tokens' | 'api_tokens',
+  id: string,
+  storedHash: string,
+  token: string,
+): Promise<void> {
+  const current = hmac(d.secretKey, token);
+  if (storedHash !== current)
+    await tx.query(`update ${table} set token_hash = $1 where id = $2`, [current, id]);
+}
+
 export const genId = (d: Pick<ServiceDeps, 'now' | 'random'>, prefix: IdPrefix): string =>
   newId(prefix, d.now(), d.random);
 

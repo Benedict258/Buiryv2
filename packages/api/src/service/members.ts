@@ -1,7 +1,7 @@
 import { BuiryError } from '@buiry/core';
 import type { Tx } from '../db/db.js';
 import type { Principal, Role, ServiceDeps, UserPrincipal } from './types.js';
-import { actorOf, genId, hmac, logActivity, notFound } from './util.js';
+import { actorOf, genId, hmac, logActivity, notFound, tokenHashes } from './util.js';
 import { randomBytes } from 'node:crypto';
 
 const RANK: Record<Role, number> = { reader: 0, writer: 1, admin: 2, owner: 3 };
@@ -170,8 +170,8 @@ export async function acceptInvitation(
       role: Role;
       expires_at: Date;
       accepted_at: Date | null;
-    }>('select id, workspace_id, role, expires_at, accepted_at from invitations where token_hash = $1', [
-      hmac(deps.secretKey, token),
+    }>('select id, workspace_id, role, expires_at, accepted_at from invitations where token_hash = any($1)', [
+      tokenHashes(deps, token),
     ]);
     const inv = r.rows[0];
     if (!inv || inv.accepted_at) throw new BuiryError('not_found', 'invitation not found or already used');

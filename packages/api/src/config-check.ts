@@ -20,6 +20,12 @@ export function productionProblems(env: Env): string[] {
   else if (PLACEHOLDER.test(key) || new Set(key).size < 12)
     p.push('BUIRY_SECRET_KEY looks like a placeholder or has too little variety; generate a random value');
 
+  const prev = env.BUIRY_SECRET_KEY_PREVIOUS;
+  if (prev !== undefined && prev !== '') {
+    if (prev.length < 32) p.push('BUIRY_SECRET_KEY_PREVIOUS must be at least 32 characters');
+    else if (prev === key) p.push('BUIRY_SECRET_KEY_PREVIOUS is the same as BUIRY_SECRET_KEY; remove it');
+  }
+
   const base = env.BUIRY_BASE_URL ?? '';
   if (!base) p.push('BUIRY_BASE_URL is not set');
   else if (!base.startsWith('https://')) p.push('BUIRY_BASE_URL must use https');

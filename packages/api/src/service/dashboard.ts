@@ -30,6 +30,8 @@ import {
   loadMemories,
   logActivity,
   notFound,
+  tokenHashes,
+  upgradeTokenHash,
   type MemoryRow,
 } from './util.js';
 
@@ -950,12 +952,14 @@ export async function authenticateApiToken(deps: ServiceDeps, token: string): Pr
       project_ids: string[] | null;
       expires_at: Date | null;
       last_used_at: Date | null;
+      token_hash: string;
     }>(
-      'select id, workspace_id, scopes, project_ids, expires_at, last_used_at from api_tokens where token_hash = $1 and revoked_at is null',
-      [hmac(deps.secretKey, token)],
+      'select id, workspace_id, scopes, project_ids, expires_at, last_used_at, token_hash from api_tokens where token_hash = any($1) and revoked_at is null',
+      [tokenHashes(deps, token)],
     );
     const t = x.rows[0];
     if (!t || (t.expires_at && new Date(t.expires_at).getTime() < deps.now())) return null;
+    await upgradeTokenHash(tx, deps, 'api_tokens', t.id, t.token_hash, token);
     if (!t.last_used_at || deps.now() - new Date(t.last_used_at).getTime() > 60_000)
       await tx.query('update api_tokens set last_used_at = $1 where id = $2', [new Date(deps.now()), t.id]);
     return t;

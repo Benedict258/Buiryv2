@@ -2,7 +2,7 @@ import { randomBytes } from 'node:crypto';
 import { BuiryError } from '@buiry/core';
 import type { Db } from '../db/db.js';
 import type { ServiceDeps, UserPrincipal, Role } from '../service/types.js';
-import { genId, hmac } from '../service/util.js';
+import { genId, hmac, tokenHashes, upgradeTokenHash } from '../service/util.js';
 import type { OAuthProvider } from './oauth.js';
 import { signInMessage, type WalletVerifier } from './wallet.js';
 
@@ -138,13 +138,16 @@ export class AuthService {
 
   async resolveSession(token: string): Promise<{ userId: string; sessionId: string } | null> {
     if (!token.startsWith(SESSION_PREFIX)) return null;
-    const r = await this.db.system((tx) =>
-      tx.query<{ id: string; user_id: string }>(
-        'select id, user_id from sessions where token_hash = $1 and revoked_at is null and expires_at > $2',
-        [hmac(this.deps.secretKey, token), new Date(this.deps.now())],
-      ),
-    );
-    return r.rows[0] ? { userId: r.rows[0].user_id, sessionId: r.rows[0].id } : null;
+    const row = await this.db.system(async (tx) => {
+      const r = await tx.query<{ id: string; user_id: string; token_hash: string }>(
+        'select id, user_id, token_hash from sessions where token_hash = any($1) and revoked_at is null and expires_at > $2',
+        [tokenHashes(this.deps, token), new Date(this.deps.now())],
+      );
+      const x = r.rows[0];
+      if (x) await upgradeTokenHash(tx, this.deps, 'sessions', x.id, x.token_hash, token);
+      return x;
+    });
+    return row ? { userId: row.user_id, sessionId: row.id } : null;
   }
 
   async revokeSession(sessionId: string): Promise<void> {
@@ -285,8 +288,8 @@ export class AuthService {
   async emailVerify(token: string, userAgent?: string) {
     const r = await this.db.system((tx) =>
       tx.query<{ email: string }>(
-        'update magic_links set used_at = $2 where token_hash = $1 and used_at is null and expires_at > $2 returning email',
-        [hmac(this.deps.secretKey, token), new Date(this.deps.now())],
+        'update magic_links set used_at = $2 where token_hash = any($1) and used_at is null and expires_at > $2 returning email',
+        [tokenHashes(this.deps, token), new Date(this.deps.now())],
       ),
     );
     if (!r.rows[0]) throw new BuiryError('unauthorized', 'this sign-in link is invalid, used or expired');

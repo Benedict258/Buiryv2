@@ -28,7 +28,17 @@ export function sealDelegateKey(secretKey: string, plain: string): string {
   return `enc:v1:${iv.toString('base64url')}:${c.getAuthTag().toString('base64url')}:${enc.toString('base64url')}`;
 }
 
-export function openDelegateKey(secretKey: string, sealed: string): string {
+/** Opens a sealed delegate key; during a key rotation it falls back to the previous key. */
+export function openDelegateKey(secretKey: string, sealed: string, previousKey?: string): string {
+  try {
+    return openDelegateWith(secretKey, sealed);
+  } catch (e) {
+    if (!previousKey) throw e;
+    return openDelegateWith(previousKey, sealed);
+  }
+}
+
+function openDelegateWith(secretKey: string, sealed: string): string {
   const [, , iv, tag, enc] = sealed.split(':');
   const d = createDecipheriv('aes-256-gcm', sealKey(secretKey), Buffer.from(iv!, 'base64url'));
   d.setAuthTag(Buffer.from(tag!, 'base64url'));
@@ -361,7 +371,7 @@ export class StorageRegistry {
     const adapter = this.o.build({
       relayerUrl: row.relayer_url,
       accountId: row.account_id,
-      delegateKey: openDelegateKey(deps.secretKey, row.delegate_key_sealed),
+      delegateKey: openDelegateKey(deps.secretKey, row.delegate_key_sealed, deps.previousSecretKey),
     });
     this.cache.delete(projectId);
     this.cache.set(projectId, { version, adapter });
