@@ -30,6 +30,10 @@ Legend: **done** (implemented and tested), **mocked** (tested only against a moc
 
 - Baseline (`pnpm typecheck && pnpm lint && pnpm test`) also passes on Windows. The 0600 check on the credentials file is a conditional assertion inside its test: it is not made on Windows (NTFS has no POSIX modes) and still runs on Linux and macOS.
 
+## Security findings closed (Phase A, 2026-11-18)
+
+- M1 trusted proxy hops (`BUIRY_TRUSTED_PROXY_HOPS`, ALB = 1); M2 webhook connections pinned to the checked address, more reserved ranges refused; M3 SSE caps per user and per project, streams end on revocation; M4 agent token expiry (`BUIRY_AGENT_TOKEN_MAX_DAYS`, default 90) with dashboard reminders, rotation revokes at once (BD40); M5 500s logged with a request id and no message, MCP no longer echoes errors; M7 pack item, text and evidence caps; L1 idle MCP sessions closed after 30 minutes. Each has a regression test. Still open: listed in `docs/SECURITY_REVIEW.md`.
+
 ## State at the end of the 12-phase run (2026-11-17)
 
 - Gate green: typecheck (root and dashboard), ESLint, Prettier, 461 tests in 44 files. Conformance 30/30. Coverage of packages/*/src: statements 88.35%, branches 78.65%, functions 87.25%, lines 90.95%.

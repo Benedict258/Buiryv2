@@ -29,6 +29,12 @@ The live documentation was read on 2026-10-28 (results in "Step 0 results" below
 - Difference that needed code (fixed, with regression tests): expiry margins and the status "expiring" window were a fixed 28 days, two Mainnet epochs, so every 5-day testnet memory would have been "expiring" at once. They now follow the network epoch (`walrusEpochMs`).
 - Connection problems seen on testnet too (A24): the startup `/config` connect timeout, and 1 of 6 `curl` connections to `relayer.dev.memwal.ai` failed with a TLS error.
 
+**Security fixes (2026-11-18, Phase A)**
+
+- The AWS ALB appends the client address to `X-Forwarded-For` (one hop). Source: AWS Elastic Load Balancing documentation, "HTTP headers and Application Load Balancers" (X-Forwarded-For, append mode is the default `routing.http.xff_header_processing.mode`). Not verified against a live ALB; if a deployment uses a second proxy (CloudFront in front of the ALB), set the hop count to 2.
+- Node's `http.request` uses the `lookup` option for the connection, so pinning the checked address closes the rebinding window, and TLS still checks the certificate against `servername` (the URL host). Verified locally with an unresolvable host name reaching a local receiver only through the pinned address; HTTPS to a real endpoint was not exercised in tests.
+- Limits held in process memory (rate limits, SSE caps, MCP sessions) are per API task; the total across tasks is the per-task value times the task count.
+
 **Load and deployment (2026-11-17, Phases 10 and 11)**
 
 - Measured on testnet: recall through the relayer with a Seal session took 1.9 s at p50 and 6.6 s at p95 (5 calls); briefing stays under 100 ms because it reads Buiry's index. Agents should treat recall as slow and briefing as fast.
