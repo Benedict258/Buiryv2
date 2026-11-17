@@ -63,6 +63,15 @@ export function Onboarding() {
   const [pname, setPname] = useState('');
   const [desc, setDesc] = useState('');
   const [nets, setNets] = useState<string[]>(['sui:mainnet']);
+  // Start from the deployment's own network: a testnet server refuses projects that declare sui:mainnet.
+  const netsTouched = useRef(false);
+  useEffect(() => {
+    api<{ network?: string }>('/v1/healthz')
+      .then((h) => {
+        if (h.network && !netsTouched.current) setNets([`sui:${h.network}`]);
+      })
+      .catch(() => {});
+  }, []);
   const [mode, setMode] = useState<(typeof STORAGE)[number][0]>('managed');
   const [pm, setPm] = useState<'npm' | 'pnpm' | 'yarn' | 'bun'>('npm');
   const [tool, setTool] = useState<string>('claude-code');
@@ -205,9 +214,10 @@ export function Onboarding() {
                       <input
                         type="checkbox"
                         checked={nets.includes(n)}
-                        onChange={(e) =>
-                          setNets(e.target.checked ? [...nets, n] : nets.filter((x) => x !== n))
-                        }
+                        onChange={(e) => {
+                          netsTouched.current = true;
+                          setNets(e.target.checked ? [...nets, n] : nets.filter((x) => x !== n));
+                        }}
                       />
                       {n}
                     </label>

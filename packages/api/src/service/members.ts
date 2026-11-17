@@ -17,6 +17,32 @@ export function assertOwner(p: Principal): asserts p is UserPrincipal {
     throw new BuiryError('forbidden', 'this needs the workspace owner');
 }
 
+/**
+ * Adds each member's email and display name. The users table is not readable by the tenant role, so this is a
+ * system read limited to the ids already returned for the caller's workspace.
+ */
+export async function withPeople<T extends { user_id: string }>(
+  deps: ServiceDeps,
+  rows: T[],
+): Promise<(T & { email: string | null; display_name: string | null })[]> {
+  if (!rows.length) return [];
+  const people = await deps.db.system(
+    async (tx) =>
+      (
+        await tx.query<{ id: string; email: string | null; display_name: string | null }>(
+          'select id, email, display_name from users where id = any($1)',
+          [rows.map((r) => r.user_id)],
+        )
+      ).rows,
+  );
+  const by = new Map(people.map((u) => [u.id, u]));
+  return rows.map((r) => ({
+    ...r,
+    email: by.get(r.user_id)?.email ?? null,
+    display_name: by.get(r.user_id)?.display_name ?? null,
+  }));
+}
+
 export async function listMembers(tx: Tx, p: Principal) {
   if (p.kind !== 'user') throw new BuiryError('forbidden', 'people only');
   const r = await tx.query<{ user_id: string; role: Role; project_scope: string[] | null; created_at: Date }>(

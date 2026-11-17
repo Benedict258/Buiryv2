@@ -8,6 +8,7 @@ import { ConsoleMailer, mailerFromEnv, UnconfiguredMailer } from '../src/server.
 import { MAX_BODY_BYTES } from '../src/http/context.js';
 
 let close: () => Promise<void>;
+let runtime: Runtime;
 let url: string;
 
 beforeAll(async () => {
@@ -23,6 +24,7 @@ beforeAll(async () => {
     env: { DASHBOARD_DIR: dir },
     close: async () => {},
   };
+  runtime = rt;
   const h = await startHttp(rt, 0);
   url = h.url;
   close = async () => {
@@ -47,6 +49,18 @@ describe('dashboard static serving', () => {
     expect(a.headers.get('x-content-type-options')).toBe('nosniff');
     const t = await fetch(url + '/..%2Fbuiry-secret.txt');
     expect(await t.text()).not.toContain('outside');
+  });
+
+  it('reports the deployment network in the health check (onboarding preselects it)', async () => {
+    runtime.deps.networks = { sui: 'testnet' };
+    try {
+      expect(await (await fetch(url + '/v1/healthz')).json()).toEqual({
+        ok: true,
+        data: { status: 'ok', network: 'testnet' },
+      });
+    } finally {
+      delete runtime.deps.networks;
+    }
   });
 
   it('leaves the API untouched', async () => {

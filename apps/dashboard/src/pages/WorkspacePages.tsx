@@ -41,9 +41,13 @@ export function Team() {
   const q = useQuery(() => api<Member[]>(`/v1/workspaces/${wsId}/members`), [wsId]);
   const [invite, setInvite] = useState(false);
   const [matrix, setMatrix] = useState(false);
-  const invites = useQuery(() => api<Invite[]>(`/v1/workspaces/${wsId}/invitations`), [wsId, tab]);
-  const [links, setLinks] = useState<Record<string, string>>({});
   const admin = can(role, 'admin');
+  // Only admins may list invitations; others would just get 403.
+  const invites = useQuery(
+    () => (admin ? api<Invite[]>(`/v1/workspaces/${wsId}/invitations`) : Promise.resolve([] as Invite[])),
+    [wsId, tab, admin],
+  );
+  const [links, setLinks] = useState<Record<string, string>>({});
   const changeRole = async (m: Member, r: string) => {
     try {
       await api(`/v1/workspaces/${wsId}/members/${m.user_id}`, { method: 'PATCH', body: { role: r } });
@@ -95,7 +99,14 @@ export function Team() {
                       {rows.map((m) => (
                         <tr key={m.user_id}>
                           <td>
-                            <span className="mono small">{m.user_id}</span>{' '}
+                            {m.display_name || m.email ? (
+                              <span className="col" style={{ gap: 0 }}>
+                                <span>{m.display_name ?? m.email}</span>
+                                {m.display_name && m.email && <span className="small muted">{m.email}</span>}
+                              </span>
+                            ) : (
+                              <span className="mono small">{m.user_id}</span>
+                            )}{' '}
                             {m.user_id === me?.id && <span className="chip">You</span>}
                           </td>
                           <td>

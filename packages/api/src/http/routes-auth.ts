@@ -8,6 +8,7 @@ import {
   listInvitations,
   revokeInvitation,
   listMembers,
+  withPeople,
   removeMember,
 } from '../service/members.js';
 import { showcaseFor } from '../service/showcase.js';
@@ -34,7 +35,10 @@ function startSession(ctx: AppContext, c: Context, s: { token: string; expiresAt
 }
 
 export const registerAuth: Registrar = (_app, ctx, r) => {
-  r({ method: 'GET', path: '/v1/healthz', auth: 'public', scope: 'none' }, (c) => ok(c, { status: 'ok' }));
+  // The deployment's Sui network is public (it decides which networks a project may declare).
+  r({ method: 'GET', path: '/v1/healthz', auth: 'public', scope: 'none' }, (c) =>
+    ok(c, { status: 'ok', ...(ctx.deps.networks?.sui ? { network: ctx.deps.networks.sui } : {}) }),
+  );
 
   // The one public read of project data: only for projects whose owner enabled the showcase (see showcase.ts).
   r({ method: 'GET', path: '/v1/public/showcase/:id', auth: 'public', scope: 'none' }, async (c) => {
@@ -139,7 +143,8 @@ export const registerAuth: Registrar = (_app, ctx, r) => {
   // ---- team ----
   r({ method: 'GET', path: '/v1/workspaces/:ws/members', auth: 'user', scope: 'workspace' }, async (c) => {
     const p = await workspacePrincipal(ctx, await userCaller(ctx, c), c.req.param('ws')!);
-    return ok(c, await ctx.deps.db.tenant(p.workspaceId, (tx) => listMembers(tx, p)));
+    const rows = await ctx.deps.db.tenant(p.workspaceId, (tx) => listMembers(tx, p));
+    return ok(c, await withPeople(ctx.deps, rows));
   });
   r(
     { method: 'PATCH', path: '/v1/workspaces/:ws/members/:uid', auth: 'user', scope: 'workspace' },

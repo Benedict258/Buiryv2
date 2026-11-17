@@ -167,9 +167,11 @@ describe('projects and memories over REST', () => {
         .status,
     ).toBe(201);
     expect((await w.req('DELETE', base, { token: admin })).status).toBe(403);
-    expect(
-      (await w.req('GET', `/v1/workspaces/${o.workspaceId}/members`, { token: reader })).json.data,
-    ).toHaveLength(4);
+    const members = (await w.req('GET', `/v1/workspaces/${o.workspaceId}/members`, { token: reader })).json
+      .data as { email: string | null; role: string }[];
+    expect(members).toHaveLength(4);
+    // People are shown by email or name, not only by user id (found in the Phase 9 walkthrough).
+    expect(members.find((m) => m.role === 'writer')?.email).toMatch(/^writer\d+@example\.com$/);
     expect((await w.req('GET', `/v1/workspaces/${o.workspaceId}/billing`, { token: reader })).status).toBe(
       403,
     );
