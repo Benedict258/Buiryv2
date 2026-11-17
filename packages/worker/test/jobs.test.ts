@@ -288,7 +288,7 @@ describe('relayer probe', () => {
 });
 
 describe('scheduler leases', () => {
-  it('runs each job once per interval across competing workers, retries failures on the next tick', async () => {
+  it('runs each job once per interval across competing workers, retries failures after the retry delay', async () => {
     const c = new Clock();
     const stack = await createStack({ now: c.now });
     let a = 0;
@@ -311,13 +311,13 @@ describe('scheduler leases', () => {
     const [r1, r2] = [await w1.tick(), await w2.tick()];
     expect(r1.ran.map((x) => x.name)).toEqual(['a', 'flaky']);
     expect(r1.ran[1]).toMatchObject({ ok: false, error: 'boom' });
-    expect(r2.ran.map((x) => x.name)).toEqual(['flaky']); // the failed run was released for retry; 'a' is not due
+    expect(r2.ran).toEqual([]); // not retried on the very next tick, and 'a' is not due
+    c.advance(30_000);
+    expect((await w2.tick()).ran.map((x) => x.name)).toEqual(['flaky']); // retried after the 30 s retry delay
     expect(a).toBe(1);
     expect(flaky).toBe(2);
-    c.advance(30_000);
-    expect((await w1.tick()).ran).toEqual([]);
     c.advance(31_000);
-    expect((await w2.tick()).ran.map((x) => x.name)).toEqual(['a', 'flaky']);
+    expect((await w1.tick()).ran.map((x) => x.name)).toEqual(['a']); // 'a' is due; 'flaky' ran 31 s ago
     expect(a).toBe(2);
     await stack.close();
   }, 60_000);
@@ -360,6 +360,14 @@ describe('isolation canary', () => {
       tx.query(`select 1 from audit_log where action = 'canary.violation'`),
     );
     expect(audit.rows).toHaveLength(0);
+    await stack.close();
+  }, 120_000);
+
+  it('runs on a testnet deployment (its probe projects use the deployment network)', async () => {
+    // Found in the Phase 9 runs: the canary declared sui:mainnet and failed on every tick of a testnet server.
+    const stack = await createStack({ now: new Clock().now, random: rand });
+    stack.deps.networks = { sui: 'testnet' };
+    expect((await isolationCanary(stack.deps)).ok).toBe(true);
     await stack.close();
   }, 120_000);
 });

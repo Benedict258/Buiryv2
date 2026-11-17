@@ -21,6 +21,8 @@ export class Scheduler {
     private readonly holder: string,
     private readonly jobs: ScheduledJob[],
     private readonly leaseMs = 5 * 60_000,
+    /** A failed run is retried after this long (or its interval, if shorter), not on the very next tick. */
+    private readonly retryMs = 30_000,
   ) {}
 
   private async acquire(j: ScheduledJob): Promise<boolean> {
@@ -51,11 +53,13 @@ export class Scheduler {
         entry = { name: j.name, ok: false, error: (e as Error).message };
       }
       const now = new Date(this.deps.now());
-      // A failed run is retried on the next tick rather than waiting a full interval.
+      // A failed run is retried after retryMs instead of a full interval. Retrying on the very next tick turned a
+      // deterministic failure into a once-a-second loop (seen live: the isolation canary on a testnet deployment).
+      const lastRun = entry.ok ? now : new Date(now.getTime() - Math.max(0, j.intervalMs - this.retryMs));
       await this.deps.db.system((tx) =>
         tx.query(
           'update job_leases set leased_until = $1, last_run_at = $2 where name = $3 and holder = $4',
-          [now, entry.ok ? now : null, j.name, this.holder],
+          [now, lastRun, j.name, this.holder],
         ),
       );
       rep.ran.push(entry);
