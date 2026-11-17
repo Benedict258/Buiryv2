@@ -30,6 +30,16 @@ Legend: **done** (implemented and tested), **mocked** (tested only against a moc
 
 - Baseline (`pnpm typecheck && pnpm lint && pnpm test`) also passes on Windows. The 0600 check on the credentials file is a conditional assertion inside its test: it is not made on Windows (NTFS has no POSIX modes) and still runs on Linux and macOS.
 
+## AWS deployment artifacts (2026-11-17, prepared offline)
+
+- Done: Dockerfile (server bundle, hoisted production install, protos, dashboard), Terraform for ECS Fargate (api, worker, migration task), ALB with ACM TLS, RDS Postgres, Secrets Manager, CloudWatch logs and alarms (`terraform validate` passes without credentials), `.env.production.example`, `scripts/smoke-deploy.ts`, `docs/DEPLOYMENT.md`, `docs/KEY_CUSTODY.md`.
+- Done: production startup check (refuses weak or missing settings, names only), migration task with an advisory lock and a pending-migration check, `BUIRY_ROLE` (api, worker, all), PGlite loaded only when used.
+- Verified without Docker: the image layout assembled locally refuses a weak production configuration, reports an unreachable database, and serves the health check and dashboard. Not done: `docker build`, a run against Postgres, `terraform plan` or apply, any deploy (owner, L-AWS1 to L-AWS3).
+
+## Load and latency (2026-11-17)
+
+- Local at 1k and 10k memories, testnet light run: `docs/LOAD.md`. Two fixes: a cheaper per-write conflict scan, and agent reads retried once after a network failure.
+
 ## Agent behaviour and walkthrough (2026-11-17)
 
 - Claude Code 10/10 and OpenCode 2/2 behaviour runs on testnet; dashboard walkthrough with invitations 18/18. Six product defects found and fixed with tests. Details in `docs/BEHAVIOUR.md`.

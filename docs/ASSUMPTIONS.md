@@ -29,6 +29,12 @@ The live documentation was read on 2026-10-28 (results in "Step 0 results" below
 - Difference that needed code (fixed, with regression tests): expiry margins and the status "expiring" window were a fixed 28 days, two Mainnet epochs, so every 5-day testnet memory would have been "expiring" at once. They now follow the network epoch (`walrusEpochMs`).
 - Connection problems seen on testnet too (A24): the startup `/config` connect timeout, and 1 of 6 `curl` connections to `relayer.dev.memwal.ai` failed with a TLS error.
 
+**Load and deployment (2026-11-17, Phases 10 and 11)**
+
+- Measured on testnet: recall through the relayer with a Seal session took 1.9 s at p50 and 6.6 s at p95 (5 calls); briefing stays under 100 ms because it reads Buiry's index. Agents should treat recall as slow and briefing as fast.
+- Assumed for AWS (not verified, no account used): the Terraform resource arguments match AWS provider 5.100.0 (validated by `terraform validate`, which checks schema, not AWS behaviour); RDS offers Postgres major 16 in the chosen region; the ALB idle timeout is 60 s by default (the server keeps connections for 65 s). If any is false, `terraform plan` (L-AWS2) shows it before anything is created.
+- The `node:22-bookworm-slim` base image tag is assumed to exist and must be pinned by digest before production (L-AWS1).
+
 **Renewal by rewrite (2026-11-17, Phase 6, L-R1)**
 
 - Verified on testnet: rewriting a stored memory's exact text stores a new blob that the relayer lists alongside the old one, with its own end epoch. A rewrite buys a full storage period from the time it is written (both blobs in L-R1 reported end epoch 589 because they were written two minutes apart).
