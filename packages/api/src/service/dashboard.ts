@@ -649,8 +649,19 @@ export async function storageHealth(deps: ServiceDeps, tx: Tx, p: Principal, pro
     `select id, memory_id, last_error, attempts from write_jobs where project_id = $1 and state = 'dead' order by created_at limit 50`,
     [projectId],
   );
-  const expiring = await tx.query<{ id: string; text: string; expires_at: Date; expired: boolean }>(
-    `select id, left(text, 140) as text, expires_at, expired from memories where project_id = $1 and expires_at is not null order by expires_at limit 50`,
+  const expiring = await tx.query<{
+    id: string;
+    text: string;
+    expires_at: Date | null;
+    expired: boolean;
+    renewal_generation: number;
+    renewal_pending: boolean;
+  }>(
+    `select m.id, left(m.text, 140) as text, m.expires_at, m.expired, m.renewal_generation,
+            exists (select 1 from memory_events e where e.memory_id = m.id and e.type = 'memory.renewed' and e.walrus_blob_id is null) as renewal_pending
+       from memories m
+      where m.project_id = $1 and (m.expires_at is not null or m.renewal_generation > 0)
+      order by m.expires_at nulls last limit 50`,
     [projectId],
   );
   const stored = await tx.query<{ n: string }>(
@@ -676,7 +687,10 @@ export async function storageHealth(deps: ServiceDeps, tx: Tx, p: Principal, pro
       text: m.text,
       expiresAt: m.expires_at,
       expired: m.expired,
+      renewalGeneration: m.renewal_generation,
+      renewalPending: m.renewal_pending,
     })),
+    renewal: { enabled: !!deps.renewalEnabled },
     account: {
       mode: pr.own_relayer_url ? 'own account' : pr.walrus_account_id ? 'configured' : 'managed',
       accountId: pr.walrus_account_id,

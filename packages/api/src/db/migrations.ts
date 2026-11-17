@@ -486,6 +486,12 @@ create table managed_tenant (
 grant select, insert on managed_tenant to buiry_app;
 `;
 
+// Renewal by rewrite: the generation of the current blob and the blob it replaced (kept until it lapses).
+const RENEWAL = `
+alter table memories add column renewal_generation integer not null default 0;
+alter table memories add column previous_blob_id text;
+`;
+
 export const MIGRATIONS: Migration[] = [
   { id: '001_init', sql: INIT },
   { id: '002_write_jobs', sql: WRITE_JOBS_DDL },
@@ -493,6 +499,7 @@ export const MIGRATIONS: Migration[] = [
   { id: '004_api_tokens_leases', sql: API_TOKENS },
   { id: '005_activity_seq', sql: ACTIVITY_SEQ },
   { id: '006_project_storage', sql: PROJECT_STORAGE },
+  { id: '007_renewal', sql: RENEWAL },
 ];
 
 export async function migrate(

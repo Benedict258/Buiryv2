@@ -29,6 +29,7 @@ import {
 import { listFlags, listHandoffs, mergeBranchTx, replayAt, setFlagState } from '../service/collab.js';
 import { loadProject } from '../service/ops.js';
 import { getProjectStorage, removeProjectStorage, setProjectStorage } from '../service/byo-storage.js';
+import { renewMemories } from '../service/renewal.js';
 import { verifyRepoEvidence } from '../service/verification.js';
 import { body, entityPrincipal, ok, parse, type Registrar } from './context.js';
 import type { Context } from 'hono';
@@ -67,6 +68,11 @@ export const registerProject: Registrar = (_app, ctx, r) => {
       return ok(c, await t(p, (tx) => setProjectStorage(ctx.deps, tx, p, id, b, ctx.config.storage)));
     },
   );
+  r({ method: 'POST', path: '/v1/projects/:id/storage/renew', auth: 'user', scope: 'project' }, async (c) => {
+    const { p, id } = await proj(c);
+    const b = parse(z.object({ memoryIds: z.array(z.string()).min(1).max(100) }), await body(c));
+    return ok(c, await t(p, (tx) => renewMemories(ctx.deps, tx, p, id, b.memoryIds)));
+  });
   r(
     { method: 'DELETE', path: '/v1/projects/:id/storage/account', auth: 'user', scope: 'project' },
     async (c) => {

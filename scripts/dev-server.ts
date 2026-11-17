@@ -95,6 +95,8 @@ export async function startDevServer(
     BUIRY_BYO_ALLOW_PRIVATE: '1',
     ...(o.dashboardDir ? { DASHBOARD_DIR: o.dashboardDir } : {}),
   } as Record<string, string>;
+  // Renewal by rewrite is on in development so the Storage page can exercise it (off by default elsewhere).
+  stack.deps.renewalEnabled = true;
   const ownRelayer = await MockRelayer.start({ autoCompleteMs: 0 });
   stack.deps.storage = new StorageRegistry({
     managed: world.adapter,

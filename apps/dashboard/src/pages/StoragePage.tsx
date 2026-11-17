@@ -27,6 +27,33 @@ export function StoragePage() {
     refreshMs: 20_000,
   });
   const [busy, setBusy] = useState<string | null>(null);
+  const [picked, setPicked] = useState<Set<string>>(new Set());
+  const toggle = (id: string) =>
+    setPicked((p) => {
+      const n = new Set(p);
+      if (n.has(id)) n.delete(id);
+      else n.add(id);
+      return n;
+    });
+  const renew = async () => {
+    setBusy('renew');
+    try {
+      const r = await api<{ queued: string[]; failed: { memoryId: string; reason: string }[] }>(
+        `/v1/projects/${projectId}/storage/renew`,
+        { method: 'POST', body: { memoryIds: [...picked] } },
+      );
+      toast(
+        r.failed.length ? 'info' : 'success',
+        `${plural(r.queued.length, 'memory')} queued for renewal${r.failed.length ? `; ${r.failed.length} could not be: ${r.failed[0]!.reason}` : ''}.`,
+      );
+      setPicked(new Set());
+      q.reload();
+    } catch (e) {
+      toast('error', (e as Error).message);
+    } finally {
+      setBusy(null);
+    }
+  };
   const s: StatusOut | undefined = status.data;
   const retry = async (id: string) => {
     setBusy(id);
@@ -97,8 +124,18 @@ export function StoragePage() {
               flush
               actions={
                 <span className="row">
-                  <Button size="sm" disabled title="Renewal is not available yet">
-                    Renew selected
+                  <Button
+                    size="sm"
+                    loading={busy === 'renew'}
+                    disabled={!d.renewal?.enabled || picked.size === 0 || !can(role, 'writer')}
+                    title={
+                      d.renewal?.enabled
+                        ? 'Writes the selected memories again before they expire'
+                        : 'Renewal is turned off on this deployment (BUIRY_RENEWAL)'
+                    }
+                    onClick={renew}
+                  >
+                    Renew selected{picked.size ? ` (${picked.size})` : ''}
                   </Button>
                   <a className="btn sm" href={`${base}/packs`}>
                     <Download size={12} /> Export
@@ -107,7 +144,10 @@ export function StoragePage() {
               }
             >
               <p className="small muted" style={{ padding: '0 16px' }}>
-                Stored memories last for the period paid for. Buiry alerts you before they lapse.
+                Stored memories last for the period paid for. Buiry alerts you before they lapse
+                {d.renewal?.enabled
+                  ? ' and, when renewal is on, writes them again before they do; the old copy stays until the new one is stored.'
+                  : '.'}
               </p>
               {d.expiry.length === 0 ? (
                 <Empty text="No stored memories yet. Expiry is checked once they are written." />
@@ -116,6 +156,7 @@ export function StoragePage() {
                   <table className="tbl cards">
                     <thead>
                       <tr>
+                        <th aria-label="Select" />
                         <th>Memory</th>
                         <th>Expires</th>
                         <th>Remaining</th>
@@ -127,6 +168,15 @@ export function StoragePage() {
                         .sort((a, b) => (a.expiresAt ?? '9').localeCompare(b.expiresAt ?? '9'))
                         .map((e) => (
                           <tr key={e.memoryId} className="click" onClick={() => openMemory(e.memoryId)}>
+                            <td onClick={(ev) => ev.stopPropagation()}>
+                              <input
+                                type="checkbox"
+                                aria-label="Select for renewal"
+                                disabled={!d.renewal?.enabled || e.expired || e.renewalPending}
+                                checked={picked.has(e.memoryId)}
+                                onChange={() => toggle(e.memoryId)}
+                              />
+                            </td>
                             <td style={{ maxWidth: 420 }}>
                               <div className="clamp2">{e.text}</div>
                             </td>
@@ -134,7 +184,15 @@ export function StoragePage() {
                             <td>
                               <ExpiryIndicator expiresAt={e.expiresAt} expired={e.expired} />
                             </td>
-                            <td className="small muted">Not available yet</td>
+                            <td className="small muted">
+                              {e.renewalPending
+                                ? 'Renewal queued'
+                                : e.renewalGeneration
+                                  ? `Renewed ${plural(e.renewalGeneration, 'time')}`
+                                  : d.renewal?.enabled
+                                    ? 'Not renewed'
+                                    : 'Off'}
+                            </td>
                           </tr>
                         ))}
                     </tbody>

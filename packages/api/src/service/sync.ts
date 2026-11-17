@@ -8,6 +8,7 @@ import {
 } from '@buiry/storage';
 import type { ServiceDeps } from './types.js';
 import { genId } from './util.js';
+import { onRenewalStored } from './renewal.js';
 
 /** A queue whose every call runs in its own system transaction (workers have no tenant context). */
 export function systemQueue(deps: ServiceDeps): WriteQueue {
@@ -18,11 +19,12 @@ export function systemQueue(deps: ServiceDeps): WriteQueue {
 export async function onJobStored(deps: ServiceDeps, job: WriteJob, blobId: string): Promise<void> {
   if (!job.ref) return;
   await deps.db.system(async (tx) => {
-    const ev = await tx.query<{ memory_id: string; type: string }>(
-      'update memory_events set walrus_blob_id = $1 where id = $2 returning memory_id, type',
+    const ev = await tx.query<{ memory_id: string; type: string; workspace_id: string; project_id: string }>(
+      'update memory_events set walrus_blob_id = $1 where id = $2 returning memory_id, type, workspace_id, project_id',
       [blobId, job.ref],
     );
     const e = ev.rows[0];
+    if (e?.type === 'memory.renewed') return onRenewalStored(deps, tx, e, blobId, job.relayerJobId);
     if (e && (e.type === 'memory.created' || e.type === 'handoff.created')) {
       await tx.query(
         `update memories set walrus_blob_id = $1, walrus_job_id = $2, write_state = 'stored' where id = $3`,

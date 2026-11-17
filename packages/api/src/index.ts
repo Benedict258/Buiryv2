@@ -8,6 +8,7 @@ export * from './service/stack.js';
 export * from './service/sync.js';
 export * from './service/byo-storage.js';
 export * from './service/walrus.js';
+export * from './service/renewal.js';
 export * from './service/verification.js';
 export { PgMemoryIndex } from './service/queries.js';
 export * from './service/events.js';

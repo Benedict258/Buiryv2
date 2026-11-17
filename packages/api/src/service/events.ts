@@ -12,6 +12,7 @@ export const WEBHOOK_EVENTS = [
   'memory.stale',
   'memory.contested',
   'memory.expiring',
+  'memory.renewed',
   'memory.created',
   'write.failed',
   'relayer.degraded',

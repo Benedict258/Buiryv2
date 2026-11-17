@@ -1,4 +1,11 @@
-import { buildRuntime, createAccountDrains, createDrain, deliverDue, startHttp } from '@buiry/api';
+import {
+  buildRuntime,
+  createAccountDrains,
+  createDrain,
+  deliverDue,
+  rewriteRenewer,
+  startHttp,
+} from '@buiry/api';
 import { driftScan, expiryScan, isolationCanary, relayerProbe, snapshotRegen } from './index.js';
 import { Scheduler, type ScheduledJob } from './scheduler.js';
 
@@ -10,6 +17,8 @@ export async function main(env: Record<string, string | undefined> = process.env
   const min = 60_000;
   const jobs: ScheduledJob[] = [];
   const workerId = `worker-${process.pid}`;
+  // Renewal by rewrite, behind BUIRY_RENEWAL=on (off by default).
+  const renewal = rt.deps.renewalEnabled ? { renewalEnabled: true, renewer: rewriteRenewer(rt.deps) } : {};
   // One drain per storage account: the managed one and each project's own (bring your own).
   if (rt.deps.storage) {
     const drains = createAccountDrains(rt.deps, rt.deps.storage, { workerId });
@@ -21,6 +30,7 @@ export async function main(env: Record<string, string | undefined> = process.env
         expiryScan(rt.deps, {
           ...(rt.adapter ? { adapter: rt.adapter } : {}),
           checkIntervalMs: 6 * 60 * min,
+          ...renewal,
         }),
     });
   } else if (rt.adapter) {
@@ -29,7 +39,7 @@ export async function main(env: Record<string, string | undefined> = process.env
     jobs.push({
       name: 'expiry-scan',
       intervalMs: 6 * 60 * min,
-      run: () => expiryScan(rt.deps, { adapter: rt.adapter!, checkIntervalMs: 6 * 60 * min }),
+      run: () => expiryScan(rt.deps, { adapter: rt.adapter!, checkIntervalMs: 6 * 60 * min, ...renewal }),
     });
   }
   if (rt.adapter) {

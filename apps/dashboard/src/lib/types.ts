@@ -206,7 +206,15 @@ export interface Storage {
   queue: Record<string, number>;
   oldestPendingAgeMs: number;
   deadLetters: { id: string; memory_id: string; last_error: string | null; attempts: number }[];
-  expiry: { memoryId: string; text: string; expiresAt: string | null; expired: boolean }[];
+  expiry: {
+    memoryId: string;
+    text: string;
+    expiresAt: string | null;
+    expired: boolean;
+    renewalGeneration?: number;
+    renewalPending?: boolean;
+  }[];
+  renewal?: { enabled: boolean };
   account: { mode: string; accountId: string | null };
   storedMemories: number;
   deletion: { tombstone: string; indexRemoval: string; permanentDeletion: string };

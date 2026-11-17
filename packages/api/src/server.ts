@@ -75,6 +75,7 @@ export async function buildRuntime(env: Env = process.env): Promise<Runtime> {
     random: (n) => new Uint8Array(randomBytes(n)),
     secretKey: secretKey.length >= 32 ? secretKey : randomBytes(32).toString('hex'),
   };
+  if (env.BUIRY_RENEWAL === 'on') deps.renewalEnabled = true;
   const gateway = createGatewayIfConfigured(env, { sink: tatumCallSink(deps) });
   if (gateway) deps.gateway = gateway;
   let adapter: WalrusMemoryAdapter | undefined;
