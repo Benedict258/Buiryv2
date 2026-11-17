@@ -13,12 +13,19 @@ export interface HttpOptions {
   port?: number;
   host?: string;
   path?: string;
+  /** Sessions with no request for this long are closed (default 30 minutes). Clients re-initialize. */
+  idleMs?: number;
+  now?: () => number;
 }
 
 interface Session {
   transport: StreamableHTTPServerTransport;
   token: string;
+  lastSeen: number;
 }
+
+/** Default idle lifetime of an MCP HTTP session (SECURITY_REVIEW L1). */
+export const MCP_SESSION_IDLE_MS = 30 * 60_000;
 
 function bearer(req: IncomingMessage): string | null {
   const h = req.headers.authorization;
@@ -64,12 +71,30 @@ const deny = (res: ServerResponse, status: number, message: string) => {
 export type McpRequestHandler = (req: IncomingMessage, res: ServerResponse) => Promise<void>;
 
 /** Request handler for a Streamable HTTP MCP endpoint. Each MCP session is bound to the bearer token that opened it. */
-export function createMcpHandler(o: Pick<HttpOptions, 'authenticate'>): {
+export function createMcpHandler(o: Pick<HttpOptions, 'authenticate' | 'idleMs' | 'now'>): {
   handle: McpRequestHandler;
   closeAll: () => Promise<void>;
+  /** Closes sessions idle longer than idleMs; runs on every request and on a timer. Returns how many closed. */
+  sweep: () => number;
+  readonly size: number;
 } {
   const sessions = new Map<string, Session>();
+  const idleMs = o.idleMs ?? MCP_SESSION_IDLE_MS;
+  const now = o.now ?? Date.now;
+  const sweep = () => {
+    let closed = 0;
+    for (const [id, s] of sessions)
+      if (now() - s.lastSeen > idleMs) {
+        sessions.delete(id);
+        void s.transport.close().catch(() => {});
+        closed++;
+      }
+    return closed;
+  };
+  const timer = setInterval(sweep, Math.min(idleMs, 60_000));
+  timer.unref();
   const handle: McpRequestHandler = async (req, res) => {
+    sweep();
     const token = bearer(req);
     if (!token) return deny(res, 401, 'missing bearer token');
     const sid = req.headers['mcp-session-id'] as string | undefined;
@@ -77,6 +102,7 @@ export function createMcpHandler(o: Pick<HttpOptions, 'authenticate'>): {
       if (sid) {
         const s = sessions.get(sid);
         if (!s) return deny(res, 404, 'unknown session');
+        s.lastSeen = now();
         if (s.token !== token) return deny(res, 403, 'session belongs to a different token');
         return await s.transport.handleRequest(
           req,
@@ -91,7 +117,7 @@ export function createMcpHandler(o: Pick<HttpOptions, 'authenticate'>): {
       const backend = await o.authenticate(token, id);
       const transport = new StreamableHTTPServerTransport({
         sessionIdGenerator: () => id,
-        onsessioninitialized: (s) => void sessions.set(s, { transport, token }),
+        onsessioninitialized: (s) => void sessions.set(s, { transport, token, lastSeen: now() }),
       });
       transport.onclose = () => void sessions.delete(id);
       await createBuiryMcpServer({ backend }).connect(transport);
@@ -118,7 +144,12 @@ export function createMcpHandler(o: Pick<HttpOptions, 'authenticate'>): {
   };
   return {
     handle,
+    sweep,
+    get size() {
+      return sessions.size;
+    },
     closeAll: async () => {
+      clearInterval(timer);
       for (const s of sessions.values()) await s.transport.close().catch(() => {});
     },
   };

@@ -18,7 +18,7 @@ Severity: **critical** = remote compromise or cross-tenant data access without c
 | M5  | medium   | Unexpected (500) errors are not logged                                     | Fixed (logged without messages, tested)            |
 | M6  | medium   | Production can start on an in-memory database                              | Fixed (production startup check, tested)           |
 | M7  | medium   | No item count cap on pack import (only the 2 MiB body cap from H2)         | Fixed (item, text and evidence caps, tested)       |
-| L1  | low      | MCP sessions live in process memory with no idle expiry                    | Open                                               |
+| L1  | low      | MCP sessions live in process memory with no idle expiry                    | Fixed (30-minute idle expiry, tested)              |
 | L2  | low      | Dashboard static path check used a bare prefix match                       | Fixed in `83b58e9` (separator-aware)               |
 
 No critical findings.
@@ -59,7 +59,7 @@ No critical findings.
 
 ## Low
 
-- **L1, MCP sessions.** `createMcpHandler` keeps sessions in a map until the client closes them; abandoned sessions stay in memory. Fix: idle expiry.
+- **L1, MCP sessions. Fixed:** sessions idle for 30 minutes are closed (checked on every request and on a timer); a later request with the old session id gets 404 and the client re-initializes. Test in `mcp-idle.test.ts`. Original finding: `createMcpHandler` keeps sessions in a map until the client closes them; abandoned sessions stay in memory. Fix: idle expiry.
 - **L2, static containment.** Fixed with H1 (`startsWith(root)` would also have matched a sibling directory with the same prefix; the leading `..` stripping made it unreachable in practice).
 
 ## Reviewed and found sound
@@ -89,6 +89,14 @@ No critical findings.
 - **Fixed (Phase 9):** the server closed idle connections after 5 s, shorter than load balancer idle timeouts, so connections were reset (ECONNRESET). It now keeps them for 65 s.
 - **Fixed (Phase 11):** production now refuses to start with weak or missing settings, development switches left on, or pending migrations (`config-check.ts`). This also covers M6 (no in-memory database in production).
 - **Dev-only advisory, accepted:** picomatch 4.0.7 ReDoS (GHSA-fc5q-39xc-vjpf), reachable only through build tooling (tsup, tinyglobby) with our own glob patterns. No fixed release exists; revisit when one does.
+
+## Still open after Phase A (2026-11-17)
+
+- **Per-process limits.** The auth and public rate limits, the SSE stream caps and MCP sessions are held in each API process's memory, so N API tasks allow N times each limit, and a restart resets them. Acceptable for the prototype; a shared store (Postgres or Redis) would make them global.
+- **API tokens** still have no default expiry (optional per token); agent tokens issued before M4 keep no expiry until rotated.
+- **Content Security Policy** for the dashboard is not set.
+- **Least-privilege database user** for the app (the deployment uses the RDS master user; see DEPLOYMENT).
+- **Dev-only advisories** (picomatch, minimatch) as above, no fixed releases in range.
 
 ## Not reviewed
 
