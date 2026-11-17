@@ -32,12 +32,42 @@ export interface AppConfig {
    * the socket address and ignore the header. Behind one AWS ALB: 1.
    */
   trustedProxyHops: number;
+  /** Open activity streams allowed per user and per project, in this process (SECURITY_REVIEW M3). */
+  sseMaxPerUser: number;
+  sseMaxPerProject: number;
+  /** How often an open stream re-checks the caller's session and access; a failed check ends the stream. */
+  sseRecheckMs: number;
+}
+
+/** Counts open streams per key; acquire refuses when any key is at its limit. Per process (per API task). */
+export class StreamSlots {
+  private readonly open = new Map<string, number>();
+  acquire(limits: [key: string, max: number][]): () => void {
+    for (const [k, max] of limits)
+      if ((this.open.get(k) ?? 0) >= max)
+        throw new BuiryError('rate_limited', 'too many open live streams; close one and try again', 5000);
+    for (const [k] of limits) this.open.set(k, (this.open.get(k) ?? 0) + 1);
+    let released = false;
+    return () => {
+      if (released) return;
+      released = true;
+      for (const [k] of limits) {
+        const n = (this.open.get(k) ?? 1) - 1;
+        if (n <= 0) this.open.delete(k);
+        else this.open.set(k, n);
+      }
+    };
+  }
+  count(key: string): number {
+    return this.open.get(key) ?? 0;
+  }
 }
 
 export interface AppContext {
   deps: ServiceDeps;
   service: MemoryService;
   auth: AuthService;
+  streams: StreamSlots;
   limiter: AgentRateLimiter;
   config: AppConfig;
 }

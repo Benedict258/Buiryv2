@@ -4,7 +4,14 @@ import { BuiryError } from '@buiry/core';
 import { AuthService, type AuthConfig } from '../auth/auth-service.js';
 import { AgentRateLimiter, MemoryService } from '../service/memory-service.js';
 import type { ServiceDeps } from '../service/types.js';
-import { STATUS, type AppConfig, type AppContext, type Handler, type RouteInfo } from './context.js';
+import {
+  STATUS,
+  StreamSlots,
+  type AppConfig,
+  type AppContext,
+  type Handler,
+  type RouteInfo,
+} from './context.js';
 import { registerAgent } from './routes-agent.js';
 import { registerAuth } from './routes-auth.js';
 import { registerProject } from './routes-project.js';
@@ -74,6 +81,7 @@ export function createApp(o: CreateAppOptions): BuiryApp {
     deps: o.deps,
     service,
     auth: new AuthService(o.deps, o.auth),
+    streams: new StreamSlots(),
     limiter: new AgentRateLimiter(o.agentCallsPerMinute ?? 600, o.deps.now),
     config: {
       allowedOrigins: [],
@@ -82,6 +90,9 @@ export function createApp(o: CreateAppOptions): BuiryApp {
       evidence: {},
       feedIntervalMs: 1000,
       trustedProxyHops: 0,
+      sseMaxPerUser: 5,
+      sseMaxPerProject: 50,
+      sseRecheckMs: 15_000,
       ...(o.config ?? {}),
     },
   };

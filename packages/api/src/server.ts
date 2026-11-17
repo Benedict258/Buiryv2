@@ -177,6 +177,10 @@ export function buildApp(rt: Runtime): BuiryApp {
     },
     config: {
       trustedProxyHops: Number(rt.env.BUIRY_TRUSTED_PROXY_HOPS ?? 0),
+      ...(rt.env.BUIRY_SSE_MAX_PER_USER ? { sseMaxPerUser: Number(rt.env.BUIRY_SSE_MAX_PER_USER) } : {}),
+      ...(rt.env.BUIRY_SSE_MAX_PER_PROJECT
+        ? { sseMaxPerProject: Number(rt.env.BUIRY_SSE_MAX_PER_PROJECT) }
+        : {}),
       storage: {
         // Development only: a relayer on localhost or a private address (refused in production).
         allowPrivate: rt.env.BUIRY_BYO_ALLOW_PRIVATE === '1' && rt.env.NODE_ENV !== 'production',

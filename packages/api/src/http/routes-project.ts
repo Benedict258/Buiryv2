@@ -438,16 +438,41 @@ export const registerProject: Registrar = (_app, ctx, r) => {
       // Authorise before the stream opens so a refused caller gets a normal 404, not an empty stream.
       await t(p, (tx) => loadProject(tx, p, id));
       let last: string | null = c.req.header('last-event-id') ?? c.req.query('after') ?? null;
+      // M3: a bounded number of open streams per user and per project, and a stream ends when the caller's session
+      // is revoked or expires, or they lose access to the project.
+      const release = ctx.streams.acquire([
+        [`user:${p.userId}`, ctx.config.sseMaxPerUser],
+        [`project:${id}`, ctx.config.sseMaxPerProject],
+      ]);
       return streamSSE(c, async (stream) => {
         let idle = 0;
-        while (!stream.aborted && !stream.closed) {
-          const rows = await t(p, (tx) => activitySince(tx, p, id, last));
-          for (const row of rows) {
-            await stream.writeSSE({ id: row.id, event: 'activity', data: JSON.stringify(row) });
-            last = row.id;
+        let checkedAt = Date.now();
+        try {
+          while (!stream.aborted && !stream.closed) {
+            if (Date.now() - checkedAt >= ctx.config.sseRecheckMs) {
+              checkedAt = Date.now();
+              const still = await proj(c).then(
+                () => true,
+                () => false,
+              );
+              if (!still) {
+                await stream.writeSSE({
+                  event: 'end',
+                  data: JSON.stringify({ reason: 'session ended or access removed' }),
+                });
+                break;
+              }
+            }
+            const rows = await t(p, (tx) => activitySince(tx, p, id, last));
+            for (const row of rows) {
+              await stream.writeSSE({ id: row.id, event: 'activity', data: JSON.stringify(row) });
+              last = row.id;
+            }
+            if (rows.length === 0 && ++idle % 15 === 0) await stream.writeSSE({ event: 'ping', data: '{}' });
+            await stream.sleep(ctx.config.feedIntervalMs);
           }
-          if (rows.length === 0 && ++idle % 15 === 0) await stream.writeSSE({ event: 'ping', data: '{}' });
-          await stream.sleep(ctx.config.feedIntervalMs);
+        } finally {
+          release();
         }
       });
     },
