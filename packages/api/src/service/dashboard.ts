@@ -1017,7 +1017,12 @@ export interface Pack {
   memories: PackMemory[];
 }
 
-const packChecksum = (m: PackMemory[]) =>
+/** Default cap on items per pack preview or import (SECURITY_REVIEW M7); BUIRY_PACK_MAX_ITEMS overrides. */
+export const PACK_MAX_ITEMS = 500;
+/** Evidence entries allowed per pack item. */
+export const PACK_MAX_EVIDENCE = 20;
+
+export const packChecksum = (m: PackMemory[]) =>
   createHash('sha256')
     .update(JSON.stringify(m.map((x) => [x.id, x.type, x.text, x.branch, x.evidence, x.event])))
     .digest('hex');
@@ -1105,20 +1110,41 @@ export interface PackPreview {
 }
 
 /** Validates a pack and runs redaction and the injection scanner on every item before anything is written. */
-export async function previewPack(tx: Tx, p: Principal, projectId: string, pack: Pack): Promise<PackPreview> {
+export async function previewPack(
+  tx: Tx,
+  p: Principal,
+  projectId: string,
+  pack: Pack,
+  limits: { maxItems?: number; maxTextLength?: number } = {},
+): Promise<PackPreview> {
   await loadProject(tx, p, projectId);
   assertAllowed(p, 'write');
   const errors: string[] = [];
   if (pack?.manifest?.protocol !== 1) errors.push('unsupported pack protocol');
   if (!Array.isArray(pack?.memories)) errors.push('pack has no memories');
+  // M7: refuse oversized packs before any per-item work (checksum, redaction, duplicate lookups).
+  const maxItems = limits.maxItems ?? PACK_MAX_ITEMS;
+  if (Array.isArray(pack?.memories) && pack.memories.length > maxItems)
+    errors.push(
+      `pack has ${pack.memories.length} memories; at most ${maxItems} can be previewed or imported at once`,
+    );
   if (errors.length) return { valid: false, errors, counts: { total: 0, byType: {} }, items: [] };
+  const maxText = limits.maxTextLength ?? 4000;
   if (pack.manifest.checksum !== packChecksum(pack.memories))
     errors.push('checksum mismatch: the pack was modified after export');
   const items: PackPreview['items'] = [];
   const byType: Record<string, number> = {};
-  for (const m of pack.memories.slice(0, 2000)) {
+  for (const m of pack.memories) {
     if (!(MEMORY_TYPES as readonly string[]).includes(m.type) || typeof m.text !== 'string') {
       errors.push(`invalid item ${String(m.id)}`);
+      continue;
+    }
+    if (m.text.length > maxText) {
+      errors.push(`item ${String(m.id)} is longer than ${maxText} characters`);
+      continue;
+    }
+    if (Array.isArray(m.evidence) && m.evidence.length > PACK_MAX_EVIDENCE) {
+      errors.push(`item ${String(m.id)} has more than ${PACK_MAX_EVIDENCE} evidence entries`);
       continue;
     }
     const dec = decodeMemory(m.event ?? '');
@@ -1147,6 +1173,11 @@ export async function previewPack(tx: Tx, p: Principal, projectId: string, pack:
   return { valid: errors.length === 0, errors, counts: { total: items.length, byType }, items };
 }
 
+export const packLimits = (deps: ServiceDeps) => ({
+  maxItems: deps.packMaxItems ?? PACK_MAX_ITEMS,
+  maxTextLength: deps.maxTextLength ?? 4000,
+});
+
 /** Imported memories always arrive `proposed` (never confirmed), with the source id kept for lineage. */
 export async function importPack(
   deps: ServiceDeps,
@@ -1155,7 +1186,9 @@ export async function importPack(
   pack: Pack,
   o: { branch?: string; only?: string[] },
 ) {
-  const preview = await deps.db.tenant(p.workspaceId, (tx) => previewPack(tx, p, projectId, pack));
+  const preview = await deps.db.tenant(p.workspaceId, (tx) =>
+    previewPack(tx, p, projectId, pack, packLimits(deps)),
+  );
   if (!preview.valid) throw new BuiryError('invalid_input', `pack rejected: ${preview.errors.join('; ')}`);
   const results: { sourceId: string; memoryId?: string; skipped?: string }[] = [];
   for (const m of pack.memories) {

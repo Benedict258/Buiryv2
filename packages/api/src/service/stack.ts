@@ -26,6 +26,7 @@ export async function createStack(o: StackOptions = {}) {
     ...(o.storage ? { storage: o.storage } : {}),
     ...(o.renewalEnabled ? { renewalEnabled: true } : {}),
     ...(o.agentTokenMaxDays ? { agentTokenMaxDays: o.agentTokenMaxDays } : {}),
+    ...(o.packMaxItems ? { packMaxItems: o.packMaxItems } : {}),
     ...(o.verifyTimeoutMs !== undefined ? { verifyTimeoutMs: o.verifyTimeoutMs } : {}),
     ...(o.maxTextLength !== undefined ? { maxTextLength: o.maxTextLength } : {}),
     ...(o.reverifyAfterMs !== undefined ? { reverifyAfterMs: o.reverifyAfterMs } : {}),

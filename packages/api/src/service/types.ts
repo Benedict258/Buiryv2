@@ -61,6 +61,8 @@ export interface ServiceDeps {
    * checks finish in the background and show at the next check; the briefing is never blocked on the chain longer.
    */
   checkReverifyBudgetMs?: number;
+  /** Items allowed in one pack preview or import (BUIRY_PACK_MAX_ITEMS, default 500). */
+  packMaxItems?: number;
   /** Days until a newly issued agent token expires (BUIRY_AGENT_TOKEN_MAX_DAYS); unset or 0: no expiry. */
   agentTokenMaxDays?: number;
   /** BUIRY_RENEWAL=on: memories close to expiry are rewritten (renewal by rewrite). Default off. */

@@ -15,6 +15,7 @@ import {
   listPacks,
   memoryTimeline,
   previewPack,
+  packLimits,
   projectOverview,
   queryActivity,
   retryDeadWrite,
@@ -499,7 +500,7 @@ export const registerProject: Registrar = (_app, ctx, r) => {
   r({ method: 'POST', path: '/v1/projects/:id/packs/preview', auth: 'user', scope: 'project' }, async (c) => {
     const { p, id } = await proj(c);
     const b = parse(z.object({ pack: z.custom<Pack>() }), await body(c));
-    return ok(c, await t(p, (tx) => previewPack(tx, p, id, b.pack)));
+    return ok(c, await t(p, (tx) => previewPack(tx, p, id, b.pack, packLimits(ctx.deps))));
   });
   r({ method: 'POST', path: '/v1/projects/:id/packs/import', auth: 'user', scope: 'project' }, async (c) => {
     const { p, id } = await proj(c);

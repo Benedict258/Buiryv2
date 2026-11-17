@@ -96,6 +96,7 @@ export async function buildRuntime(env: Env = process.env): Promise<Runtime> {
     secretKey: secretKey.length >= 32 ? secretKey : randomBytes(32).toString('hex'),
   };
   if (env.BUIRY_RENEWAL === 'on') deps.renewalEnabled = true;
+  if (env.BUIRY_PACK_MAX_ITEMS) deps.packMaxItems = Number(env.BUIRY_PACK_MAX_ITEMS);
   // Agent tokens expire after BUIRY_AGENT_TOKEN_MAX_DAYS (default 90; 0 = no expiry). Rotation revokes at once.
   const maxDays = Number(env.BUIRY_AGENT_TOKEN_MAX_DAYS ?? 90);
   if (maxDays > 0) deps.agentTokenMaxDays = maxDays;
