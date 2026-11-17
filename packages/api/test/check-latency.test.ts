@@ -51,6 +51,8 @@ describe('buiry_check is never held longer than its re-verification budget', () 
           )
         ).rows[0]?.last_verified_at ?? null;
       const before = await lastVerified();
+      // The write-time check is recorded on the evidence (the dashboard showed "never" before; Phase 9).
+      expect(before).not.toBeNull();
 
       const t0 = performance.now();
       const out = await a.backend.check({ task: 'deploy the registry package' });

@@ -98,6 +98,11 @@ export async function preVerify(
     verified: outs.every((o) => o.result === 'pass'),
     extra: extra.slice(0, 5),
     failures: outs.filter((o) => o.result === 'fail').map((o) => o.detail),
+    // Definite outcomes are stored on the evidence rows, so the dashboard and the next check see them; an unknown
+    // (gateway outage) is not a result and is left for a later check.
+    checked: chain
+      .map((e, i) => ({ key: JSON.stringify(e), result: outs[i]!.result, detail: outs[i]!.detail }))
+      .filter((c) => c.result === 'pass' || c.result === 'fail'),
   };
 }
 

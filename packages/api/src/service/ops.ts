@@ -486,7 +486,12 @@ export async function createMemoryTx(
   projectId: string,
   input: RememberInput,
   opts: CreateOptions = {},
-  pre?: { verified?: boolean; extra?: Evidence[]; failures?: string[] },
+  pre?: {
+    verified?: boolean;
+    extra?: Evidence[];
+    failures?: string[];
+    checked?: { key: string; result: string; detail?: string }[];
+  },
 ): Promise<RememberOutput> {
   const t0 = deps.now();
   const project = await loadProject(tx, p, projectId);
@@ -610,9 +615,22 @@ export async function createMemoryTx(
     ],
   );
   for (const e of evidence) {
+    // A write-time check is a real verification: record it (Phase 2 left this out; the dashboard showed "never").
+    const c = pre?.checked?.find((x) => x.key === JSON.stringify(e));
     await tx.query(
-      `insert into evidence (id, workspace_id, memory_id, kind, ref, network) values ($1,$2,$3,$4,$5,$6)`,
-      [genId(deps, 'evt'), p.workspaceId, id, e.kind, JSON.stringify(e), 'network' in e ? e.network : null],
+      `insert into evidence (id, workspace_id, memory_id, kind, ref, network, last_verified_at, last_result, last_detail)
+       values ($1,$2,$3,$4,$5,$6,$7,$8,$9)`,
+      [
+        genId(deps, 'evt'),
+        p.workspaceId,
+        id,
+        e.kind,
+        JSON.stringify(e),
+        'network' in e ? e.network : null,
+        c ? new Date(deps.now()) : null,
+        c?.result ?? null,
+        c ? JSON.stringify(c.detail ?? null) : null,
+      ],
     );
   }
   await emitDurable(deps, tx, {
