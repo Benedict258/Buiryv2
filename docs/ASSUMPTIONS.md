@@ -29,6 +29,12 @@ The live documentation was read on 2026-10-28 (results in "Step 0 results" below
 - Difference that needed code (fixed, with regression tests): expiry margins and the status "expiring" window were a fixed 28 days, two Mainnet epochs, so every 5-day testnet memory would have been "expiring" at once. They now follow the network epoch (`walrusEpochMs`).
 - Connection problems seen on testnet too (A24): the startup `/config` connect timeout, and 1 of 6 `curl` connections to `relayer.dev.memwal.ai` failed with a TLS error.
 
+**Renewal by rewrite (2026-11-17, Phase 6, L-R1)**
+
+- Verified on testnet: rewriting a stored memory's exact text stores a new blob that the relayer lists alongside the old one, with its own end epoch. A rewrite buys a full storage period from the time it is written (both blobs in L-R1 reported end epoch 589 because they were written two minutes apart).
+- Still assumed (A1): there is no supported way to extend an existing blob through Walrus Memory, so renewal costs a full write. If an extend operation becomes available, it can replace the rewrite behind the same `Renewer` interface.
+- Recall may return both copies while the old blob lives; Buiry maps both to the same memory id from the header, so results are not duplicated per memory.
+
 **Bring-your-own Walrus account (2026-11-16, Phase 5)**
 
 - Assumed: one relayer serves many accounts, and each request is authorised by the account id plus a signature from a delegate registered on that account (the same signed-request rules as the managed account, A13 to A15). If false: a project's own account may need its own relayer; the design already stores a relayer URL per project, so only the probe and docs change.

@@ -30,6 +30,12 @@ Legend: **done** (implemented and tested), **mocked** (tested only against a moc
 
 - Baseline (`pnpm typecheck && pnpm lint && pnpm test`) also passes on Windows. The 0600 check on the credentials file is a conditional assertion inside its test: it is not made on Windows (NTFS has no POSIX modes) and still runs on Linux and macOS.
 
+## Renewal by rewrite (2026-11-17)
+
+- Done: behind `BUIRY_RENEWAL=on`, the expiry scan rewrites memories close to expiry (same text, generation-suffixed idempotency key, normal queue). The memory switches to the new blob only once stored; `memory.renewed` is recorded and sent to webhooks; a failed rewrite leaves the old blob in place. Writers can renew selected memories from the Storage page.
+- Verified live on testnet (L-R1). Tests: `packages/api/test/renewal.test.ts` and a Chrome check of the Storage page.
+- Documented: the database must be backed up, with `BUIRY_SECRET_KEY` backed up separately (`docs/OPERATIONS.md`).
+
 ## Bring-your-own Walrus account (2026-11-16)
 
 - Done (mocks): a project can connect its own Walrus Memory account (Storage page, or `PUT /v1/projects/:id/storage/account`). Writes, recall, the expiry scan and the write drain use that account; the worker runs one drain per account. The delegate key is sealed at rest (AES-256-GCM) and never returned or logged; only its public half is shown. Adapters are cached per project (bounded, rebuilt on key rotation).
