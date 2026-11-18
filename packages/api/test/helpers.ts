@@ -1,7 +1,8 @@
 import { randomBytes } from 'node:crypto';
 import { FIXTURES_DIR, GrpcBackend, MockTatum, TatumGateway, loadFixtures } from '@buiry/chain';
 import { Ed25519Signer, HttpWalrusAdapter, MockRelayer } from '@buiry/storage';
-import { createStack, createDrain, type Stack } from '../src/index.js';
+import { createStack as createStackBase, createDrain, type Stack } from '../src/index.js';
+import { freshTestDb } from './test-db.js';
 import ids from '../../chain/fixtures/_ids.json' with { type: 'json' };
 
 export { ids };
@@ -62,4 +63,9 @@ export async function startRelayer(clock: Clock) {
 
 export const rand = (n: number) => new Uint8Array(randomBytes(n));
 export type { Stack };
-export { createStack, createDrain };
+export { createDrain };
+
+/** createStack on the test database: PGlite by default, a fresh Postgres database with TEST_DATABASE_URL (Phase 2.5). */
+export async function createStack(o: Parameters<typeof createStackBase>[0] = {}): Promise<Stack> {
+  return createStackBase({ ...o, db: o.db ?? (await freshTestDb()) });
+}

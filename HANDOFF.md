@@ -110,7 +110,7 @@ Everything in section 3 is tested on stand-ins: MockRelayer (`packages/storage/s
 
 ### Not verified
 
-- Migrations 006 to 009 on real Postgres (only PGlite), and the isolation suite on real Postgres.
+- Migrations 006 to 009 on real Postgres (only PGlite), and the isolation suite on real Postgres. Both can now run with `TEST_DATABASE_URL` (L-PG1); not run here.
 - Backup and restore round trip on Postgres and S3 (L-BAK1); secret key rotation on Postgres (L-KEY1).
 - Concurrent agents against Postgres; several API tasks behind a load balancer; relayer limits under sustained load (A6).
 - Any Docker build, Terraform plan or apply, or AWS deployment (L-AWS1 to L-AWS3).
