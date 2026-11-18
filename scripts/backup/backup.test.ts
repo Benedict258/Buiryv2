@@ -32,10 +32,16 @@ function world() {
     );
   stub(
     'pg_dump',
-    'while [ $# -gt 0 ]; do if [ "$1" = "--file" ]; then printf "PGDMP-fake-archive" > "$2"; fi; shift; done',
+    'if [ "$1" = "--version" ]; then echo "pg_dump (PostgreSQL) ${STUB_CLIENT_VERSION:-16.4}"; exit 0; fi\nwhile [ $# -gt 0 ]; do if [ "$1" = "--file" ]; then printf "PGDMP-fake-archive" > "$2"; fi; shift; done',
   );
-  stub('pg_restore', 'exit 0');
-  stub('psql', 'echo "memories|3"');
+  stub(
+    'pg_restore',
+    'case " $* " in *" --version "*) echo "pg_restore (PostgreSQL) ${STUB_CLIENT_VERSION:-16.4}";; *" --list "*) echo ";     Dumped by pg_dump version: ${STUB_DUMP_VERSION:-16.4}";; esac',
+  );
+  stub(
+    'psql',
+    'case " $* " in *server_version_num*) echo "${STUB_SERVER_NUM:-160004}";; *) echo "memories|3";; esac',
+  );
   stub(
     'aws',
     `S3="${s3.replace(/\\/g, '/')}"
@@ -128,6 +134,46 @@ describe.skipIf(!BASH)('backup and restore scripts', () => {
     expect(r.code, r.out).toBe(0);
     expect(r.out).toContain('checksum ok');
     expect(w.calls()).not.toMatch(/^aws /m);
+  });
+
+  it('refuses to dump with a pg_dump of another major version, naming both (Phase 5.2)', () => {
+    const w = world();
+    const r = w.run('backup.sh', {
+      DATABASE_URL: DB,
+      BACKUP_S3_URI: 's3://fake-bucket/prefix',
+      STUB_CLIENT_VERSION: '18.6',
+      STUB_SERVER_NUM: '160015',
+    });
+    expect(r.code, r.out).toBe(3);
+    expect(r.out).toMatch(/pg_dump is major version 18 but the server is major version 16/);
+    expect(w.objects()).toEqual([]);
+    expect(w.calls()).not.toMatch(/pg_dump --format/);
+    const ok = w.run('backup.sh', { DATABASE_URL: DB, BACKUP_S3_URI: 's3://fake-bucket/prefix' });
+    expect(ok.code, ok.out).toBe(0);
+    const meta = w.objects().find((o) => o.endsWith('.json'))!;
+    expect(JSON.parse(readFileSync(join(w.s3, meta), 'utf8'))).toMatchObject({
+      serverMajor: 16,
+      pgDumpMajor: 16,
+    });
+  });
+
+  it('refuses to restore a dump of another major version, or with a pg_restore of another major (Phase 5.2)', () => {
+    const w = world();
+    expect(w.run('backup.sh', { DATABASE_URL: DB, BACKUP_S3_URI: 's3://fake-bucket/prefix' }).code).toBe(0);
+    const target = 'postgres://buiry:other@scratch.internal:5432/restore_test';
+    for (const env of [{ STUB_DUMP_VERSION: '18.6' }, { STUB_CLIENT_VERSION: '18.6' }] as Record<
+      string,
+      string
+    >[]) {
+      const r = w.run('restore.sh', {
+        RESTORE_DATABASE_URL: target,
+        BACKUP_S3_URI: 's3://fake-bucket/prefix',
+        ...env,
+      });
+      expect(r.code, r.out).toBe(3);
+      expect(r.out).toMatch(/all three must match/);
+    }
+    expect(w.calls()).not.toMatch(/pg_restore --clean/);
   });
 
   it('refuses to restore over the live database', () => {

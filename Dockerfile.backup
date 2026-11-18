@@ -2,7 +2,9 @@
 #   docker build -f Dockerfile.backup -t buiry-backup .
 #   docker run --rm -e DATABASE_URL=... -e BACKUP_S3_URI=s3://... buiry-backup              # backup
 #   docker run --rm -e RESTORE_DATABASE_URL=... -e BACKUP_S3_URI=s3://... buiry-backup restore.sh
-# The client major version must be the server's or newer (RDS Postgres 16 in infra/aws). Pin by digest before use.
+# The client major version must equal the server's: 16, matching db_engine_major = "16" in infra/aws/variables.tf.
+# backup.sh and restore.sh refuse a mismatch. If the RDS major changes, change this tag with it. Pin by digest
+# before use (L-AWS1).
 FROM postgres:16-bookworm
 RUN apt-get update \
  && apt-get install -y --no-install-recommends awscli ca-certificates \

@@ -1,7 +1,8 @@
 #!/usr/bin/env bash
 # Restore a Buiry logical backup into a database (docs/OPERATIONS.md, "Backups and recovery").
 #
-# Needs pg_restore and psql (same major version as the dump or newer), the AWS CLI (for s3://) and sha256sum.
+# Needs pg_restore and psql of the target server's major version, a dump made by pg_dump of that major version
+# (all checked; a mismatch is refused), the AWS CLI (for s3://) and sha256sum.
 #
 # Required environment:
 #   RESTORE_DATABASE_URL   the database to restore INTO (an empty or scratch database)
@@ -41,6 +42,20 @@ store_get "$obj.json" "$work/$obj.json" || true
 (cd "$work" && sha256sum --check --quiet "$obj.sha256")
 echo "[restore] checksum ok"
 if [ -f "$work/$obj.json" ]; then echo "[restore] metadata: $(cat "$work/$obj.json")"; fi
+
+# The dump, the client and the target must share a major version (L-BAK1: pg_restore 18 into a 16 server failed).
+target_major="$(server_major "$RESTORE_DATABASE_URL")"
+restore_major="$(client_major pg_restore)"
+dump_major="$(pg_restore --list "$work/$obj" | sed -nE 's/^;[[:space:]]+Dumped by pg_dump version: ([0-9]+).*/\1/p' | head -n 1)"
+if [ -z "$dump_major" ]; then
+  echo "[restore] refusing: cannot read the pg_dump version from $obj" >&2
+  exit 3
+fi
+if [ "$dump_major" != "$target_major" ] || [ "$restore_major" != "$target_major" ]; then
+  echo "[restore] refusing: the dump was made by pg_dump $dump_major, pg_restore is $restore_major and the target server is $target_major; all three must match (use client tools of the target's major version, Dockerfile.backup)" >&2
+  exit 3
+fi
+echo "[restore] versions ok: dump, pg_restore and target are major version $target_major"
 
 pg_restore --clean --if-exists --no-owner --no-privileges --exit-on-error --dbname "$RESTORE_DATABASE_URL" "$work/$obj"
 echo "[restore] restored $obj"

@@ -1,8 +1,9 @@
 #!/usr/bin/env bash
 # Off-site logical backup of the Buiry database (docs/OPERATIONS.md, "Backups and recovery").
 #
-# Runs in a scheduled ECS task (Dockerfile.backup, infra/aws/backup.tf) or a cron container that has pg_dump (same
-# major version as the server or newer), the AWS CLI and sha256sum. Nothing secret is printed.
+# Runs in a scheduled ECS task (Dockerfile.backup, infra/aws/backup.tf) or a cron container that has pg_dump and
+# psql of the server's major version (checked; a different major is refused), the AWS CLI and sha256sum. Nothing
+# secret is printed.
 #
 # Required environment:
 #   DATABASE_URL           Postgres URL to dump (read-only access is enough)
@@ -27,6 +28,13 @@ name="buiry-${stamp}.dump"
 work="${BACKUP_WORK_DIR:-$(mktemp -d)}"
 trap 'rm -f "$work/$name" "$work/$name.sha256" "$work/$name.json"' EXIT
 
+pg_dump_major="$(client_major pg_dump)"
+db_major="$(server_major "$DATABASE_URL")"
+if [ "$pg_dump_major" != "$db_major" ]; then
+  echo "[backup] refusing: pg_dump is major version $pg_dump_major but the server is major version $db_major; use client tools of the server's major version (Dockerfile.backup)" >&2
+  exit 3
+fi
+
 echo "[backup] dumping database to $name"
 pg_dump --format=custom --no-owner --no-privileges --file "$work/$name" "$DATABASE_URL"
 
@@ -36,7 +44,7 @@ pg_restore --list "$work/$name" > /dev/null
 (cd "$work" && sha256sum "$name" > "$name.sha256")
 size="$(wc -c < "$work/$name" | tr -d ' ')"
 cat > "$work/$name.json" <<META
-{"file":"$name","createdAt":"$stamp","bytes":$size,"format":"pg_dump custom","keyGeneration":"${BACKUP_KEY_GENERATION:-unlabelled}"}
+{"file":"$name","createdAt":"$stamp","bytes":$size,"format":"pg_dump custom","serverMajor":$db_major,"pgDumpMajor":$pg_dump_major,"keyGeneration":"${BACKUP_KEY_GENERATION:-unlabelled}"}
 META
 
 for f in "$name" "$name.sha256" "$name.json"; do store_put "$work/$f" "$f"; done

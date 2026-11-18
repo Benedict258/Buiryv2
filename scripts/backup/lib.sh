@@ -44,3 +44,16 @@ store_rm() {
   if [ "$store_mode" = s3 ]; then aws s3 rm "$prefix/$1" --only-show-errors
   else rm -f "$store_dir/$1"; fi
 }
+
+# Postgres major versions (Phase 5.2). A dump and a restore must use client tools of the server's major version:
+# pg_dump/pg_restore 18 against a 16 server failed the restore in L-BAK1 ("transaction_timeout").
+# client_major <pg_dump|pg_restore>: the tool's major version, from `--version`
+client_major() {
+  "$1" --version | grep -oE '[0-9]+(\.[0-9]+)+' | head -n 1 | cut -d. -f1
+}
+# server_major <database url>: the server's major version
+server_major() {
+  local num
+  num="$(psql "$1" -At -c 'show server_version_num')"
+  echo $((num / 10000))
+}
