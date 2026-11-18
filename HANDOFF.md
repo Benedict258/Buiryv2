@@ -76,7 +76,7 @@ Other infrastructure files: `Dockerfile`, `Dockerfile.backup`, `infra/aws/` (Ter
 
 ### Gate
 
-At `b480535` (2026-11-18): typecheck (root and dashboard), ESLint, Prettier and vitest pass, with 487 tests in 53 files. Conformance 30/30 (run on `eb82230`, `docs/PROGRESS.md` "Final checks"). Coverage was last measured at 461 tests: statements 88.35%, lines 90.95% (`docs/PROGRESS.md`); not re-measured since. `pnpm audit --prod` was last recorded as 0 advisories on 2026-11-16; it has not been re-run since.
+At `b480535` (2026-11-18): typecheck (root and dashboard), ESLint, Prettier and vitest pass, with 487 tests in 53 files. Conformance 30/30 (run on `eb82230`, `docs/PROGRESS.md` "Final checks"). Coverage was last measured at 461 tests: statements 88.35%, lines 90.95% (`docs/PROGRESS.md`); not re-measured since. `pnpm audit --prod` on 2026-11-18T12:48Z: "No known vulnerabilities found" (exit 0).
 
 ### Verified live (every line cites its record; the network is named)
 
@@ -110,7 +110,7 @@ Everything in section 3 is tested on stand-ins: MockRelayer (`packages/storage/s
 
 ### Not verified
 
-- Migrations 006 to 009 on real Postgres (only PGlite), and the isolation suite on real Postgres. Both can now run with `TEST_DATABASE_URL` (L-PG1); not run here.
+- Backup and restore round trip (L-BAK1): the backup passed on Postgres 16 and the restore failed with version 18 client tools; see LOCAL_CHECKS. (Migrations 001 to 009 and the isolation suite now pass on real Postgres 16.15, L-PG1.)
 - Backup and restore round trip on Postgres and S3 (L-BAK1); secret key rotation on Postgres (L-KEY1).
 - Concurrent agents against Postgres; several API tasks behind a load balancer; relayer limits under sustained load (A6).
 - Any Docker build, Terraform plan or apply, or AWS deployment (L-AWS1 to L-AWS3).
