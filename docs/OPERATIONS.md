@@ -1,6 +1,6 @@
 # Operations
 
-What an operator must do to run Buiry without losing data. Deployment specifics (AWS) are in `docs/DEPLOYMENT.md` once written; this file states the requirements those must meet.
+What an operator must do to run Buiry without losing data. Deployment specifics (AWS) are in `docs/DEPLOYMENT.md`; this file states the requirements they must meet.
 
 ## The database must be backed up
 

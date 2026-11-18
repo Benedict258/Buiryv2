@@ -48,4 +48,4 @@ Not installed on this machine; not run.
 
 Screenshots are in `.buiry-local/walkthrough/`; none was taken while a token or invite link was on screen.
 
-Open: a new user gets a personal workspace at first sign-in, and onboarding then creates a second one.
+Resolved (BD41, 2026-11-18): onboarding now reuses the personal workspace created at first sign-in. The walkthrough has since grown to 21 steps, including a second user guided to their own Walrus account (LOCAL_CHECKS L-UI1).

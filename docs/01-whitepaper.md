@@ -2,6 +2,15 @@
 
 Oct 11, 2026 · @Benedict Isaac
 
+> **Status note (2026-11-18).** This document is design intent. Where it disagrees with the code, `LOCAL_CHECKS.md`, `docs/EVIDENCE.md`, `docs/ASSUMPTIONS.md` or `docs/DECISIONS.md`, those win. Statements superseded since it was written:
+>
+> - **Mainnet as the default network.** Superseded by BD33: work runs on Sui testnet until everything works, and Mainnet is a deliberate cutover at the end. The recent live results are testnet results (`LOCAL_CHECKS.md`, `docs/EVIDENCE.md`); Mainnet was exercised only by the 2026-11-10 checks (L-W1, L-W2, L-T0, L-T2).
+> - **Walrus as the authoritative record and Buiry's database as a rebuildable index.** Not true of the build. A4 is wrong: the relayer's restore returns counts only, never memory text (`docs/ASSUMPTIONS.md`). Re-indexing from Walrus is not built, and much state exists only in the database (statuses, evidence, verifications, branches, the renewal source in `write_jobs`). See `docs/OPERATIONS.md` ("What is lost if the database is lost").
+> - **Managed storage as the default for every workspace.** Superseded by BD36 (bring-your-own account first, per project) and BD41 (the shared managed account serves one workspace; a second workspace is guided to its own account). Reason: one Seal session reaches every namespace on an account (A26). Self-hosted storage is refused until it is built (BD41).
+> - **A JSON-RPC fallback for Sui through Tatum.** Wrong (A8): the documented hosts returned 404; gRPC is the only working transport, and a failed chain read reports `unknown`, never a pass.
+>
+> The body below is unchanged.
+
 ## Abstract
 
 Buiry is a project-memory layer that lets every AI coding agent on a project share one durable, verifiable memory of what was decided, what worked, what failed and what is true right now. It is not a chat history and not a vector store. It is a typed, evidence-backed record that agents write to and read from through MCP, that scores itself as it is reused or contradicted, that checks its own claims against live chain state, and that can talk back to the agent when something it remembers is no longer true.

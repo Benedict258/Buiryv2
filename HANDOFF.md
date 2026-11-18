@@ -20,29 +20,37 @@ Finish a working, production-grade prototype for ourselves. It was first built f
 
 ## 2. Source of truth
 
-Architecture doc wins, then the PRD, then the whitepaper. The UI spec is for the dashboard. `CLAUDE.md` holds the non-negotiable rules.
+For what the product does or was verified to do: code and tests, then `LOCAL_CHECKS.md`, `docs/EVIDENCE.md`, `docs/BEHAVIOUR.md` and `docs/LOAD.md`, then `docs/ASSUMPTIONS.md` and `docs/DECISIONS.md`, then `docs/PROGRESS.md` and `docs/SECURITY_REVIEW.md`, then this file. `docs/01-whitepaper.md`, `02-prd.md`, `03-architecture.md` and `04-ui-spec.md` are design intent; each now opens with a status note listing statements later records superseded. Within design intent, the architecture wins, then the PRD. `CLAUDE.md` holds the non-negotiable rules.
 
-Docs: `docs/01-whitepaper.md`, `02-prd.md`, `03-architecture.md`, `04-ui-spec.md`, `ASSUMPTIONS.md`, `DECISIONS.md` (BD1 to BD31), `PROGRESS.md`, `BLOG_OUTLINE.md`, `diagrams/architecture.mmd`, plus `LOCAL_CHECKS.md` and `README.md` at the root.
+Registers and counts (from the files, 2026-11-18):
 
-`ASSUMPTIONS.md` uses IDs A1 to A22. A18 (Tatum free-plan rate limit) and A19 (gRPC credit cost) were cited but never defined; they are now defined, reconstructed from architecture section 11 and marked as such. The register table's `Status` column now reads `confirmed`, `wrong-and-fixed` or `open` per assumption.
+- `docs/DECISIONS.md`: BD1 to BD41.
+- `docs/ASSUMPTIONS.md`: A1 to A29 (A7 withdrawn; A18 and A19 were reconstructed after being cited).
+- Migrations: 001 to 009 (`packages/api/src/db/migrations.ts`).
+- REST routes: 97 registered. 72 need a signed-in user, 9 are public (health, auth, the showcase), and 16 are agent operations under `/v1/agent/*` registered from one table (`packages/api/src/http/routes-*.ts`).
+- Other docs: `BEHAVIOUR.md`, `EVIDENCE.md`, `LOAD.md`, `SECURITY_REVIEW.md`, `OPERATIONS.md`, `KEY_CUSTODY.md`, `DEPLOYMENT.md`, `ARCHITECT_BRIEFING.md`, `BLOG_OUTLINE.md`, `diagrams/architecture.mmd`, `design/` (the design report), plus `LOCAL_CHECKS.md`, `README.md`, `release.json` and `Development.md` (change history) at the root.
 
 ## 3. Architecture at a glance
 
-pnpm monorepo, TypeScript (strict, ESM), Node 20 or newer (`engines`). CI runs Node 20. "Built on 22" is unverified; the gate was last run on Node 24.16 (Windows).
+pnpm monorepo, TypeScript (strict, ESM), Node 20 or newer (`engines`). CI runs Node 20; the local gate runs on Node 24.16 (Windows).
 
-| Path               | What it does                                                                                                                                                                                                                                                                                             | Licence                    |
-| ------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------- |
-| `packages/core`    | Pure logic, no I/O: memory header codec, namespaces, idempotency keys, redaction, prompt-injection scanner, learning loop, briefing builder, BUIRY.md, tool protocol types                                                                                                                               | Apache-2.0                 |
-| `packages/storage` | The only place that talks to Walrus: signed HTTP relayer client, mock relayer, durable write queue (in-memory and Postgres), write worker, recall merge, expiry reconcile                                                                                                                                | proprietary (`UNLICENSED`) |
-| `packages/chain`   | The only place that talks to Tatum: gateway `tatum.ts` with transports in `tatum/` (gRPC only by default; the JSON-RPC backend is added only when `TATUM_JSONRPC_URL` is set, including in mocks and tests), mock Tatum server, vendored Sui protos, verifiers                                           | proprietary (`UNLICENSED`) |
-| `packages/mcp`     | MCP server: 13 tools, 3 resources, 2 prompts, stdio and Streamable HTTP, REST client backend. npm name `@buiry/mcp`, binary `buiry-mcp`                                                                                                                                                                  | Apache-2.0                 |
-| `packages/api`     | Postgres schema (migrations 001 to 005) with row-level security, memory service, auth (sessions, wallet, OAuth, email link), 90 REST routes (74 user/auth/public routes plus 16 `/v1/agent/*` operations), SSE live feed, webhooks, packs, branches and merge, public showcase, dashboard static serving | proprietary (`UNLICENSED`) |
-| `packages/worker`  | Server entry (binary `buiry-server`, `src/bin.ts`) and scheduled jobs: write-drain, relayer-probe, expiry-scan, webhooks (delivery), drift-scan, snapshot, isolation-canary                                                                                                                              | proprietary (`UNLICENSED`) |
-| `packages/cli`     | `buiry` command: login, init, connect, status, doctor, briefing, remember, recall, verify, export, import, branch, sync, evidence                                                                                                                                                                        | Apache-2.0                 |
-| `apps/dashboard`   | Vite + React + TypeScript SPA built from the UI spec                                                                                                                                                                                                                                                     | proprietary (`UNLICENSED`) |
-| `scripts`          | conformance (30 checks), demo (mock and `--live`), write-demo-memories, dev-server, dashboard-shots, chain-smoke, db-smoke                                                                                                                                                                               | proprietary                |
+| Path               | What it does                                                                                                                                                                                                                                                     | Licence                    |
+| ------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------- |
+| `packages/core`    | Pure logic, no I/O: memory header codec, namespaces, idempotency keys, redaction, prompt-injection scanner, learning loop, briefing builder, `BUIRY.md`, tool protocol types                                                                                     | Apache-2.0                 |
+| `packages/storage` | The only place that talks to Walrus: signed relayer client, Seal session, mock relayer, durable write queue (in-memory and Postgres), write worker, recall merge, expiry reconcile                                                                               | proprietary (`UNLICENSED`) |
+| `packages/chain`   | The only place that talks to Tatum: gateway `src/tatum.ts`, transports in `src/tatum/` (gRPC; JSON-RPC only when `TATUM_JSONRPC_URL` is set), mock Tatum server, vendored Sui protos, verifiers                                                                  | proprietary (`UNLICENSED`) |
+| `packages/mcp`     | MCP server: 13 tools, 3 resources, 2 prompts; stdio and Streamable HTTP; REST client backend. Workspace name `@buiry/mcp`; published name `@buiry/mcp-server` (`release.json`, BD39; not published); binary `buiry-mcp`                                          | Apache-2.0                 |
+| `packages/api`     | Postgres schema (migrations 001 to 009) with row-level security, memory service, auth (sessions, wallet, OAuth, email link, SMTP mailer), 97 REST routes, SSE live feed, webhooks, packs, branches and merge, renewal, public showcase, dashboard static serving | proprietary (`UNLICENSED`) |
+| `packages/worker`  | Server entry (`buiry-server`), migrate and rotate-key entries, and jobs: write-drain (one per storage account), relayer-probe, expiry-scan (queues renewals when `BUIRY_RENEWAL=on`), webhooks, drift-scan, snapshot, isolation-canary                           | proprietary (`UNLICENSED`) |
+| `packages/cli`     | `buiry`: login, init, connect, status, doctor, briefing, remember, recall, verify, export, import, branch, sync, evidence                                                                                                                                        | Apache-2.0                 |
+| `apps/dashboard`   | Vite, React and TypeScript SPA built from the UI spec; hand-written CSS from tokens (BD23)                                                                                                                                                                       | proprietary (`UNLICENSED`) |
+| `scripts`          | conformance (30 checks), demo (mock and `--live`), dev-server, dashboard-shots, chain-smoke, db-smoke, tatum-latency, renewal-live, byo-live, smoke-deploy, with-env, write-demo-memories, `behaviour/`, `load/`, `backup/`, `release/`                          | proprietary                |
 
-Root `LICENSE` is now a short per-package notice (Apache-2.0 for core, mcp, cli; proprietary for everything else), replacing the earlier MIT text by the owner's decision (BD1). It has not had a legal review; the owner, or ideally a lawyer, should re-read it before anything is published.
+npm names: workspace packages are `@buiry/core`, `@buiry/mcp` and `@buiry/cli` at version 0.0.0. The release script publishes them as `@buiry/core`, `@buiry/mcp-server` and `@buiry/cli` at 0.1.0 (`release.json`). Nothing is published (L-P1 checked tarballs locally). `@buiry/mcp` on npm is the v1 package (BD39).
+
+Root `LICENSE` is a short per-package notice (BD1). It has not had a legal review.
+
+Other infrastructure files: `Dockerfile`, `Dockerfile.backup`, `infra/aws/` (Terraform, validated offline, never applied), `.env.example`, `.env.production.example`.
 
 ### Confinement rules (enforced by ESLint `no-restricted-imports` and `packages/chain/test/confinement.test.ts`)
 
@@ -54,104 +62,78 @@ Root `LICENSE` is now a short per-package notice (Apache-2.0 for core, mcp, cli;
 ### Key design points
 
 - **Event-sourced memory.** Tier A events are durable (written to Walrus); tier B events are local. Each stored record has a header line, a body, and evidence lines.
-- **Two idempotency layers (BD13).** A request-level key (client-supplied `client:` prefix or content hash) and a storage-level key (hash of namespace, header and text), sent to the relayer as `idempotency_key` with an `.a<n>` suffix on retries. Architecture section 6 describes both.
-- **Learning loop** (`packages/core/src/learning.ts`, architecture section 9).
-  - Agent memories start at confidence 0.35.
-  - Verified evidence raises it (cap 0.9); helpful reports raise it, at most two increments per memory per day (agent reports weigh 0.5, human 1.0).
-  - Per-type half-life decay is applied at read time.
-  - Auto-promotion counts only reports from sessions other than the creator's (BD9). An agent can never confirm its own memory (BD11).
-  - Per-project overrides for promotion, half-lives and review threshold are applied via `learningFor` (BD27).
-- **Drift.** A package upgrade turns a cited deployment memory stale, raises a critical flag, and shows it to the next agent in `buiry_check`.
-- **Tenant isolation, three layers (BD18).** The token or session fixes the tenant; every lookup is scoped and answers `not_found` for foreign ids; Postgres row-level security under an unprivileged role. `packages/api/test/isolation.test.ts` has 38 tests and enumerates the route registry and every MCP tool.
-- **Auth.** Opaque session tokens (HttpOnly cookie, Origin check on cookie writes; bearer also accepted), agent tokens, API tokens (all stored as keyed hashes), wallet challenge, OAuth adapters (GitHub, Google), email magic link.
-- **Write path.** Durable lease-based queue with backoff, dead-lettering, reconciliation of uncertain submits, admission budgets and backpressure, so storage outages queue writes and never lose them (tested on mocks only).
-- **Briefings.** Token-budgeted, with a fixed untrusted-data preamble. The dashboard can show the score breakdown per item; agents never receive scores (BD29).
-- **Public showcase (BD31).** `GET /v1/public/showcase/:id` answers only for projects whose owner enabled it, with only the ticked sections and only confirmed memories. Agent names, activity and tokens are never included.
+- **Two idempotency layers (BD13).** A request-level key and a storage-level key; retries suffix the relayer key with `.a<n>`.
+- **Learning loop** (`packages/core/src/learning.ts`, architecture section 9). Agent memories start at confidence 0.35; verified evidence raises it (cap 0.9); helpful reports raise it, at most two increments per memory per day (agent 0.5, person 1.0); per-type half-life decay at read time; auto-promotion counts only other sessions' reports (BD9); an agent never confirms its own memory (BD11); per-project overrides (BD27).
+- **Drift.** A package upgrade turns a cited deployment memory stale, raises a flag, and shows it to the next agent in `buiry_check`.
+- **Tenant isolation, three layers (BD18):** token or session fixes the tenant; scoped lookups answer `not_found` for foreign ids; Postgres row-level security under an unprivileged role. `packages/api/test/isolation.test.ts` walks the route registry and every MCP tool. On storage: the shared managed account serves one workspace (BD41); other workspaces bring their own account (BD36).
+- **Auth.** Opaque session tokens (HttpOnly cookie, Origin check on cookie writes; bearer also accepted), agent tokens (expire after `BUIRY_AGENT_TOKEN_MAX_DAYS`, BD40), API tokens, all stored as keyed hashes; wallet challenge; OAuth adapters (GitHub, Google); email link (console mailer in development, SMTP in production, BD38).
+- **Write path.** Durable lease-based queue with backoff, dead-lettering, reconciliation of uncertain submits, admission budgets and backpressure.
+- **Renewal by rewrite (BD37).** Behind `BUIRY_RENEWAL=on`, off by default: the exact stored text is written again as a new blob; the memory switches once it is stored.
+- **Briefings.** Token-budgeted with a fixed untrusted-data preamble; the dashboard can show each item's score breakdown; agents never receive scores (BD29).
+- **Public showcase (BD31).** Opt-in per project; confirmed memories only; no agent names, activity or tokens.
 
 ## 4. State of the build
 
-### Current (2026-11-18, after Phases A to E)
+### Gate
 
-- `main` is green: typecheck (root and dashboard), ESLint, Prettier, 487 tests in 53 files; conformance 30/30. `pnpm audit --prod` 0.
-- Security review: every high, medium and low finding is fixed with a regression test. What is still open is listed in `docs/SECURITY_REVIEW.md`: per-process limits, API token default expiry, CSP, least-privilege database user, and dev-only advisories.
-- Key custody: `BUIRY_SECRET_KEY` rotation (`dist-server/rotate-key.js`, `BUIRY_SECRET_KEY_PREVIOUS`) and the Walrus delegate runbooks are in `docs/KEY_CUSTODY.md`.
-- Backups: dump and restore scripts, `Dockerfile.backup`, a scheduled task in `infra/aws/backup.tf`, and recovery steps in `docs/OPERATIONS.md`.
-- Onboarding: the personal workspace is reused, and a second user is guided to their own Walrus account (BD41).
-- Verified on testnet 2026-11-18:
-  - smoke run: 6 of 6 memories stored, briefing p50 63 ms, recall p50 1.9 s (one recall took 18 s);
-  - dashboard walkthrough 21/21.
-- Not verified here (no Postgres, Docker or AWS on this machine): L-BAK1, L-KEY1, L-AWS1 to L-AWS3. Owner accounts are needed for L-BYO1 and L-M1.
+At `b480535` (2026-11-18): typecheck (root and dashboard), ESLint, Prettier and vitest pass, with 487 tests in 53 files. Conformance 30/30 (run on `eb82230`, `docs/PROGRESS.md` "Final checks"). Coverage was last measured at 461 tests: statements 88.35%, lines 90.95% (`docs/PROGRESS.md`); not re-measured since. `pnpm audit --prod` was last recorded as 0 advisories on 2026-11-16; it has not been re-run since.
 
-### Gate (Windows, Node 24.16, pnpm 10.28.0 via corepack)
+### Verified live (every line cites its record; the network is named)
 
-- At `c182a34` (start of the audit; `ef146be` before the author rewrite): install ok; typecheck ok except that the old script's nested `pnpm` call failed when pnpm was not on PATH; lint ok; 33 files, 372 tests passed.
-- Onboarding under the single-tenant guard (2026-11-18): personal workspace reused, second user guided to their own Walrus account, verified in the testnet walkthrough.
-- Backups (2026-11-18): off-site dump and restore scripts, backup image and scheduled task (Terraform), recovery steps in `docs/OPERATIONS.md`; the Postgres round trip (L-BAK1) is the owner's.
-- Key custody (2026-11-18): `BUIRY_SECRET_KEY` rotation tool and `BUIRY_SECRET_KEY_PREVIOUS` overlap, runbooks in `docs/KEY_CUSTODY.md`; L-KEY1 on Postgres is the owner's.
-- Security findings M1 to M5, M7 and L1 closed with tests (2026-11-18); open items listed in `docs/SECURITY_REVIEW.md`.
-- Load and latency (2026-11-17): `docs/LOAD.md`; two fixes (cheaper conflict scan, agent reads retried once).
-- AWS artifacts (2026-11-17): prepared and validated offline (`docs/DEPLOYMENT.md`, `docs/KEY_CUSTODY.md`); nothing built with Docker or applied; L-AWS1 to L-AWS3 are the owner's.
-- Agent behaviour and walkthrough (2026-11-17): Claude Code 10/10, OpenCode 2/2, dashboard walkthrough with invitations 18/18 on testnet; six defects found and fixed (`docs/BEHAVIOUR.md`).
-- Publishable packages (2026-11-17): names in `release.json` (default `@buiry/mcp-server` for the MCP package); `pnpm release:pack` and `pnpm release:smoke` pass; nothing published.
-- SMTP mailer (2026-11-17): `BUIRY_MAILER=smtp`, TLS required; tested against a fake SMTP server; a live send (L-M1) needs the owner's SMTP account.
-- Renewal by rewrite (2026-11-17): behind `BUIRY_RENEWAL=on`, verified live on testnet (L-R1). Database backups are required (`docs/OPERATIONS.md`).
-- Bring-your-own Walrus account per project (2026-11-16): done on mocks, with a single-tenant guard on the managed account; live check L-BYO1 waits for a second testnet account.
-- Security review (2026-11-16): `docs/SECURITY_REVIEW.md`; three high findings fixed with tests, mediums open with stated fixes.
-- Dependencies (2026-11-16): vitest 4.1.12, vite 6.4.5, tsup 9.0.0, hono 4.13.16, @hono/node-server 2.1.6; `pnpm audit --prod` 0; one dev-only advisory left (minimatch via typescript-eslint, no fix in range).
-- Current: typecheck (plain `tsc` for the dashboard, no nested pnpm), lint and test pass before every commit; 38 files, 422 tests after Part C (2026-11-11).
-- `pnpm dev:api` was started from a Windows shell: `/v1/healthz` returned 200 and the built dashboard was served at `/`.
-- The "344 on the cloud copy" figure is unverified. The remote branch at `d7d2f7f` (then `0464026`) (`ccr-e0e1030c-5n01et`) was an ancestor of `main` and has been deleted.
-- Not run: `pnpm test:cov`, `pnpm conformance`, `pnpm demo`.
+| Result                                                                                                        | Network                           | Record                                      |
+| ------------------------------------------------------------------------------------------------------------- | --------------------------------- | ------------------------------------------- |
+| Relayer unsigned endpoints (`/health`, `/version`, `/config`)                                                 | Mainnet relayer, testnet relayer  | LOCAL_CHECKS L-W1 (unsigned), L-W0T         |
+| Signed remember, bulk, restore, Memory Read listing; recall with a Seal session                               | Mainnet (2026-11-10)              | L-W1 (signed), L-W2                         |
+| Signed Walrus calls with the testnet account; REAL contract suite 4 of 4; recall with text, not degraded      | testnet (2026-11-11)              | L-W1T, L-W2T                                |
+| Tatum Sui gRPC: service info, object, package versions, transaction                                           | Mainnet; testnet                  | L-T0, L-T2; L-T4                            |
+| Tatum latency: about 0.3 s per call once connected; 10 of 50 attempts retried in each run                     | testnet (2026-11-16)              | L-T5, HANDOFF s9                            |
+| Demo package published and upgraded                                                                           | testnet                           | L-D0                                        |
+| Two-agent live demo, fresh-package run: every stage passed                                                    | testnet (2026-11-16)              | L-D1, `docs/EVIDENCE.md`                    |
+| Renewal by rewrite: one memory renewed to a new blob                                                          | testnet (2026-11-17)              | L-R1                                        |
+| Agent behaviour: Claude Code 2.1.326 10 of 10 (one run per behaviour); OpenCode 2.2.5 2 of 2                  | testnet                           | L-B1, `docs/BEHAVIOUR.md`                   |
+| Earlier behaviour check: Claude Code 2.1.312, 3 of 3 called connect and check first and handoff last          | local server (pointer file path)  | L-M1 (partial; the id is reused, see below) |
+| Dashboard walkthrough: 21 of 21 steps, including invitations, permissions and a second user                   | testnet (2026-11-18)              | L-UI1                                       |
+| Light load: 6 of 6 stored in 204 s; briefing p50 63 ms; recall p50 1.9 s, max 18 s (n=5)                      | testnet (2026-11-18)              | L-LOAD2, `docs/LOAD.md`                     |
+| Migrations 001 to 005 and row-level security on real Postgres (`embedded-postgres`)                           | local real Postgres               | L-A3                                        |
+| Server on real Postgres with Tatum gRPC: health 200, `/mcp` without a token 401, dashboard served             | local real Postgres; Mainnet gRPC | L-A4                                        |
+| Email-link sign-in, cookie, reload and cross-origin 403 against a real server                                 | local real Postgres               | L-U2 (partial)                              |
+| Showcase on and off in a fresh browser context                                                                | local                             | L-U3 (partial)                              |
+| MCP client config shapes: Claude Code 2.1.312 saw 13 tools; OpenCode 1.19.5 connected; Codex 0.165.0 parsed   | local                             | L-M2 (partial)                              |
+| Wallet signature from `@mysten/sui` 2.38.0 verifies; wrong key and replayed nonce rejected; no browser wallet | local                             | L-A2 (partial)                              |
+| Clean install from packed tarballs (help, version, doctor)                                                    | local, no registry                | L-P1                                        |
 
-### Built and tested on mocks
+`LOCAL_CHECKS.md` uses the id L-M1 twice: the SMTP check (waiting for the owner) and the earlier Claude Code behaviour check (partial).
 
-Everything in section 3.
+### Verified on mocks only
 
-### Verified live (per `LOCAL_CHECKS.md` "Live results"; the network is named on each line)
-
-- Walrus Memory on **Mainnet** (the relayer served Mainnet although `.env` said testnet, A27): signed remember, bulk, restore and listing; recall with the Seal session returned every stored memory with text (L-W1); expiry read, 15 epochs, about 210 days (L-W2).
-- Walrus Memory on **testnet** (`relayer.dev.memwal.ai`, `.env.testnet`): preflight with every network on testnet; REAL contract suite 4 of 4; recall with the Seal session, every memory with text and no `degraded`; expiry 5 days, `end_epoch` 583 (L-W1T, L-W2T). Tatum Sui **testnet** gRPC (L-T4).
-- Fresh-package live demo on **testnet** (L-D1, 2026-11-16 15:10Z): the deployment is verified when written and goes stale only after a real upgrade between sessions; full output in `docs/EVIDENCE.md`.
-- Live demo on **testnet** (L-D1, 2026-11-16): every stage passed after two fixes; full output in `docs/EVIDENCE.md` (memories lapse around 2026-11-21).
-- Sui **testnet** demo package (L-D0): published `0xed715e4509f98b2c4ee0d9af96e7f6d6417534d3f053e1cce50a830967b03cc9` (tx `7gDcvEpquBTQv3RritmdCGyzvoDmdwKpiEpSjN8fL8b`), upgraded to `0x51103216297896e56d6d2f5c4b61bcd8df030fdc7ec82a7087636399da1ff6c1` (tx `3BwSg4N1h2afycg15oeMcjq4C6Hg6TfXtESC882D8N3g`); read-only package verifier reports "package upgraded: cited version 1, latest 2". Testnet resets would remove it.
-
-- Walrus relayer, unsigned endpoints only: `/health`, `/version`, `/config`. `/config` reports `securityDeleteEnabled: true` on the public relayer.
-- Tatum Sui gRPC (`sui-mainnet-grpc.gateway.tatum.io:443`) for service info, object, package versions and transaction (L-T0, L-T2).
-- Real PostgreSQL: migrations 001 to 005 apply and the tenant transaction sees only its own workspace (L-A3). Server health ok; `POST /mcp` without a token returns 401; built dashboard served at `/` (L-A4).
-- Real clients, config shape (L-M2, partial): Claude Code 2.1.312 loaded the generated entry via `--mcp-config` and saw all 13 tools (the user-level `~/.claude.json` location itself was not exercised). OpenCode 1.19.5 `mcp list` showed `buiry` connected. Codex 0.165.0 `mcp get` parsed the entry. Cursor not tested.
-- Claude Code behaviour (L-M1, partial): in 3 of 3 runs it called `buiry_connect` and `buiry_check` before editing and `buiry_handoff` at the end. One client, pointer-file path only, n=3. Do not quote it as a general rate.
-- Wallet signing (L-A2, partial): a signature from `@mysten/sui` 2.38.0 verifies on the real server; a mismatched key and a replayed nonce are rejected. No browser wallet.
-- Dashboard in Chrome: L-U1 against the dev server (mocks, automated, not a human walk-through); L-U2 email-link sign-in, cookie, reload persistence and cross-origin 403 against a real server and real Postgres; L-U3 showcase on/off (partial).
+Everything in section 3 is tested on stand-ins: MockRelayer (`packages/storage/src/mock-relayer.ts`), the mock Tatum server (`packages/chain/src/tatum/mock-server.ts`), PGlite (in-process Postgres), a fake SMTP server, and stub `pg_dump`, `pg_restore`, `psql` and `aws` tools for the backup scripts. The dashboard screen pass (L-U1, 94 screenshots) runs on the mock-backed development server with sample data (BD28).
 
 ### Not verified
 
-- Bulk rate limits and weight (A6) and operator renewal (A1) are open. Connect timeouts to the public relayer (A24) and one SDK 404 (A25) are unexplained.
-- The live demo on Mainnet; `expires_at` is approximate (A29); relayer connection failures (A24).
-- OAuth sign-in with real apps (L-A1, A21).
-- Cursor config; OpenCode and Codex behaviour (need a model login).
-- Tatum credit usage and plan limits (A9). Credit figures in code are client-side estimates (2 per call).
-- Tatum State, TransactionExecution and Name gRPC services.
-- Invitation create and accept flow in a browser.
-- The EVM verifier against a real endpoint.
+- Migrations 006 to 009 on real Postgres (only PGlite), and the isolation suite on real Postgres.
+- Backup and restore round trip on Postgres and S3 (L-BAK1); secret key rotation on Postgres (L-KEY1).
+- Concurrent agents against Postgres; several API tasks behind a load balancer; relayer limits under sustained load (A6).
+- Any Docker build, Terraform plan or apply, or AWS deployment (L-AWS1 to L-AWS3).
+- Bring-your-own Walrus account against a real second account (L-BYO1).
+- A real SMTP sign-in email (L-M1, SMTP).
+- OAuth sign-in with real GitHub or Google apps (L-A1, A21).
+- Cursor (not run). Codex behaviour (Codex is not installed here; only its config shape was parsed).
+- Tatum credit usage and plan limits (A9, A18, A19); Tatum State, TransactionExecution and Name services.
+- The live demo on Mainnet; operator renewal (A1); relayer connect timeouts (A24) and one SDK 404 (A25); `expires_at` accuracy (A29).
+- The EVM verifier against a real endpoint; a browser wallet.
+- Re-indexing from Walrus after database loss (not built; `docs/OPERATIONS.md`).
 
 ### Assumptions that live checks proved wrong (fixed, with tests)
 
-- **A13, request signing:** headers are `x-public-key`, `x-signature`, `x-timestamp`, `x-nonce`, `x-account-id`; the signed string differs; `x-delegate-key` (deprecated, carries a private key) is never sent. Whether the relayer accepts the signature is still unproven.
-- **A14, relayer paths and shapes:** routes are `/api/*` and `/v1/owners/{owner}/memories`; job state is `status`; recall returns `distance`; idempotency keys exist; `/api/analyze` is fact extraction, not "unused memories".
+- **A13, request signing:** headers are `x-public-key`, `x-signature`, `x-timestamp`, `x-nonce`, `x-account-id`; `x-delegate-key` is never sent. Signatures were accepted live (L-W1).
+- **A14, relayer paths and shapes:** routes are `/api/*` and `/v1/owners/{owner}/memories`; job state is `status`; recall returns `distance`.
 - **A4:** restore returns counts only, never memory text.
-- **A8, JSON-RPC:** Tatum's documented Sui JSON-RPC hosts returned 404; public fullnodes reject JSON-RPC as deprecated. gRPC is the only working Sui transport. With gRPC down, chain checks report `unknown` and degraded, never a stale pass. The JSON-RPC backend still exists in code and is wired only if `TATUM_JSONRPC_URL` is set.
-- **Chain id:** gRPC returns the base58 chain digest, not the 4-byte JSON-RPC form.
-- **Custom Tatum gateway host:** served neither Sui JSON-RPC nor gRPC. Do not use it.
+- **A8, JSON-RPC:** Tatum's documented Sui JSON-RPC hosts returned 404; gRPC is the only working Sui transport.
+- **A23:** recall needs a Seal session.
+- **A27:** `.env` said testnet while the relayer served Mainnet; the server now refuses mixed networks (BD33).
+- **Chain id:** gRPC returns the base58 chain digest. **Custom Tatum gateway host:** served neither transport.
 
-### Bugs found only by live runs (fixed)
-
-- Email sign-in link did not sign anyone in (token lost in the signed-out redirect).
-- Built CLI and MCP `dist` imported unbuilt workspace source; now bundled.
-- Windows: CLI exit code non-zero after successful network calls; fixtures path built with `new URL().pathname`.
-- gRPC endpoint URLs are normalised to `host:443`; delegate key parsing accepts `suiprivkey1...`.
-- LOCAL_CHECKS said to use `BUIRY_MAILER=memory` for CLI login, which makes email login impossible.
-- Per-address rate limit on `/v1/auth/*` also counted signed-in endpoints; now only unauthenticated ones.
-- Retries reusing a failed idempotency key: the fix is in code (`packages/storage/src/write-worker.ts` suffixes the relayer key with `.a<attempt>` on retries), but that it was found by a live run is unverified; it is not recorded in PROGRESS or LOCAL_CHECKS.
+The bugs found only by live runs are listed in `Development.md`.
 
 ## 5. Blockers that need a human (in order)
 
@@ -219,19 +201,19 @@ Read by the code (from a grep of `packages`, `scripts`, `apps`):
 - Keep chat output concise; detail belongs in docs.
 - CLAUDE.md rule 4 (no timelines or schedules in files) stays, by the owner's decision. The event dates in the PRD and the "close to the deadline" wording (L-D2, architecture section 14) were removed; L-D2 now says to run it when storage leases need to cover a date you choose. Dates that record when a check ran are records, not schedules, and stay.
 
-## 8. What shifts now that the goal is a prototype
+## 8. Production gaps
 
-- **Hackathon framing: removed.** No file other than this one mentions the hackathon. PRD section 14 is now "Prototype acceptance and demo scenario". A7, L-T3, PRD V6 and V9 are withdrawn.
-- **Kept:** `buiry evidence` and `GET /v1/projects/:id/evidence-report`, now described as the storage and verification report (JSON field names unchanged), and `write-demo-memories` as a seeding tool.
-- **Production gaps to close:**
-  - Walrus storage is time-limited; the docs say lapsed memories cannot be renewed, and renewal by the operator is unconfirmed (A1). Expiry alerts exist; a renewal or export-and-rewrite path does not.
-  - The public relayer's limits (architecture section 6: 60 weighted requests per minute, 500 per hour per account; a remember costs 5) mean managed multi-tenant use needs a self-hosted relayer.
-  - Only one Sui chain transport works (gRPC). The gateway from env is built for a single network (`TATUM_NETWORK`), so the network-sanity probe of "other configured networks" has nothing to probe unless more backends are configured in code.
-  - Hosting and deployment target, backups, monitoring and alerting, secrets management, key custody for the Walrus account and delegates.
-  - Legal review of the licence notice, npm naming and publishing, versioning, security review, privacy and data-deletion promises.
-  - Billing and plan limits are placeholders (BD21).
-  - Placeholders listed in BD26: bulk move-to-branch and flag notes, memory renewal, billing payment methods, browser wallet connect, the marketing site, the internal admin console.
-- **Do not claim publicly:** a general Claude Code behaviour rate, live Walrus write performance, or a working JSON-RPC fallback. None is verified.
+- **Storage lifetime.** Walrus storage lapses (testnet about 5 days, Mainnet about 210 days as observed). Renewal by rewrite exists behind `BUIRY_RENEWAL=on`, off by default (BD37, L-R1 on testnet). Operator extension of blobs is unconfirmed (A1).
+- **The database is a single point of loss.** Re-indexing from Walrus is not built; without a dump, statuses, evidence and the renewal source are lost (`docs/OPERATIONS.md`). Backup scripts exist; the Postgres round trip (L-BAK1) has not run.
+- **Shared managed account.** Single-tenant (BD41). In managed mode the relayer sees plaintext, and one delegate's Seal session reaches every namespace on the account (A26). Production should set `BUIRY_MANAGED_WORKSPACE_ID`.
+- **Relayer limits.** Documented public relayer limits (architecture section 6) mean multi-tenant managed use needs a self-hosted relayer, which is not built (self-hosted mode is refused).
+- **Chain transport.** gRPC only; the gateway is built for one network (`TATUM_NETWORK`).
+- **Hosting.** AWS files are prepared and validated offline; nothing is built or applied (`docs/DEPLOYMENT.md`).
+- **Security items still open** (`docs/SECURITY_REVIEW.md`): per-process limits, API token default expiry, no CSP, no least-privilege database user, dev-only advisories, and the two sweeps added after Phase A.
+- **Legal and distribution:** licence notice re-read, npm names and publishing, privacy and data-deletion promises.
+- **Billing and plan limits** are placeholders (BD21).
+- **Placeholders (BD26):** bulk move-to-branch and flag notes, billing payment methods, browser wallet connect, the internal admin console. The marketing site is not built at all (no route in `apps/dashboard`).
+- **Do not claim publicly:** a general Claude Code behaviour rate, live Walrus write performance, a working JSON-RPC fallback, anything about Mainnet beyond the 2026-11-10 checks, or bring-your-own accounts as live-tested.
 
 ## 9. Tatum: keep or move
 
@@ -295,38 +277,3 @@ Then open `LOCAL_CHECKS.md` for the next live check.
 - `WALRUS_NETWORK=testnet` while `WALRUS_RELAYER_URL` is the Mainnet relayer (A27). The server now refuses to start with that mix. Testnet work uses `.env.testnet` through `scripts/with-env.ts`; `.env` stays for the later Mainnet cutover (or becomes `.env.mainnet`).
 
 - `TATUM_NETWORK` is `testnet` and `TATUM_GRPC_ENDPOINT` is a URL with a scheme and a path, not the documented `sui-mainnet-grpc.gateway.tatum.io:443`; with these values the gateway gets HTTP 400 (as the custom gateway host did on 2026-10-28). The Walrus Memory package is on mainnet, so the Seal session's package check needs the mainnet host. Live runs on 2026-11-10 overrode both values in-process; `.env` itself was not edited.
-
-## Changes since the audit (owner's go-ahead)
-
-- Chain: gRPC only by default everywhere, including mock worlds and test rigs; JSON-RPC only when `TATUM_JSONRPC_URL` is set; env-level tests added. Architecture section 11 and decision record 4 updated.
-- Architecture section 6 describes both idempotency layers. PROGRESS Step 0 status and route count fixed.
-- LOCAL_CHECKS: the Step 0 docs check is now L-S0, so L-D1 is only the live demo.
-- ASSUMPTIONS: A18 and A19 defined (reconstructed), A17 to A19 added to the register, statuses set.
-- `.env.example` lists every variable the code reads; `REDIS_URL` removed.
-- `pnpm dev:api` works on Windows shells (the dev server defaults `DASHBOARD_DIR`); `pnpm typecheck` no longer needs `pnpm` on PATH.
-- Root `LICENSE` replaced with a per-package notice (needs a legal re-read).
-- Hackathon framing removed from README, PROGRESS, LOCAL_CHECKS, ASSUMPTIONS, whitepaper, PRD, architecture, CLAUDE.md build order, the evidence report comments and the CLI test; `buiry evidence` is the storage and verification report.
-- Remote branch `ccr-e0e1030c-5n01et` deleted after confirming it was an ancestor of `main`.
-- History rewrite (approved): author and committer of the 15 AI-identity commits set to `ISAAC BENEDICT`; trees, messages and dates verified identical; force-pushed with lease. Local backup tag `backup-before-author-rewrite`.
-- Checked: `packages/core`, `packages/mcp` and `packages/cli` each still have the Apache-2.0 `LICENSE` file (identical in all three), `"license": "Apache-2.0"` in `package.json`, and an `SPDX-License-Identifier: Apache-2.0` header in every `src/*.ts` file (26 files).
-- Live signed Walrus calls (2026-11-10): signatures accepted; remember, bulk, restore and the listing pass; expiry read (L-W2). Recall returned `degraded` with candidates dropped; the adapter and the recall merge now handle that (served from the index, flagged), with regression tests (377 tests).
-
-## Corrections made
-
-- HANDOFF.md did not exist on disk or in git history; created from the pasted draft.
-- Gate: replaced the reported counts with this session's run (33 files, 372 tests passing); noted that `pnpm typecheck` needs `pnpm` on PATH; marked the 344 cloud figure unverified and identified the commit now at `d7d2f7f` as `origin/ccr-e0e1030c-5n01et`.
-- Licences: `storage`, `chain`, `api`, `worker`, `dashboard` are `UNLICENSED`; added that the root `LICENSE` is MIT (BD1), which the draft omitted.
-- Worker: added the `webhooks` delivery job (seven jobs, not six) and that the server entry lives in `packages/worker`.
-- Routes: "about 90" is exactly 90 by count (74 plus 16 agent operations); PROGRESS says "about 85".
-- Learning loop: "daily cap" made specific (two helpful increments per memory per day, agent weight 0.5); evidence cap 0.9.
-- Env vars: `WALRUS_DELEGATE_PUBLIC_KEY` is not used anywhere; added names the code reads that the draft omitted (`TATUM_FREE_RPS`, `BUIRY_API_URL`, `BUIRY_API`, `BUIRY_TOKEN`, `NODE_ENV`, `DEMO_NETWORK`, `BUIRY_CONTRACT_RELAYER_URL`, `SMOKE_*`, `CHROMIUM_PATH`, `DASHBOARD_URL`); noted `.env.example` lists only 11 and includes the unused `REDIS_URL`.
-- Hackathon framing list: removed `docs/BLOG_OUTLINE.md` (no references); added `docs/ASSUMPTIONS.md` (A7) and the specific sections; noted the `context.ts` and `dashboard.ts` hits are comments only.
-- JSON-RPC: clarified that the backend is still wired when `TATUM_JSONRPC_URL` is set, not removed.
-- Windows: the 0600 credentials check is a conditional assertion, not a skipped test; `pnpm dev:api` uses an inline variable that Windows shells do not support.
-- Node: "built on 22" marked unverified; CI uses Node 20.
-- "Retries reused a failed idempotency key" marked unverified as a live-found bug (not in PROGRESS or LOCAL_CHECKS).
-- `@buiry/mcp` resolving to v1 0.1.8 marked as reported in LOCAL_CHECKS, unverified this session.
-- LOCAL_CHECKS has two sections both named L-D1 (Step 0 docs reading and the live demo); noted in next steps.
-- ASSUMPTIONS: noted A18 and A19 are undefined and the original table's statuses are stale.
-- Tatum section: added the measured cost-to-keep and the concrete swap work from the code.
-- Added the root-licence decision to blockers, and the single-network gateway and relayer rate limits to production gaps.

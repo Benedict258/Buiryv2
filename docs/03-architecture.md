@@ -2,6 +2,15 @@
 
 Oct 11, 2026 · @Benedict Isaac
 
+> **Status note (2026-11-18).** This document is design intent. Where it disagrees with the code, `LOCAL_CHECKS.md`, `docs/EVIDENCE.md`, `docs/ASSUMPTIONS.md` or `docs/DECISIONS.md`, those win. Statements superseded since it was written:
+>
+> - **Mainnet as the default network.** Superseded by BD33: work runs on Sui testnet until everything works, and Mainnet is a deliberate cutover at the end. The recent live results are testnet results (`LOCAL_CHECKS.md`, `docs/EVIDENCE.md`); Mainnet was exercised only by the 2026-11-10 checks (L-W1, L-W2, L-T0, L-T2). This covers the environments in section 4.
+> - **Walrus as the authoritative record and Buiry's database as a rebuildable index.** Not true of the build. A4 is wrong: the relayer's restore returns counts only, never memory text (`docs/ASSUMPTIONS.md`). Re-indexing from Walrus is not built, and much state exists only in the database (statuses, evidence, verifications, branches, the renewal source in `write_jobs`). See `docs/OPERATIONS.md` ("What is lost if the database is lost"). This covers principle 1 and "Rebuildability" in section 7.
+> - **Managed storage as the default for every workspace.** Superseded by BD36 (bring-your-own account first, per project) and BD41 (the shared managed account serves one workspace; a second workspace is guided to its own account). Reason: one Seal session reaches every namespace on an account (A26). Self-hosted storage is refused until it is built (BD41). This covers T1 in section 4 and the "Managed (default)" row in section 6.
+> - **Section 19 assumption statuses.** The table lists A1 to A12 as assumptions to verify. Current statuses live in the `docs/ASSUMPTIONS.md` register: A1 unclear, leaning wrong (renewal is by rewrite, BD37); A4 wrong; A7 withdrawn; A8 wrong; A2, A3 and A5 partly or fully confirmed; A6, A9, A10, A11 and A12 open. A13 to A29 were added later and appear only in the register.
+>
+> The body below is unchanged.
+
 ## 1. Purpose, scope and architectural principles
 
 **Purpose.** This document specifies how Buiry is built: components, data, protocols, algorithms, integrations, security and operations. It is the technical companion to the PRD (what and why) and the Whitepaper (the argument). Requirement IDs (FR-, NFR-) refer to the PRD.
