@@ -30,6 +30,17 @@ Legend: **done** (implemented and tested), **mocked** (tested only against a moc
 
 - Baseline (`pnpm typecheck && pnpm lint && pnpm test`) also passes on Windows. The 0600 check on the credentials file is a conditional assertion inside its test: it is not made on Windows (NTFS has no POSIX modes) and still runs on Linux and macOS.
 
+## Onboarding under the single-tenant guard (Phase D, 2026-11-18)
+
+- First sign-in still creates a personal workspace; onboarding now names and reuses it (no second workspace).
+- The first managed project claims the shared account (BD41) and works.
+- A second user is told in onboarding that the shared account serves another workspace, with their own account preselected.
+  - Their project pages show a banner linking to the Storage page.
+  - Agent writes are refused with a message saying where a project admin connects the account.
+- A project set up for its own account never falls back to the shared one.
+- Self-hosted storage is shown as not available and refused by the API.
+- Tests: `onboarding-tenancy.test.ts`. Testnet walkthrough: 21/21, including a second user.
+
 ## Backups (Phase C, 2026-11-18)
 
 - `scripts/backup/backup.sh` and `restore.sh`:

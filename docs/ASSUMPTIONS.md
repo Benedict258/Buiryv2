@@ -29,6 +29,10 @@ The live documentation was read on 2026-10-28 (results in "Step 0 results" below
 - Difference that needed code (fixed, with regression tests): expiry margins and the status "expiring" window were a fixed 28 days, two Mainnet epochs, so every 5-day testnet memory would have been "expiring" at once. They now follow the network epoch (`walrusEpochMs`).
 - Connection problems seen on testnet too (A24): the startup `/config` connect timeout, and 1 of 6 `curl` connections to `relayer.dev.memwal.ai` failed with a TLS error.
 
+**Onboarding and tenancy (2026-11-18, Phase D)**
+
+- Without `BUIRY_MANAGED_WORKSPACE_ID`, the first workspace to create a managed project claims the shared account. On a fresh public deployment, that is whoever signs up and creates a project first, so production should set the variable to the owner's workspace id.
+
 **Backups (2026-11-18, Phase C)**
 
 - `pg_dump` custom format restored with `pg_restore --clean --if-exists` reproduces the schema and data for the same major version or newer. That is standard Postgres behaviour (postgresql.org documentation for pg_dump and pg_restore, version 16), but not run here: there is no Postgres on this machine (L-BAK1).
