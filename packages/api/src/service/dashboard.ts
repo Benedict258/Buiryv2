@@ -136,6 +136,12 @@ export async function createProjectChecked(
 ): Promise<{ id: string }> {
   assertManage(p);
   if (!input.name?.trim()) throw new BuiryError('invalid_input', 'project name is required');
+  // Self-hosted relayers are not built: such a project would silently use the shared account.
+  if (input.walrusMode === 'self_hosted')
+    throw new BuiryError(
+      'invalid_input',
+      'self-hosted storage is not available yet; choose managed or your own account',
+    );
   assertProjectNetworks(deps, input.networks);
   await checkEntitlement(tx, p.workspaceId, 'projects', enforce);
   const id = genId(deps, 'prj');

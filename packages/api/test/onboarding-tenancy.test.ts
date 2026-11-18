@@ -91,6 +91,13 @@ describe('onboarding under the single-tenant shared account', () => {
     expect(ownView.json.data).toMatchObject({ requested: 'byo', needsOwnAccount: true });
     expect(await agentWrite(b.token, own)).toMatch(/^forbidden: .*not connected yet/);
 
+    const selfHosted = await w.req('POST', `/v1/workspaces/${b.workspaceId}/projects`, {
+      token: b.token,
+      body: { name: 'second-self', networks: ['sui:mainnet'], walrusMode: 'self_hosted' },
+    });
+    expect(selfHosted.status).toBe(400);
+    expect(selfHosted.json.error.message).toContain('not available yet');
+
     // The first user still owns the shared account (claimed at project creation, not by who wrote first).
     expect((await me(b.token)).workspaces).toHaveLength(1);
   });
