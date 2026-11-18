@@ -69,3 +69,9 @@ Moved here unchanged (headings demoted) when HANDOFF became current-state only.
 - LOCAL_CHECKS said to use `BUIRY_MAILER=memory` for CLI login, which makes email login impossible.
 - Per-address rate limit on `/v1/auth/*` also counted signed-in endpoints; now only unauthenticated ones.
 - Retries reusing a failed idempotency key: the fix is in code (`packages/storage/src/write-worker.ts` suffixes the relayer key with `.a<attempt>` on retries), but that it was found by a live run is unverified; it is not recorded in PROGRESS or LOCAL_CHECKS.
+
+## Phase 1: design report (2026-11-18)
+
+| File                      | Why                                                                      |
+| ------------------------- | ------------------------------------------------------------------------ |
+| `docs/design/00-index.md` | Contents, the five blocking decisions and what the owner should prepare. |
