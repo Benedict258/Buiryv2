@@ -10,6 +10,7 @@ import { BuiryError } from '@buiry/core';
 import { MemoryMailer, type Mailer } from './auth/auth-service.js';
 import { productionProblems } from './config-check.js';
 import { cspModeFromEnv, requestIsHttps, securityHeaders } from './http/security-headers.js';
+import { chooseEncoding, compressedFile, isCompressible } from './http/static-compression.js';
 import { SmtpMailer, smtpConfigFromEnv } from './auth/smtp.js';
 import { StorageRegistry } from './service/byo-storage.js';
 import { buildWalrusAdapter } from './service/walrus.js';
@@ -238,7 +239,12 @@ const MIME: Record<string, string> = {
 };
 
 /** Serves the built dashboard; unknown paths fall back to index.html so client-side routes work. */
-function serveStatic(root: string, url: string, res: import('node:http').ServerResponse): void {
+function serveStatic(
+  root: string,
+  url: string,
+  res: import('node:http').ServerResponse,
+  acceptEncoding?: string | string[],
+): void {
   let decoded: string;
   try {
     decoded = decodeURIComponent(url.split('?')[0]!);
@@ -256,12 +262,29 @@ function serveStatic(root: string, url: string, res: import('node:http').ServerR
     return;
   }
   const immutable = file.includes(`${join(root, 'assets')}`);
-  res.writeHead(200, {
+  const headers: Record<string, string> = {
     'content-type': MIME[extname(file)] ?? 'application/octet-stream',
     'cache-control': immutable ? 'public, max-age=31536000, immutable' : 'no-cache',
     'x-content-type-options': 'nosniff',
-  });
-  createReadStream(file).pipe(res);
+  };
+  // Phase 2.4: text assets go out brotli- or gzip-compressed when the client accepts it.
+  const encoding = isCompressible(extname(file)) ? chooseEncoding(acceptEncoding) : undefined;
+  if (isCompressible(extname(file))) headers.vary = 'Accept-Encoding';
+  if (!encoding) {
+    res.writeHead(200, headers);
+    createReadStream(file).pipe(res);
+    return;
+  }
+  compressedFile(file, encoding).then(
+    (body) => {
+      res.writeHead(200, { ...headers, 'content-encoding': encoding, 'content-length': String(body.length) });
+      res.end(body);
+    },
+    () => {
+      res.writeHead(200, headers);
+      createReadStream(file).pipe(res);
+    },
+  );
 }
 
 /** One HTTP server: REST under /v1, MCP Streamable HTTP under /mcp. */
@@ -288,7 +311,7 @@ export async function startHttp(
       res.setHeader(k, v);
     if (req.url?.startsWith('/mcp')) void mcp.handle(req, res);
     else if (staticDir && req.method === 'GET' && !req.url?.startsWith('/v1/'))
-      serveStatic(staticDir, req.url ?? '/', res);
+      serveStatic(staticDir, req.url ?? '/', res, req.headers['accept-encoding']);
     else void rest(req, res);
   });
   // Keep idle connections open longer than clients and load balancers do (the AWS ALB idle timeout defaults to

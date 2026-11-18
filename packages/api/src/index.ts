@@ -28,6 +28,7 @@ export * from './auth/oauth.js';
 export * from './http/app.js';
 export * from './http/context.js';
 export * from './http/security-headers.js';
+export * from './http/static-compression.js';
 export * from './server.js';
 export * from './service/showcase.js';
 export * from './service/networks.js';

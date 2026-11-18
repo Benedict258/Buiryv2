@@ -16,6 +16,8 @@ Prepared offline. Nothing here has been applied or deployed. The image layout an
 
 Every response carries security headers, including an enforced Content Security Policy and `frame-ancestors 'none'`; HSTS is added when the ALB reports https (`BUIRY_TRUSTED_PROXY_HOPS=1`, `X-Forwarded-Proto`). `BUIRY_CSP=report-only` is a fallback if a screen breaks (`docs/SECURITY_REVIEW.md`, "Security headers").
 
+The server compresses the dashboard's text assets itself (brotli, else gzip, per `Accept-Encoding`; fonts are sent as they are), so nothing in front of it needs to compress. Measured locally on the dashboard build: JS 405.9 KiB → 108.1 KiB (brotli) or 117.9 KiB (gzip); CSS 20.8 KiB → 4.5 KiB.
+
 Rate limits key on the client address. Behind the ALB the task definition sets `BUIRY_TRUSTED_PROXY_HOPS=1`, so the server uses the address the ALB appended to `X-Forwarded-For` and ignores anything the client wrote there. Without a proxy leave it at 0. The server keeps idle connections for 65 s, longer than the ALB's 60 s idle timeout, so the load balancer never reuses a socket the server has just closed.
 
 ## Files
