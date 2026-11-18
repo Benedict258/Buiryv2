@@ -55,6 +55,10 @@ const browser = await chromium.launch({ executablePath: exe, args: ['--no-sandbo
 const problems: string[] = [];
 async function pass(theme: 'dark' | 'light', width: number, height: number, tag: string) {
   const ctx = await browser.newContext({ viewport: { width, height } });
+  // Content Security Policy violations, enforced or Report-Only, become console errors and so count as problems.
+  await ctx.addInitScript(
+    `document.addEventListener('securitypolicyviolation', (e) => console.error('[csp ' + e.disposition + '] ' + e.effectiveDirective + ' blocked ' + (e.blockedURI || 'inline') + ' at ' + location.pathname));`,
+  );
   await ctx.addInitScript(
     `localStorage.setItem('buiry.token', ${JSON.stringify(token)}); localStorage.setItem('buiry.theme', ${JSON.stringify(theme)});`,
   );

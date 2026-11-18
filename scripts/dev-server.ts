@@ -93,6 +93,8 @@ export async function startDevServer(
     BUIRY_MAILER: 'memory',
     // A second mock relayer stands in for a project's own Walrus account (Storage page, "Use your own account").
     BUIRY_BYO_ALLOW_PRIVATE: '1',
+    // BUIRY_CSP=report-only lets a screenshot pass list policy violations instead of breaking screens.
+    ...(process.env.BUIRY_CSP ? { BUIRY_CSP: process.env.BUIRY_CSP } : {}),
     ...(o.dashboardDir ? { DASHBOARD_DIR: o.dashboardDir } : {}),
   } as Record<string, string>;
   // Renewal by rewrite is on in development so the Storage page can exercise it (off by default elsewhere).

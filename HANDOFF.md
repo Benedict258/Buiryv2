@@ -150,7 +150,7 @@ The bugs found only by live runs are listed in `Development.md`.
    - run `scripts/smoke-deploy.ts` and check that rate limits behave behind the ALB (`BUIRY_TRUSTED_PROXY_HOPS=1`).
 8. **npm names** in `release.json` (BD39), a legal re-read of the root `LICENSE` notice, then publish with your npm account.
 9. **Tatum keep-or-move decision** (section 9): read the dashboard credit usage against the recorded call counts (A9).
-10. **Before public exposure**: decide on the "still open" items in `docs/SECURITY_REVIEW.md` (shared rate-limit store, API token default expiry, CSP, least-privilege DB user).
+10. **Before public exposure**: decide on the "still open" items in `docs/SECURITY_REVIEW.md` (shared rate-limit store, API token default expiry, least-privilege DB user).
 11. **OAuth apps** for GitHub and Google, if wanted.
 12. **Backup tag**: delete the local tag `backup-before-author-rewrite` once the rewritten history is confirmed (section 7).
 13. **Mainnet cutover** (section 10), last.
@@ -209,7 +209,7 @@ Read by the code (from a grep of `packages`, `scripts`, `apps`):
 - **Relayer limits.** Documented public relayer limits (architecture section 6) mean multi-tenant managed use needs a self-hosted relayer, which is not built (self-hosted mode is refused).
 - **Chain transport.** gRPC only; the gateway is built for one network (`TATUM_NETWORK`).
 - **Hosting.** AWS files are prepared and validated offline; nothing is built or applied (`docs/DEPLOYMENT.md`).
-- **Security items still open** (`docs/SECURITY_REVIEW.md`): per-process limits, API token default expiry, no CSP, no least-privilege database user, dev-only advisories, and the two sweeps added after Phase A.
+- **Security items still open** (`docs/SECURITY_REVIEW.md`): per-process limits, API token default expiry, no least-privilege database user, dev-only advisories, and the two sweeps added after Phase A.
 - **Legal and distribution:** licence notice re-read, npm names and publishing, privacy and data-deletion promises.
 - **Billing and plan limits** are placeholders (BD21).
 - **Placeholders (BD26):** bulk move-to-branch and flag notes, billing payment methods, browser wallet connect, the internal admin console. The marketing site is not built at all (no route in `apps/dashboard`).

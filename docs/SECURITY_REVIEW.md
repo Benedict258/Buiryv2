@@ -94,9 +94,38 @@ No critical findings.
 
 - **Per-process limits.** The auth and public rate limits, the SSE stream caps and MCP sessions are held in each API process's memory, so N API tasks allow N times each limit, and a restart resets them. Acceptable for the prototype; a shared store (Postgres or Redis) would make them global.
 - **API tokens** still have no default expiry (optional per token); agent tokens issued before M4 keep no expiry until rotated.
-- **Content Security Policy** for the dashboard is not set.
+- **Content Security Policy:** fixed in Phase 2.3 (see "Security headers" below).
 - **Least-privilege database user** for the app (the deployment uses the RDS master user; see DEPLOYMENT).
 - **Dev-only advisories** (picomatch, minimatch) as above, no fixed releases in range.
+
+## Security headers (Phase 2.3, 2026-11-18)
+
+Every response from the single HTTP listener now carries the headers below (`packages/api/src/http/security-headers.ts`, set in `startHttp`). That covers REST, MCP, the dashboard's static files and the SPA fallback, and error answers.
+
+| Header                      | Value                                                                                                                                                                                                |
+| --------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `X-Content-Type-Options`    | `nosniff`                                                                                                                                                                                            |
+| `Referrer-Policy`           | `no-referrer`                                                                                                                                                                                        |
+| `X-Frame-Options`           | `DENY`                                                                                                                                                                                               |
+| `Content-Security-Policy`   | `default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; font-src 'self'; connect-src 'self'; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'` |
+| `Strict-Transport-Security` | `max-age=31536000`, only when the request is https: a TLS socket, or the last `X-Forwarded-Proto` value behind a trusted proxy (`BUIRY_TRUSTED_PROXY_HOPS` ≥ 1).                                     |
+
+- **No report collection.** There is no report-uri and no unauthenticated report route.
+- **Fallback.** `BUIRY_CSP=report-only` sends the policy as Report-Only. Even then, framing stays refused by an enforced `frame-ancestors 'none'` and `X-Frame-Options`.
+- **Test.** `packages/api/test/security-headers.test.ts` checks the headers on static files, the fallback, REST, MCP and error answers, and checks when HSTS is sent. It fails on the old code.
+
+**How it was checked (mock data, development server).**
+
+1. **Report-Only pass.** With `BUIRY_CSP=report-only`, `scripts/dashboard-shots.ts` ran across 94 screens; it now records `securitypolicyviolation` events. It found one violation, 78 times: `font-src` blocked a `data:` URL. Vite had inlined a font subset smaller than 4 KiB into the stylesheet.
+2. **Fix.** `apps/dashboard/vite.config.ts` now never inlines fonts.
+3. **Report-Only re-run.** 0 violations on all 94 screens.
+4. **Enforced pass.** All 94 screens rendered with no console errors and no failed requests (screenshots in `.buiry-local/csp-shots/`, mock sample data). The policy is enforced.
+
+**Not checked:**
+
+- HSTS through the real AWS load balancer (L-AWS3; needs AWS).
+- Browsers other than Chrome.
+- The OAuth and wallet sign-in screens with real providers (L-A1).
 
 ## Not reviewed
 
@@ -105,7 +134,7 @@ No critical findings.
 - Key custody and secret rotation in a real deployment (Phase 11, `docs/KEY_CUSTODY.md`).
 - The worker's job handlers in depth (only the webhook delivery path was read).
 - Denial of service through expensive queries (briefing with large projects is measured in Phase 10).
-- Browser-side behaviour beyond reading the React code (no CSP is set yet; worth adding with the AWS deployment).
+- Browser-side behaviour beyond reading the React code and the Phase 2.3 screen pass under an enforced CSP.
 - Bring-your-own Walrus credentials (Phase 5 adds them; they get their own review then).
 
 ## Sweeps after Phase A (2026-11-18, report only; nothing fixed)

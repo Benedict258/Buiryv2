@@ -9,6 +9,7 @@ import { Ed25519Signer, HttpWalrusAdapter, type WalrusMemoryAdapter } from '@bui
 import { BuiryError } from '@buiry/core';
 import { MemoryMailer, type Mailer } from './auth/auth-service.js';
 import { productionProblems } from './config-check.js';
+import { cspModeFromEnv, requestIsHttps, securityHeaders } from './http/security-headers.js';
 import { SmtpMailer, smtpConfigFromEnv } from './auth/smtp.js';
 import { StorageRegistry } from './service/byo-storage.js';
 import { buildWalrusAdapter } from './service/walrus.js';
@@ -279,7 +280,12 @@ export async function startHttp(
       ),
   });
   const staticDir = rt.env.DASHBOARD_DIR ? resolve(rt.env.DASHBOARD_DIR) : undefined;
+  const csp = cspModeFromEnv(rt.env);
+  const hops = Number(rt.env.BUIRY_TRUSTED_PROXY_HOPS ?? 0);
   const server = createServer((req, res) => {
+    // Phase 2.3: one place, so REST, MCP, the dashboard's static files and every error answer carry them.
+    for (const [k, v] of Object.entries(securityHeaders({ https: requestIsHttps(req, hops), csp })))
+      res.setHeader(k, v);
     if (req.url?.startsWith('/mcp')) void mcp.handle(req, res);
     else if (staticDir && req.method === 'GET' && !req.url?.startsWith('/v1/'))
       serveStatic(staticDir, req.url ?? '/', res);

@@ -33,6 +33,10 @@ The live documentation was read on 2026-10-28 (results in "Step 0 results" below
 
 - One of 5 recalls through the testnet relayer took 18 s (p50 1.9 s). The day before, the slowest of 5 took 6.6 s. The relayer and Seal path is the slow part, not Buiry's index (briefing p50 63 ms). Agents should keep recall optional and rely on the briefing. Not investigated further: the relayer is not ours, and 5 samples are too few to set a timeout from.
 
+**Security headers (2026-11-18, Phase 2.3)**
+
+- Assumed, not verified: behind the AWS ALB, the last `X-Forwarded-Proto` value is the protocol the client used, as the ALB reports it. HSTS depends on it. Check: after L-AWS3, `curl -sI https://<domain>/` shows `strict-transport-security`. If this is false, HSTS is not sent; nothing else changes.
+
 **Onboarding and tenancy (2026-11-18, Phase D)**
 
 - Without `BUIRY_MANAGED_WORKSPACE_ID`, the first workspace to create a managed project claims the shared account. This now applies to development only: production refuses to start without the variable or an explicit `BUIRY_MANAGED=off` (BD42, Phase 2.2).
