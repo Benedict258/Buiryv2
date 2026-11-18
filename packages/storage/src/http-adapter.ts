@@ -178,7 +178,7 @@ export class HttpWalrusAdapter implements WalrusMemoryAdapter {
       const aborted = e instanceof Error && e.name === 'AbortError';
       throw new RelayerError(
         aborted ? 'timeout' : 'unavailable',
-        aborted ? 'relayer timeout' : `relayer unreachable: ${(e as Error).message}${causeCode(e)}`,
+        aborted ? 'relayer timeout' : `relayer unreachable${causeCode(e)}`, // sweep A12: no exception text
       );
     } finally {
       clearTimeout(timer);

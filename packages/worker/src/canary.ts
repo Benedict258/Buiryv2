@@ -1,4 +1,4 @@
-import { BuiryError } from '@buiry/core';
+import { BuiryError, errorTag } from '@buiry/core';
 import {
   authenticateAgentToken,
   createAgent,
@@ -78,7 +78,8 @@ export async function isolationCanary(deps: ServiceDeps): Promise<CanaryReport> 
       if (JSON.stringify(r ?? '').includes(secretMarker) || (r && !(r as { results?: unknown[] }).results))
         violations.push(`${label}: succeeded`);
     } catch (e) {
-      if (!(e instanceof BuiryError)) violations.push(`${label}: unexpected error ${(e as Error).message}`);
+      if (!(e instanceof BuiryError))
+        violations.push(`${label}: unexpected error ${JSON.stringify(errorTag(e))}`);
     }
   };
   if (planted) {

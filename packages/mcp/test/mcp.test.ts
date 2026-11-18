@@ -73,9 +73,12 @@ describe('tool errors and schemas', () => {
     expect(r.structuredContent).toEqual({
       error: { code: 'budget_exceeded', message: 'slow down', retryAfterMs: 4000 },
     });
-    expect(toolError(new Error('boom')).structuredContent).toEqual({
-      error: { code: 'internal', message: 'boom' },
+    // Sweep A2 (Phase 5.4): a non-Buiry error's message never reaches the agent; only class and code are logged.
+    const logged: string[] = [];
+    expect(toolError(new Error('boom'), (l) => logged.push(l)).structuredContent).toEqual({
+      error: { code: 'internal', message: 'internal error' },
     });
+    expect(logged).toEqual(['{"level":"error","event":"tool_error","error":"Error"}']);
   });
 
   it('remember schema accepts typed evidence and rejects unknown kinds and types', () => {

@@ -44,7 +44,8 @@ export function loadSuiProtos(): Anything {
 export function mapGrpcError(e: unknown): ChainError {
   const err = e as Partial<ServiceError>;
   const code = typeof err.code === 'number' ? err.code : undefined;
-  const msg = err.details || err.message || 'grpc error';
+  // Sweep A7: the gateway's own `details` text never travels on; a stable message per gRPC status does.
+  const msg = `gateway returned ${code === undefined ? 'no status' : (Status[code] ?? `status ${code}`)}`;
   switch (code) {
     case Status.UNAUTHENTICATED:
     case Status.PERMISSION_DENIED:

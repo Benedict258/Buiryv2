@@ -83,7 +83,7 @@ export function degradedOutcome(e: unknown): VerifyOutcome {
                 : e.message;
     return { result: 'unknown', detail: why, degraded: true, observed: { errorKind: e.kind } };
   }
-  return { result: 'unknown', detail: `verification error: ${(e as Error).message}`, degraded: true };
+  return { result: 'unknown', detail: 'verification error', degraded: true }; // sweep A7: no exception text
 }
 
 async function guard(fn: () => Promise<VerifyOutcome>): Promise<VerifyOutcome> {

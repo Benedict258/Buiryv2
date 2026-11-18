@@ -210,7 +210,7 @@ export class TatumGateway {
         });
         return { value, latencyMs };
       } catch (e) {
-        const err = e instanceof ChainError ? e : new ChainError('unknown', (e as Error).message);
+        const err = e instanceof ChainError ? e : new ChainError('unknown', 'unexpected gateway error');
         lastErr = err;
         const latencyMs = this.now() - t0;
         if (err.kind === 'unavailable' || err.kind === 'rate_limited') this.failures++;
@@ -544,7 +544,7 @@ export class TatumGateway {
       });
       return v;
     } catch (e) {
-      const err = e instanceof ChainError ? e : new ChainError('unknown', (e as Error).message);
+      const err = e instanceof ChainError ? e : new ChainError('unknown', 'unexpected gateway error');
       if (err.retryable) this.failures++;
       await this.emit({
         at: t0,

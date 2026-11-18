@@ -6,6 +6,26 @@ import { BuiryError } from '@buiry/core';
 import type { Tx } from '../db/db.js';
 import { WEBHOOK_EVENTS, assertSafeWebhookUrl, formatForKind, signWebhook, type Resolver } from './events.js';
 import type { Principal, ServiceDeps } from './types.js';
+
+/**
+ * What a failed delivery records (`webhook_deliveries.last_error`, shown to admins): Buiry's own messages as they are
+ * (the destination check uses fixed text), otherwise a stable code and a short message chosen from the error code.
+ * Never the exception message, which can name resolved addresses or certificate details (error-text sweep A4).
+ */
+export function deliveryErrorText(e: unknown): string {
+  if (e instanceof BuiryError) return e.message;
+  const code = (e as { code?: unknown })?.code;
+  const name = (e as { name?: unknown })?.name;
+  if (name === 'AbortError' || code === 'ETIMEDOUT' || code === 'ESOCKETTIMEDOUT')
+    return 'timeout: the endpoint did not answer in time';
+  if (code === 'ECONNREFUSED') return 'connection_refused: the endpoint refused the connection';
+  if (code === 'ECONNRESET' || code === 'EPIPE')
+    return 'connection_reset: the endpoint closed the connection';
+  if (code === 'ENOTFOUND' || code === 'EAI_AGAIN') return 'dns: the endpoint host did not resolve';
+  if (typeof code === 'string' && /CERT|TLS|SSL|SELF_SIGNED|ALTNAME/i.test(code))
+    return 'tls: the endpoint certificate was not accepted';
+  return 'delivery_failed: the delivery could not be completed';
+}
 import { assertManage } from './members.js';
 import { actorOf, genId, logActivity, notFound } from './util.js';
 
@@ -322,7 +342,7 @@ export async function deliverDue(deps: ServiceDeps, o: DeliveryOpts = {}): Promi
       }
       if (status < 200 || status >= 300) error = `HTTP ${status}`;
     } catch (e) {
-      error = e instanceof BuiryError ? e.message : (e as Error).message;
+      error = deliveryErrorText(e);
     }
     const attempts = d.attempts + 1;
     const ms = deps.now() - t0;

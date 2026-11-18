@@ -3,6 +3,26 @@ import { RelayerError, MAX_BULK, type WalrusMemoryAdapter, type WriteState } fro
 import { PointsLimiter, PUBLIC_RELAYER_LIMITS, writePoints, type RelayerLimits } from './budget.js';
 import type { LeaseScope, WriteJob, WriteQueue } from './queue.js';
 
+/**
+ * What a write job records as its last error, shown to project members on the Storage page: a stable code and a short
+ * message, plus the HTTP status when there is one. Never the relayer's own error text or an exception message, which
+ * can carry request details, hosts or keys (error-text sweep A3).
+ */
+const WRITE_ERROR_TEXT: Record<string, string> = {
+  rate_limited: 'the storage relayer rate-limited the write',
+  auth: 'the storage relayer refused the account or delegate key',
+  not_found: 'the storage relayer did not find the job',
+  client: 'the storage relayer rejected the request',
+  paused: 'the storage relayer has paused writes',
+  timeout: 'the storage relayer did not answer in time',
+  unavailable: 'the storage relayer was unreachable or unavailable',
+  unknown: 'unexpected error while storing',
+};
+export function writeErrorText(e: RelayerError): string {
+  const text = WRITE_ERROR_TEXT[e.kind] ?? WRITE_ERROR_TEXT.unknown;
+  return `${e.kind}: ${text}${e.status ? ` (HTTP ${e.status})` : ''}`;
+}
+
 export interface WorkerOptions {
   queue: WriteQueue;
   adapter: WalrusMemoryAdapter;
@@ -70,16 +90,16 @@ export class WriteWorker {
   }
 
   private async fail(job: WriteJob, e: unknown, report: TickReport): Promise<void> {
-    const err = e instanceof RelayerError ? e : new RelayerError('unknown', (e as Error).message);
+    const err = e instanceof RelayerError ? e : new RelayerError('unknown', 'unexpected error');
     const now = this.w.now();
-    if (!err.retryable) return this.dead(job, `${err.kind}: ${err.message}`, report);
+    if (!err.retryable) return this.dead(job, writeErrorText(err), report);
     if (job.attempts >= this.o.maxAttempts)
-      return this.dead(job, `retries exhausted (${err.kind}): ${err.message}`, report);
+      return this.dead(job, `retries exhausted: ${writeErrorText(err)}`, report);
     const wait = Math.max(
       err.retryAfterMs ?? 0,
       backoffMs(job.attempts, this.o.backoffBaseMs, this.o.backoffCapMs, this.rand()),
     );
-    await this.w.queue.scheduleRetry(job.id, `${err.kind}: ${err.message}`, now + wait, now);
+    await this.w.queue.scheduleRetry(job.id, writeErrorText(err), now + wait, now);
     report.retried++;
   }
 
@@ -137,15 +157,16 @@ export class WriteWorker {
         const now = this.w.now();
         if (st.state === 'done') await this.stored(job, st.blobId, report);
         else if (st.state === 'failed') {
-          if (st.retryable) await this.fail(job, new RelayerError('unavailable', st.error), report);
-          else await this.dead(job, `job failed: ${st.error}`, report);
+          if (st.retryable)
+            await this.fail(job, new RelayerError('unavailable', 'relayer job failed'), report);
+          else await this.dead(job, 'job_failed: the relayer reported the write as failed', report);
         } else await this.w.queue.schedulePoll(job.id, now + this.o.pollIntervalMs, now);
       } catch (e) {
         if (e instanceof RelayerError && e.kind === 'not_found') {
           // The relayer lost the job: resubmit through the normal retry path.
           await this.fail(job, new RelayerError('unavailable', 'relayer job vanished'), report);
         } else if (e instanceof RelayerError && !e.retryable) {
-          await this.dead(job, `${e.kind}: ${e.message}`, report);
+          await this.dead(job, writeErrorText(e), report);
         } else {
           const now = this.w.now();
           await this.w.queue.schedulePoll(job.id, now + this.o.pollIntervalMs * 2, now);

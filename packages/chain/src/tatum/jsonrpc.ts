@@ -66,7 +66,7 @@ export class JsonRpcBackend implements ChainBackend {
     } catch (e) {
       throw new ChainError(
         'unavailable',
-        e instanceof Error && e.name === 'AbortError' ? 'timeout' : `network: ${(e as Error).message}`,
+        e instanceof Error && e.name === 'AbortError' ? 'timeout' : 'network error', // sweep A7: no exception text
       );
     } finally {
       clearTimeout(timer);

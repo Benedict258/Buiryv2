@@ -1,4 +1,4 @@
-import { BuiryError, newId } from '@buiry/core';
+import { BuiryError, newId, errorTag } from '@buiry/core';
 import { PgWriteQueue, type Renewer } from '@buiry/storage';
 import type { Tx } from '../db/db.js';
 import { publishEvent } from './events.js';
@@ -82,7 +82,14 @@ async function queueOne(deps: ServiceDeps, tx: Tx, memoryId: string): Promise<st
 export async function queueRenewals(deps: ServiceDeps, memoryIds: string[]): Promise<RenewalOutcome> {
   const out: RenewalOutcome = { queued: [], failed: [] };
   for (const id of memoryIds) {
-    const why = await deps.db.system((tx) => queueOne(deps, tx, id)).catch((e: Error) => e.message);
+    // Sweep A5: Buiry's own reasons as they are; anything else becomes a stable message, logged by class and code.
+    const why = await deps.db
+      .system((tx) => queueOne(deps, tx, id))
+      .catch((e: unknown) => {
+        if (e instanceof BuiryError) return e.message;
+        console.error(JSON.stringify({ level: 'error', event: 'renewal_error', ...errorTag(e) }));
+        return 'internal error';
+      });
     if (why) out.failed.push({ memoryId: id, reason: why });
     else out.queued.push(id);
   }

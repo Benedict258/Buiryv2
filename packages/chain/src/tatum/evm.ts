@@ -25,8 +25,8 @@ export class EvmRpc {
         headers: { 'content-type': 'application/json', [this.cfg.keyHeader ?? 'x-api-key']: this.cfg.apiKey },
         body: JSON.stringify({ jsonrpc: '2.0', id: ++this.seq, method, params }),
       });
-    } catch (e) {
-      throw new ChainError('unavailable', `network: ${(e as Error).message}`);
+    } catch {
+      throw new ChainError('unavailable', 'network error'); // sweep A7: no exception text
     }
     if (res.status === 401 || res.status === 403)
       throw new ChainError('config', 'gateway rejected the API key', res.status);

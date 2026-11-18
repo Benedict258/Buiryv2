@@ -3,7 +3,7 @@ import release from '../../../release.json' with { type: 'json' };
 import { McpServer, ResourceTemplate } from '@modelcontextprotocol/sdk/server/mcp.js';
 import type { CallToolResult } from '@modelcontextprotocol/sdk/types.js';
 import { z } from 'zod';
-import { BuiryError, UNTRUSTED_NOTICE, type BranchInput, type BuiryBackend } from '@buiry/core';
+import { BuiryError, UNTRUSTED_NOTICE, type BranchInput, type BuiryBackend, errorTag } from '@buiry/core';
 import { schemas } from './schemas.js';
 
 export type BackendSource = BuiryBackend | (() => Promise<BuiryBackend> | BuiryBackend);
@@ -23,9 +23,12 @@ function ok(structured: Record<string, unknown>, text: string, untrusted = false
   };
 }
 
-export function toolError(e: unknown): CallToolResult {
-  const err =
-    e instanceof BuiryError ? e : new BuiryError('internal', e instanceof Error ? e.message : String(e));
+export function toolError(e: unknown, log: (line: string) => void = (l) => console.error(l)): CallToolResult {
+  // Sweep A2: only Buiry's own errors reach the agent as they are. Anything else (a database error, a bug) gets the
+  // stable `internal` code; the class and code are logged, never the message (it can quote stored values).
+  if (!(e instanceof BuiryError))
+    log(JSON.stringify({ level: 'error', event: 'tool_error', ...errorTag(e) }));
+  const err = e instanceof BuiryError ? e : new BuiryError('internal', 'internal error');
   const hint = err.retryAfterMs ? ` Retry after ${Math.ceil(err.retryAfterMs / 1000)}s.` : '';
   return {
     isError: true,
