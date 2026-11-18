@@ -7,7 +7,7 @@ import {
   startHttp,
 } from '@buiry/api';
 import { driftScan, expiryScan, isolationCanary, relayerProbe, snapshotRegen } from './index.js';
-import { Scheduler, type ScheduledJob } from './scheduler.js';
+import { Scheduler, jobFailureLine, type ScheduledJob } from './scheduler.js';
 
 /**
  * Runs the API and MCP endpoint, the background jobs, or both (BUIRY_ROLE = api | worker | all, default all). On
@@ -74,9 +74,7 @@ export async function main(env: Record<string, string | undefined> = process.env
       void scheduler
         .tick()
         .then((r) =>
-          r.ran
-            .filter((x) => !x.ok)
-            .forEach((x) => console.error(`[buiry] job ${x.name} failed: ${x.error}`)),
+          r.ran.filter((x) => !x.ok).forEach((x) => console.error(jobFailureLine(x.name, x.error))),
         ),
     1_000,
   );

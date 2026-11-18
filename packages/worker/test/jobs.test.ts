@@ -5,6 +5,8 @@ import { EPOCH_MS, Ed25519Signer, HttpWalrusAdapter, MockRelayer } from '@buiry/
 import { StorageRegistry, createDrain, createStack, type UserPrincipal } from '@buiry/api';
 import {
   Scheduler,
+  describeJobError,
+  jobFailureLine,
   driftScan,
   expiryScan,
   isolationCanary,
@@ -310,7 +312,7 @@ describe('scheduler leases', () => {
     const w2 = new Scheduler(stack.deps, 'w2', jobs(n));
     const [r1, r2] = [await w1.tick(), await w2.tick()];
     expect(r1.ran.map((x) => x.name)).toEqual(['a', 'flaky']);
-    expect(r1.ran[1]).toMatchObject({ ok: false, error: 'boom' });
+    expect(r1.ran[1]).toMatchObject({ ok: false, error: '{"error":"Error"}' });
     expect(r2.ran).toEqual([]); // not retried on the very next tick, and 'a' is not due
     c.advance(30_000);
     expect((await w2.tick()).ran.map((x) => x.name)).toEqual(['flaky']); // retried after the 30 s retry delay
@@ -319,6 +321,23 @@ describe('scheduler leases', () => {
     c.advance(31_000);
     expect((await w1.tick()).ran.map((x) => x.name)).toEqual(['a']); // 'a' is due; 'flaky' ran 31 s ago
     expect(a).toBe(2);
+    await stack.close();
+  }, 60_000);
+
+  it('records and logs a failed job by error class and Postgres code, never the message (sweep A6)', async () => {
+    const LEAK = 'SECRET-row-value-do-not-log';
+    const stack = await createStack({ now: new Clock().now });
+    const boom = Object.assign(new Error(`duplicate key value (text)=(${LEAK})`), { code: '23505' });
+    const s = new Scheduler(stack.deps, 'w1', [
+      { name: 'write-drain', intervalMs: 1000, run: () => Promise.reject(boom) },
+    ]);
+    const entry = (await s.tick()).ran[0]!;
+    expect(entry).toMatchObject({ ok: false, error: '{"error":"Error","code":"23505"}' });
+    const line = jobFailureLine(entry.name, entry.error);
+    // The job-failures alarm matches "job" and "failed" (infra/aws/main.tf).
+    expect(line).toBe('[buiry] job write-drain failed: {"error":"Error","code":"23505"}');
+    expect(line).not.toContain(LEAK);
+    expect(describeJobError('not an error')).toBe('{"error":"string"}');
     await stack.close();
   }, 60_000);
 

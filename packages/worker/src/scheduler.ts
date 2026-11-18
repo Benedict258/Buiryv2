@@ -6,6 +6,22 @@ export interface ScheduledJob {
   run: () => Promise<unknown>;
 }
 
+/**
+ * What a failed job leaves in logs: the error class and, for Postgres errors, the SQLSTATE code. Never the message:
+ * database errors can quote row values, such as memory text (SECURITY_REVIEW M5, sweep A6).
+ */
+export function describeJobError(e: unknown): string {
+  const err = e as { name?: unknown; code?: unknown };
+  const name = typeof err?.name === 'string' && /^[A-Za-z0-9_]{1,64}$/.test(err.name) ? err.name : typeof e;
+  const code = typeof err?.code === 'string' && /^[A-Z0-9_]{1,12}$/.test(err.code) ? err.code : undefined;
+  return JSON.stringify({ error: name, ...(code ? { code } : {}) });
+}
+
+/** The log line for a failed job. The job-failures alarm (infra/aws/main.tf, DEPLOYMENT.md) matches "job" and "failed". */
+export function jobFailureLine(name: string, error: string | undefined): string {
+  return `[buiry] job ${name} failed: ${error ?? '{}'}`;
+}
+
 export interface SchedulerTickReport {
   ran: { name: string; ok: boolean; error?: string; result?: unknown }[];
   skipped: string[];
@@ -50,7 +66,7 @@ export class Scheduler {
       try {
         entry = { name: j.name, ok: true, result: await j.run() };
       } catch (e) {
-        entry = { name: j.name, ok: false, error: (e as Error).message };
+        entry = { name: j.name, ok: false, error: describeJobError(e) };
       }
       const now = new Date(this.deps.now());
       // A failed run is retried after retryMs instead of a full interval. Retrying on the very next tick turned a

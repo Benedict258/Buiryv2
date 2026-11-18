@@ -43,7 +43,7 @@ export const systemPrincipal = (workspaceId: string): UserPrincipal => ({
   projectScope: null,
 });
 
-export function mapChainError(e: unknown): BuiryError {
+export function mapChainError(e: unknown): Error {
   if (e instanceof BuiryError) return e;
   if (e instanceof ChainError) {
     if (e.kind === 'budget_exceeded') return new BuiryError('budget_exceeded', e.message);
@@ -52,7 +52,10 @@ export function mapChainError(e: unknown): BuiryError {
       kind: e.kind,
     });
   }
-  return new BuiryError('internal', (e as Error).message);
+  // Anything else (a database error, a bug) is rethrown as it is: the HTTP error handler answers with the stable
+  // `internal` code and a generic message, and logs one line with the error class and Postgres code, never the message
+  // (SECURITY_REVIEW M5, sweep A1). The raw message can quote stored values.
+  return e instanceof Error ? e : new Error('non-error value thrown');
 }
 
 async function withTimeout<T>(ms: number, fn: () => Promise<T>): Promise<T | 'timeout'> {

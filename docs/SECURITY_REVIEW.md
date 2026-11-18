@@ -133,6 +133,29 @@ Checked and not a finding:
 - `packages/worker/src/rotate-key.ts:31` and `:35`: table and id, or the error name only.
 - `packages/api/src/server.ts:38`: the console mailer, development only (H3).
 
+### Sweep A re-run after Phase 2.1
+
+**Fixed in Phase 2.1:**
+
+- **A1.** `mapChainError` (`packages/api/src/service/verification.ts:46`) now rethrows any non-chain error unchanged. The HTTP error handler answers with code `internal` and the message "internal error", and logs one M5 line: request id, route pattern, error class and Postgres code, with no message. Test: `packages/api/test/verification-errors.test.ts`; it fails on the old code with the raw message in the response.
+- **A6.** Failed jobs are recorded and logged as `{"error":<class>,"code":<SQLSTATE>}` (`describeJobError` in `packages/worker/src/scheduler.ts`). The log line keeps the form `[buiry] job <name> failed: ...`, which the job-failures alarm matches. Test: "records and logs a failed job by error class and Postgres code, never the message" in `packages/worker/test/jobs.test.ts`.
+
+**Still open, unchanged:** A2 to A5 and A7 to A9, at the same lines (the chain-read fix moved `verification.ts` lines by 3).
+
+**Found by the re-run (not in the first sweep):**
+
+| #   | Where                                      | What flows                                                         | Reaches                                                                                                                                             |
+| --- | ------------------------------------------ | ------------------------------------------------------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------- |
+| A10 | `packages/worker/src/canary.ts:81`         | Raw message of an unexpected error during an isolation probe       | The canary's violation list, which goes to the audit log as `canary.violation` and to job results                                                   |
+| A11 | `packages/api/src/service/networks.ts:35`  | Raw message when the relayer's `/config` cannot be read at startup | Process logs. A network error; low exposure                                                                                                         |
+| A12 | `packages/storage/src/http-adapter.ts:181` | `relayer unreachable: <network error message>`                     | Feeds A3 (`write_jobs.last_error`). A network error; low exposure                                                                                   |
+| A13 | `packages/worker/src/bin.ts:6`             | Raw message of a startup failure                                   | Process logs. Mostly config-check text, which is meant to be read. Whether a database connection error can include connection details is UNVERIFIED |
+
+Client-side only, so not a server leak:
+
+- `packages/mcp/src/rest-backend.ts:96`, network error text shown to the local agent;
+- `packages/chain/src/tatum/evm.ts:29` and `jsonrpc.ts:69`, network errors wrapped into `ChainError`, which then flows as A7.
+
 ### Sweep B: modes or settings that can silently fall back to a shared or default resource
 
 | #   | Where                                                                           | Fallback                                                                                                                                                           | Guarded in production?                                                                                                          |
