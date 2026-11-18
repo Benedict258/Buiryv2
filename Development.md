@@ -72,6 +72,7 @@ Moved here unchanged (headings demoted) when HANDOFF became current-state only.
 
 ## Phase 1: design report (2026-11-18)
 
-| File                      | Why                                                                      |
-| ------------------------- | ------------------------------------------------------------------------ |
-| `docs/design/00-index.md` | Contents, the five blocking decisions and what the owner should prepare. |
+| File                                  | Why                                                                                                                                                           |
+| ------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `docs/design/00-index.md`             | Contents, the five blocking decisions and what the owner should prepare.                                                                                      |
+| `docs/design/01-product-and-proof.md` | Sections 1 to 4: product, honest limits, audiences, feature inventory with evidence levels, the proof table with publish status, and claims we must not make. |
