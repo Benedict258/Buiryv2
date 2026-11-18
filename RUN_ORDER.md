@@ -14,34 +14,29 @@ Every command below is copied from `LOCAL_CHECKS.md`, `docs/DEPLOYMENT.md` or `d
 
 ## 2. L-BAK1: backup and restore round trip on Postgres
 
-**Status: unverified.** On 2026-11-18 the backup half passed, and the restore failed because the client tools were version 18.
+**Status:** backup verified on Postgres 16; the restore has not passed (**unverified**). The working method, exact commands and the 2026-11-18 results are in `LOCAL_CHECKS.md` L-BAK1.
 
-| Field      | Value                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                       |
-| ---------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Needs      | Docker, plus Postgres **16** client tools (`pg_dump`, `pg_restore`, `psql`, `createdb`) and `sha256sum`. No AWS for the local run.                                                                                                                                                                                                                                                                                                                                                                                                                                          |
-| Commands   | `docker run -d --name buiry-pg -e POSTGRES_PASSWORD=<local-only> -p 5432:5432 postgres:16`; `createdb` two databases `buiry_src` and `buiry_restore`; `DATABASE_URL=postgres://postgres:<local-only>@localhost:5432/buiry_src pnpm tsx packages/worker/src/migrate.ts`; `DATABASE_URL=... pnpm demo` (or write a few memories through the dev server on that database); `DATABASE_URL=<src> BACKUP_S3_URI=file:///tmp/buiry-backups bash scripts/backup/backup.sh`; `RESTORE_DATABASE_URL=<restore> BACKUP_S3_URI=file:///tmp/buiry-backups bash scripts/backup/restore.sh` |
-| Expected   | "checksum ok" and row counts equal to `select count(*) ...` on the source                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                   |
-| Pass       | `restore.sh` exits 0, and its counts match the source                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                       |
-| Paste back | Both outputs, without passwords                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                             |
+| Field      | Value                                                                                                                                                                                                             |
+| ---------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Needs      | Docker; a throwaway Postgres 16 container on a non-default host port; client tools of the server's major version with GNU `sha256sum` (for example a `postgres:16-bookworm` container, as in `Dockerfile.backup`) |
+| Commands   | Seed with `scripts/real-pg/seed.ts`, then run `backup.sh` and `restore.sh` with those tools (`LOCAL_CHECKS.md` L-BAK1)                                                                                            |
+| Expected   | "versions ok", "checksum ok", and row counts equal to the source's                                                                                                                                                |
+| Pass       | `restore.sh` exits 0 with matching counts                                                                                                                                                                         |
+| Paste back | Both outputs (no passwords) and the source counts                                                                                                                                                                 |
 
-Known problems:
-
-- **The fill step does nothing.** `pnpm demo` and the dev server do not use `DATABASE_URL`, so they leave the source empty: 0 workspaces and 0 memories, only the 9 migration rows.
-- **Version-18 tools fail the restore.** A dump made and restored with them fails on a 16 server with `unrecognized configuration parameter "transaction_timeout"`.
-
-How to fill the source and which tools to use are owner decisions. They are not documented commands yet.
+In the Alpine image, `restore.sh` stops at `sha256sum --check` (BusyBox), so that image cannot finish the check.
 
 ## 3. L-KEY1: secret key rotation on Postgres
 
-**Status: not run.** The check also needs a webhook delivery and an own Walrus account connection, not just Postgres.
+**Status:** re-sealing verified on PostgreSQL 16.15 (2026-11-18). A webhook delivery and a live own-account connection after rotation were not run.
 
-| Field      | Value                                                                                                                                                                                                   |
-| ---------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Needs      | A Postgres with Buiry's schema (L-AWS1 or any local Postgres); a copy of the database with sealed secrets; two generated test keys; a webhook endpoint and an own-account relayer to confirm afterwards |
-| Command    | The `rotate-key` task as in `docs/KEY_CUSTODY.md` steps 4 and 5, against a copy of the database                                                                                                         |
-| Expected   | A dry-run report with counts, then `"committed":true`. A webhook delivery still verifies, and a project's own Walrus account still connects.                                                            |
-| Pass       | Both JSON lines appear, and both follow-up checks work                                                                                                                                                  |
-| Paste back | The two JSON lines (counts only)                                                                                                                                                                        |
+| Field      | Value                                                                                                                            |
+| ---------- | -------------------------------------------------------------------------------------------------------------------------------- |
+| Needs      | A throwaway Postgres 16; two generated keys; for the remaining parts, a webhook receiver and a live own-account relayer (L-BYO1) |
+| Commands   | `LOCAL_CHECKS.md` L-KEY1: seed, copy, `rotate-key.ts` dry run and `--apply`, `scripts/real-pg/check-keys.ts`                     |
+| Expected   | Dry run counts, then `"committed":true`, then `[check-keys] PASS`                                                                |
+| Pass       | All three                                                                                                                        |
+| Paste back | The JSON lines (counts only)                                                                                                     |
 
 ## 4. L-BYO1: own Walrus account on testnet
 
