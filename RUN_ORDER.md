@@ -10,20 +10,7 @@ Every command below is copied from `LOCAL_CHECKS.md`, `docs/DEPLOYMENT.md` or `d
 
 ## 1. L-PG1: migrations, row-level security and the isolation suite on Postgres 16
 
-**Status:** done 2026-11-18 on a throwaway `postgres:16-alpine` container (16.15) on host port 55432. Re-run only if the schema changes.
-
-| Field      | Value                                                                                                                                                                                                                                                                                                                                                                                                         |
-| ---------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Needs      | Docker or a local Postgres 16; a superuser connection                                                                                                                                                                                                                                                                                                                                                         |
-| Command    | `docker run -d --name buiry-pg16 -e POSTGRES_PASSWORD=<local-only> -p 5432:5432 postgres:16` (change the host port if 5432 is taken), then in PowerShell from the repo root: `$env:TEST_DATABASE_URL="postgres://postgres:<local-only>@127.0.0.1:5432/postgres"; corepack pnpm exec vitest run packages/api/test/postgres.test.ts packages/api/test/isolation.test.ts`. Afterwards: `docker rm -f buiry-pg16` |
-| Expected   | `Tests  43 passed (43)`. LOCAL_CHECKS said 42 before Phase 2.6 added one isolation test.                                                                                                                                                                                                                                                                                                                      |
-| Pass       | All passed, none skipped                                                                                                                                                                                                                                                                                                                                                                                      |
-| Paste back | The `Tests` line                                                                                                                                                                                                                                                                                                                                                                                              |
-
-Two notes:
-
-- The `[L-PG1] Postgres 16.x: applied ...` line appears only with `--reporter=verbose --silent=false` added.
-- That line prints `Postgres undefined`: the test reads the wrong column of `show server_version`. This is a cosmetic defect in the test; the migration ids it lists are correct.
+**Status:** verified 2026-11-18 (44 passed on PostgreSQL 16.15, throwaway container). The exact command, the safety guard and the WSL note are in `LOCAL_CHECKS.md` L-PG1. Never point it at port 5432 or an existing server.
 
 ## 2. L-BAK1: backup and restore round trip on Postgres
 
