@@ -185,6 +185,14 @@ try {
     await snap(owner, 'overview-empty');
   });
 
+  await step('onboarding reused the personal workspace (no second workspace)', async () => {
+    const mine = await owner.evaluate(
+      async () => ((await (await fetch('/v1/auth/me')).json()) as { data: { workspaces: unknown[] } }).data,
+    );
+    if (mine.workspaces.length !== 1) throw new Error(`owner has ${mine.workspaces.length} workspaces`);
+    return '1 workspace';
+  });
+
   await step('an agent writes memories (stored on testnet Walrus)', async () => {
     const made = await owner.evaluate(
       async ([p]) =>
@@ -301,6 +309,51 @@ try {
     );
     if (r < 400 || r === 401) throw new Error(`second accept returned HTTP ${r}`);
     return `second accept: HTTP ${r}`;
+  });
+
+  // Phase D: a second user under the single-tenant shared account gets a clear way forward, not a dead end.
+  const second = await (await browser.newContext({ viewport: { width: 1280, height: 860 } })).newPage();
+  second.on('console', (m) => m.type() === 'error' && consoleErrors.push(`second: ${m.text()}`));
+  await step('second user: onboarding explains storage and preselects their own account', async () => {
+    await signIn(second, 'second-tenant@example.invalid');
+    await second.goto(`${BASE}/onboarding`);
+    await second.getByLabel('Workspace name').fill('Second Tenant Co');
+    await second.getByRole('button', { name: 'Continue' }).click();
+    await second.getByLabel('Project name').waitFor();
+    await second.getByText('serves another workspace').waitFor({ timeout: 10_000 });
+    await second.getByLabel('Project name').fill('second-api');
+    await snap(second, 'second-user-storage-step');
+    const byo = second.locator('[role=radio]', { hasText: 'Bring your own account' });
+    if ((await byo.getAttribute('aria-checked')) !== 'true') throw new Error('own account not preselected');
+    if (!(await second.getByText('(not available here)').isVisible()))
+      throw new Error('shared option not marked');
+    return 'explained, own account preselected';
+  });
+
+  await step('second user: the project shows how to start storing, with a link to Storage', async () => {
+    await second.getByRole('button', { name: 'Create project' }).click();
+    await second.getByLabel('Project name').waitFor({ state: 'detached', timeout: 20_000 });
+    for (let i = 0; i < 4; i++) {
+      const open = second.getByRole('button', { name: 'Open project' });
+      if (await open.isVisible().catch(() => false)) {
+        await open.click();
+        break;
+      }
+      await second.getByRole('button', { name: 'Continue' }).click();
+      await second.waitForTimeout(500);
+    }
+    await second.waitForURL(/\/w\/[^/]+\/p\/[^/]+\/overview/, { timeout: 20_000 });
+    await second.getByText('Connect a storage account').waitFor({ timeout: 10_000 });
+    await snap(second, 'second-user-overview-banner');
+    await second.getByText('Connect a storage account').click();
+    await second.waitForURL(/\/storage$/, { timeout: 10_000 });
+    await second.getByRole('button', { name: 'Use your own account' }).waitFor({ timeout: 10_000 });
+    await snap(second, 'second-user-storage-page');
+    const mine = await second.evaluate(
+      async () => ((await (await fetch('/v1/auth/me')).json()) as { data: { workspaces: unknown[] } }).data,
+    );
+    if (mine.workspaces.length !== 1) throw new Error(`second user has ${mine.workspaces.length} workspaces`);
+    return 'banner links to the Storage page; one workspace';
   });
 
   await browser.close();

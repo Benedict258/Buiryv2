@@ -25,14 +25,14 @@ const STORAGE = [
   [
     'byo',
     'Bring your own account',
-    'You own the storage account; requires a connected wallet.',
+    'Your own Walrus Memory account: after creating the project, connect it on the Storage page with a delegate key.',
     'You control the account; the relayer still sees text while processing.',
   ],
   [
     'self_hosted',
     'Self-hosted relayer',
-    'Advanced.',
-    'You run the relayer; Buiry never sees the plaintext path.',
+    'Not available yet.',
+    'Running your own relayer is planned; choose one of the options above for now.',
   ],
 ] as const;
 
@@ -78,6 +78,9 @@ export function Onboarding() {
   }, []);
   const [mode, setMode] = useState<(typeof STORAGE)[number][0]>('managed');
   const [policy, setPolicy] = useState<{ managedAvailable: boolean; reason?: string } | null>(null);
+  // Self-hosting is not built; managed is unavailable when the shared account serves another workspace.
+  const unavailable = (id: string) =>
+    id === 'self_hosted' || (id === 'managed' && policy?.managedAvailable === false);
   useEffect(() => {
     if (step !== 1 || !ws) return;
     api<{ managedAvailable: boolean; reason?: string }>(`/v1/workspaces/${ws}/storage-policy`)
@@ -270,17 +273,11 @@ export function Onboarding() {
                     className="radio-card"
                     role="radio"
                     aria-checked={mode === id}
-                    aria-disabled={id === 'managed' && policy?.managedAvailable === false}
+                    aria-disabled={unavailable(id)}
                     tabIndex={0}
-                    style={
-                      id === 'managed' && policy?.managedAvailable === false ? { opacity: 0.5 } : undefined
-                    }
-                    onClick={() => !(id === 'managed' && policy?.managedAvailable === false) && setMode(id)}
-                    onKeyDown={(e) =>
-                      (e.key === ' ' || e.key === 'Enter') &&
-                      !(id === 'managed' && policy?.managedAvailable === false) &&
-                      setMode(id)
-                    }
+                    style={unavailable(id) ? { opacity: 0.5 } : undefined}
+                    onClick={() => !unavailable(id) && setMode(id)}
+                    onKeyDown={(e) => (e.key === ' ' || e.key === 'Enter') && !unavailable(id) && setMode(id)}
                   >
                     <input type="radio" checked={mode === id} readOnly tabIndex={-1} aria-hidden />
                     <div>
