@@ -30,6 +30,13 @@ Legend: **done** (implemented and tested), **mocked** (tested only against a moc
 
 - Baseline (`pnpm typecheck && pnpm lint && pnpm test`) also passes on Windows. The 0600 check on the credentials file is a conditional assertion inside its test: it is not made on Windows (NTFS has no POSIX modes) and still runs on Linux and macOS.
 
+## Final checks (Phase E, 2026-11-18)
+
+- Gate: 487 tests in 53 files; conformance 30/30.
+- Testnet smoke run: 6 of 6 memories stored in 204 s, briefing p50 63 ms, recall p50 1.9 s (one recall took 18 s).
+- Dashboard walkthrough on the rebuilt dashboard: 21/21.
+- HANDOFF sections 4, 5 and 10 rewritten.
+
 ## Onboarding under the single-tenant guard (Phase D, 2026-11-18)
 
 - First sign-in still creates a personal workspace; onboarding now names and reuses it (no second workspace).

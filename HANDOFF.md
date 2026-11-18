@@ -70,6 +70,18 @@ Root `LICENSE` is now a short per-package notice (Apache-2.0 for core, mcp, cli;
 
 ## 4. State of the build
 
+### Current (2026-11-18, after Phases A to E)
+
+- `main` is green: typecheck (root and dashboard), ESLint, Prettier, 487 tests in 53 files; conformance 30/30. `pnpm audit --prod` 0.
+- Security review: every high, medium and low finding is fixed with a regression test. What is still open is listed in `docs/SECURITY_REVIEW.md`: per-process limits, API token default expiry, CSP, least-privilege database user, and dev-only advisories.
+- Key custody: `BUIRY_SECRET_KEY` rotation (`dist-server/rotate-key.js`, `BUIRY_SECRET_KEY_PREVIOUS`) and the Walrus delegate runbooks are in `docs/KEY_CUSTODY.md`.
+- Backups: dump and restore scripts, `Dockerfile.backup`, a scheduled task in `infra/aws/backup.tf`, and recovery steps in `docs/OPERATIONS.md`.
+- Onboarding: the personal workspace is reused, and a second user is guided to their own Walrus account (BD41).
+- Verified on testnet 2026-11-18:
+  - smoke run: 6 of 6 memories stored, briefing p50 63 ms, recall p50 1.9 s (one recall took 18 s);
+  - dashboard walkthrough 21/21.
+- Not verified here (no Postgres, Docker or AWS on this machine): L-BAK1, L-KEY1, L-AWS1 to L-AWS3. Owner accounts are needed for L-BYO1 and L-M1.
+
 ### Gate (Windows, Node 24.16, pnpm 10.28.0 via corepack)
 
 - At `c182a34` (start of the audit; `ef146be` before the author rewrite): install ok; typecheck ok except that the old script's nested `pnpm` call failed when pnpm was not on PATH; lint ok; 33 files, 372 tests passed.
@@ -141,17 +153,25 @@ Everything in section 3.
 - Per-address rate limit on `/v1/auth/*` also counted signed-in endpoints; now only unauthenticated ones.
 - Retries reusing a failed idempotency key: the fix is in code (`packages/storage/src/write-worker.ts` suffixes the relayer key with `.a<attempt>` on retries), but that it was found by a live run is unverified; it is not recorded in PROGRESS or LOCAL_CHECKS.
 
-## 5. Blockers that need a human
+## 5. Blockers that need a human (in order)
 
-1. **Walrus delegate private key (Mainnet):** in `.env`; the relayer accepts its signatures. Rotate it before the Mainnet cutover; testnet uses its own delegate in `.env.testnet`.
-2. **npm name.** `@buiry/mcp` resolves to the v1 package (0.1.8) per LOCAL_CHECKS (unverified this session). Decide: publish v2 as a new major and deprecate v1, or use a new name. Until then `BUIRY_MCP_COMMAND` overrides what `buiry connect` launches.
-3. **Testnet setup:** done. `.env.testnet` holds the testnet Walrus account and delegate, the Tatum key and the demo inputs. The throwaway Sui address and its key live only in `.buiry-local/sui-testnet/` (gitignored); `~/.sui` was never used.
-4. **OAuth apps** for GitHub and Google, if wanted.
-5. **Rotate keys that were pasted into chat:** the Tatum API key now, the Walrus delegate once checks are done. (No key value was found in tracked files or git history in this session.)
-6. **Tatum decision** (section 9).
-7. **Legal re-read of the root `LICENSE` notice** before anything is published.
-8. **Backup tag:** delete the local tag `backup-before-author-rewrite` once the rewritten history is confirmed (section 7).
-9. Anything in `LOCAL_CHECKS.md` that still reads blocked, partial, not run or needs you.
+1. **Rotate the keys that were pasted into chat**: the Tatum API key now (new key in the Tatum dashboard, update `.env.testnet` and `.env`, revoke the old one). Rotate the Walrus delegates later, following `docs/KEY_CUSTODY.md`.
+2. **Local Postgres checks**: L-BAK1 (dump and restore round trip) and L-KEY1 (secret key rotation on Postgres). Exact commands are in `LOCAL_CHECKS.md`; they need Docker or Postgres 16 tools.
+3. **Second testnet Walrus account** for L-BYO1: put `WALRUS_BYO_TEST_RELAYER_URL`, `WALRUS_BYO_TEST_ACCOUNT_ID` and `WALRUS_BYO_TEST_DELEGATE_KEY` in `.env.testnet`, then run `scripts/byo-live.ts`.
+4. **SMTP account** for one live sign-in email (L-M1).
+5. **Container images** (L-AWS1): `docker build` of `Dockerfile` and `Dockerfile.backup`, a run against Postgres, then pin both by digest.
+6. **AWS choices and plan** (L-AWS2): region, domain, RDS instance class, backup retention and the backup bucket's account or region. Check prices on AWS. Run `terraform plan` and review it.
+7. **Apply and deploy** (L-AWS3):
+   - set every secret in Secrets Manager;
+   - set `BUIRY_MANAGED_WORKSPACE_ID` to your workspace;
+   - run the migration task, scale the services;
+   - run `scripts/smoke-deploy.ts` and check that rate limits behave behind the ALB (`BUIRY_TRUSTED_PROXY_HOPS=1`).
+8. **npm names** in `release.json` (BD39), a legal re-read of the root `LICENSE` notice, then publish with your npm account.
+9. **Tatum keep-or-move decision** (section 9): read the dashboard credit usage against the recorded call counts (A9).
+10. **Before public exposure**: decide on the "still open" items in `docs/SECURITY_REVIEW.md` (shared rate-limit store, API token default expiry, CSP, least-privilege DB user).
+11. **OAuth apps** for GitHub and Google, if wanted.
+12. **Backup tag**: delete the local tag `backup-before-author-rewrite` once the rewritten history is confirmed (section 7).
+13. **Mainnet cutover** (section 10), last.
 
 ## 6. Setup and commands
 
@@ -252,12 +272,12 @@ Plan: keep it, do not expand it. To decide, the owner reads real credit usage on
 
 ## 10. Prioritised next steps (each with an acceptance check)
 
-1. Done: Parts A, B and C. Testnet preflight, L-W1T and L-W2T verified; two testnet-only differences fixed with regression tests.
-2. Done: testnet demo package (Part D). `DEMO_PACKAGE_ID` `0xed715e4509f98b2c4ee0d9af96e7f6d6417534d3f053e1cce50a830967b03cc9`, `DEMO_TX_DIGEST` `3BwSg4N1h2afycg15oeMcjq4C6Hg6TfXtESC882D8N3g`; the verifier reports the upgrade.
-3. Done: live demo on testnet (L-D1), including the fresh-package run where the upgrade happens between sessions (`pnpm demo --live --fresh-package`); see `docs/EVIDENCE.md`.
-4. Tenant isolation: decided, bring-your-own first (BD36). Built and tested on mocks; the managed account is single-tenant unless `BUIRY_MANAGED_MULTI_TENANT=1`. Remaining: L-BYO1 live (needs a second testnet account). Superseded note follows. **Decide tenant isolation for managed mode.** One account holds every tenant and a Seal session reaches the whole account, with keys that outlive the session (A26). Options: (a) one Walrus Memory account per tenant managed by Buiry, (b) bring-your-own account per customer, (c) a self-hosted relayer and contract. Accept when the chosen mode is in the architecture doc and the isolation suite covers it.
-5. Security review: every high, medium and low finding is fixed with a test (Phase A). Before public exposure, review the "Still open" list in `docs/SECURITY_REVIEW.md` (per-process limits, API token default expiry, CSP, least-privilege DB user).
-6. Onboarding (Phase D, BD41): resolved; the personal workspace is reused and a second user is guided to their own account. In production set `BUIRY_MANAGED_WORKSPACE_ID` to the owner workspace. Deploy path: L-AWS1 (docker build against Postgres), L-AWS2 (terraform plan), then L-AWS3 (apply, migrate, smoke). Before production: pin the base image by digest, add the off-site logical backup, a least-privilege database user, and a re-seal tool for BUIRY_SECRET_KEY rotation. Before publishing: the owner confirms the npm names in `release.json` (BD39) and publishes with their npm account (`npm publish` in each `.buiry-local/release/stage/*` after `pnpm release:pack`). Renewal is done (BD37, L-R1). Before Mainnet: decide whether `BUIRY_RENEWAL` is on and the renewal margin, since each renewal is a paid write. After the demo: retention and renewal for Walrus expiry (including A29); deployment, backups and monitoring; npm naming (the v1 package owns `@buiry/mcp`); the Tatum decision.
+1. Done: testnet demo, live checks, security review with every finding fixed, key custody tooling, backups, onboarding under the single-tenant guard. See section 4 and `docs/PROGRESS.md`.
+2. **Postgres checks** (L-BAK1, L-KEY1). Accept when both outputs match the expected lines in `LOCAL_CHECKS.md`.
+3. **Deploy to AWS on testnet first** (L-AWS1 to L-AWS3). Accept when `scripts/smoke-deploy.ts --network testnet` passes against the live URL, a memory is stored from a connected agent, and the first scheduled backup appears in the bucket.
+4. **Restore drill** on the deployed stack (`docs/OPERATIONS.md`). Accept when a restored copy passes `buiry doctor` and lists a known blob id.
+5. **L-BYO1 and L-M1** with the owner's accounts. Accept when `byo-live.ts` prints PASS and a sign-in email arrives and works once.
+6. **Publish** the three packages under the confirmed names. Accept when `pnpm release:smoke` passes against the registry versions.
 7. **Mainnet cutover checklist** (a deliberate flip at the end):
    - Separate keys and a separate `.env.mainnet`; never reuse testnet keys.
    - **Delegate rotation procedure:** in the Mainnet Walrus Memory dashboard (owner wallet), add a new delegate key and put its private half only in `.env.mainnet`; run the preflight and L-W1 with it; then remove the old delegate. Removing a delegate raises the account's `access_counter_version`, so the removed key cannot fetch keys for new memories. Keys it already fetched still decrypt the memories they were fetched for (A26), so treat a leaked delegate or session as having exposed those memories. Rotate the Tatum API key the same way (new key, verify, revoke old).
