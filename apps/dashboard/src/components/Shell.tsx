@@ -1,5 +1,13 @@
 import { useContext, useMemo, useState } from 'react';
-import { Link, NavLink, Outlet, useNavigate, useParams, useSearchParams } from 'react-router-dom';
+import {
+  Link,
+  NavLink,
+  Outlet,
+  useLocation,
+  useNavigate,
+  useParams,
+  useSearchParams,
+} from 'react-router-dom';
 import {
   Activity as ActivityIcon,
   BarChart3,
@@ -36,7 +44,7 @@ import { useApp, useProjectStream, useQuery } from '../lib/app';
 import { WsContext, ProjContext } from '../lib/ctx';
 const WC = WsContext;
 const PC = ProjContext;
-import type { Flag, ProjectCard, StatusOut } from '../lib/types';
+import type { Flag, ProjectCard, ProjectStorageView, StatusOut } from '../lib/types';
 import { Banner, BranchPill, Popover, Toasts } from './ui';
 import { CommandPalette } from './CommandPalette';
 import { MemoryDrawer } from '../pages/MemoryDrawer';
@@ -426,6 +434,14 @@ export function ProjectLayout() {
     refreshMs: 30_000,
   });
   useProjectStream(pid);
+  // Under the single-tenant shared account (or a project set up for its own account), agents cannot store
+  // memories until the project's own Walrus account is connected: say so on every page, with the way forward.
+  const loc = useLocation();
+  // Re-read on navigation, so the banner clears as soon as an account is connected on the Storage page.
+  const storageAccount = useQuery(
+    () => api<ProjectStorageView>(`/v1/projects/${pid}/storage/account`),
+    [pid, loc.pathname],
+  );
   const project = wsCtx.projects.data?.find((p) => p.id === pid);
   const base = `/w/${ws}/p/${pid}`;
   const value = useMemo(
@@ -464,6 +480,15 @@ export function ProjectLayout() {
     );
   return (
     <ProjContext.Provider value={value}>
+      {storageAccount.data?.needsOwnAccount && !loc.pathname.endsWith('/storage') && (
+        <Banner kind="warning" full action={<Link to={`${base}/storage`}>Connect a storage account</Link>}>
+          {storageAccount.data.requested === 'byo'
+            ? 'This project stores memories in its own Walrus Memory account, which is not connected yet.'
+            : "This deployment's shared storage serves another workspace."}{' '}
+          Agents can read this project now; they can store memories once you connect a Walrus Memory account
+          on the Storage page.
+        </Banner>
+      )}
       {degraded.map((d) => (
         <Banner key={d} kind="warning" full action={<Link to={`${base}/storage`}>Storage health</Link>}>
           {d}

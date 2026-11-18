@@ -31,7 +31,7 @@ export interface Me {
   email: string | null;
   displayName: string | null;
   identities: { provider: string; subject: string }[];
-  workspaces: { id: string; name: string; role: Role; plan: string }[];
+  workspaces: { id: string; name: string; role: Role; plan: string; projects?: number }[];
 }
 export type Role = 'reader' | 'writer' | 'admin' | 'owner';
 export interface ProjectCard {
@@ -277,4 +277,6 @@ export interface ProjectStorageView {
   delegatePublicKey?: string;
   updatedAt?: string;
   managedAllowed: boolean;
+  requested?: 'byo';
+  needsOwnAccount?: boolean;
 }

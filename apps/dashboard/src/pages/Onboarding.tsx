@@ -58,7 +58,11 @@ export function Onboarding() {
     }
   }, [step, ws, pid]);
 
-  const [wsName, setWsName] = useState(me?.displayName ? `${me.displayName}'s workspace` : '');
+  // First sign-in already created a personal workspace; onboarding reuses it while it has no projects.
+  const reusable = me?.workspaces.find((w) => w.role === 'owner' && (w.projects ?? 0) === 0);
+  const [wsName, setWsName] = useState(
+    reusable?.name ?? (me?.displayName ? `${me.displayName}'s workspace` : ''),
+  );
   const [kind, setKind] = useState<'personal' | 'team'>('personal');
   const [pname, setPname] = useState('');
   const [desc, setDesc] = useState('');
@@ -73,6 +77,16 @@ export function Onboarding() {
       .catch(() => {});
   }, []);
   const [mode, setMode] = useState<(typeof STORAGE)[number][0]>('managed');
+  const [policy, setPolicy] = useState<{ managedAvailable: boolean; reason?: string } | null>(null);
+  useEffect(() => {
+    if (step !== 1 || !ws) return;
+    api<{ managedAvailable: boolean; reason?: string }>(`/v1/workspaces/${ws}/storage-policy`)
+      .then((p) => {
+        setPolicy(p);
+        if (!p.managedAvailable) setMode('byo');
+      })
+      .catch(() => setPolicy(null));
+  }, [step, ws]);
   const [pm, setPm] = useState<'npm' | 'pnpm' | 'yarn' | 'bun'>('npm');
   const [tool, setTool] = useState<string>('claude-code');
   const [agent, setAgent] = useState<{ token: string } | null>(null);
@@ -132,6 +146,12 @@ export function Onboarding() {
 
           {step === 0 && (
             <>
+              {reusable && (
+                <p className="small muted" style={{ margin: 0 }}>
+                  Your workspace was created when you signed in. Give it a name; no second workspace is
+                  created.
+                </p>
+              )}
               <Field label="Workspace name">
                 {(id) => (
                   <input
@@ -166,11 +186,23 @@ export function Onboarding() {
                   disabled={!wsName.trim()}
                   onClick={() =>
                     wrap(async () => {
-                      const w = await api<{ id: string }>('/v1/workspaces', {
-                        method: 'POST',
-                        body: { name: wsName.trim() },
-                      });
-                      setWs(w.id);
+                      let id: string;
+                      if (reusable) {
+                        id = reusable.id;
+                        if (wsName.trim() !== reusable.name)
+                          await api(`/v1/workspaces/${id}`, {
+                            method: 'PATCH',
+                            body: { name: wsName.trim() },
+                          });
+                      } else {
+                        id = (
+                          await api<{ id: string }>('/v1/workspaces', {
+                            method: 'POST',
+                            body: { name: wsName.trim() },
+                          })
+                        ).id;
+                      }
+                      setWs(id);
                       await refreshMe();
                       setStep(1);
                     })
@@ -224,6 +256,12 @@ export function Onboarding() {
                   ))}
                 </div>
               </div>
+              {policy && !policy.managedAvailable && (
+                <Banner kind="info">
+                  {policy.reason} After creating the project you connect the account on its Storage page;
+                  agents can read the project right away and store memories once it is connected.
+                </Banner>
+              )}
               <div className="field" role="radiogroup" aria-label="Storage">
                 <span className="lab">Storage</span>
                 {STORAGE.map(([id, name, d, trust]) => (
@@ -232,15 +270,27 @@ export function Onboarding() {
                     className="radio-card"
                     role="radio"
                     aria-checked={mode === id}
+                    aria-disabled={id === 'managed' && policy?.managedAvailable === false}
                     tabIndex={0}
-                    onClick={() => setMode(id)}
-                    onKeyDown={(e) => (e.key === ' ' || e.key === 'Enter') && setMode(id)}
+                    style={
+                      id === 'managed' && policy?.managedAvailable === false ? { opacity: 0.5 } : undefined
+                    }
+                    onClick={() => !(id === 'managed' && policy?.managedAvailable === false) && setMode(id)}
+                    onKeyDown={(e) =>
+                      (e.key === ' ' || e.key === 'Enter') &&
+                      !(id === 'managed' && policy?.managedAvailable === false) &&
+                      setMode(id)
+                    }
                   >
                     <input type="radio" checked={mode === id} readOnly tabIndex={-1} aria-hidden />
                     <div>
                       <strong>
                         {name}
-                        {id === 'managed' ? ' (recommended)' : ''}
+                        {id === 'managed'
+                          ? policy?.managedAvailable === false
+                            ? ' (not available here)'
+                            : ' (recommended)'
+                          : ''}
                       </strong>
                       <div className="small muted">{d}</div>
                       <div className="small faint">{trust}</div>
