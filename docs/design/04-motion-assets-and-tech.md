@@ -79,7 +79,7 @@ Duration ranges below are **opinion**, within the spec's guidance for interface 
   - everything else gets `no-cache`;
   - every response gets `x-content-type-options: nosniff`.
 - **API responses** add `cache-control: no-store` and `referrer-policy: no-referrer` (`packages/api/src/http/app.ts:141`–`:143`).
-- **Compression.** The server does not compress responses (no gzip or brotli in `packages/api/src`). Whether the AWS load balancer compresses is UNVERIFIED; the Terraform sets nothing for it.
+- **Compression.** Since Phase 2.4 the server compresses the dashboard's text assets itself (brotli quality 9, else gzip, per `Accept-Encoding`; `packages/api/src/http/static-compression.ts`). Fonts are sent as they are.
 - **Code splitting.** None: one JS chunk (no `lazy()` or dynamic `import()` in `apps/dashboard/src`).
 
 ### Measured bundle sizes (dashboard build, 2026-11-18)
@@ -114,7 +114,7 @@ total .woff2: raw 295.6 KiB, gzip 295.9 KiB, brotli 295.6 KiB
 **Reading the output.**
 
 - Browsers download only the font subsets a page uses (fontsource declares `unicode-range`). An English page loads about 47 KiB of Inter latin and 40 KiB of JetBrains Mono latin.
-- The single JS file is 406 KiB raw. Because the server does not compress, that is what crosses the wire unless something in front compresses it.
+- The single JS file is 406 KiB raw. Since Phase 2.4 the server sends it brotli-compressed: **108.1 KiB** as served. The 100.2 KiB brotli figure above is from this throwaway script, which uses Node's default brotli quality (11); the server uses quality 9 to compress quickly on first request, so 108.1 KiB is the correct figure for what browsers receive. The JS file was also rebuilt in between (Phase 2.3 stopped inlining fonts), with the same raw size.
 
 ### Where the marketing site should live
 
@@ -132,13 +132,13 @@ total .woff2: raw 295.6 KiB, gzip 295.9 KiB, brotli 295.6 KiB
 
 ### Performance budgets and Core Web Vitals (targets are opinion)
 
-| Target                      | Marketing pages                                               | Dashboard (signed in)                                                                     |
-| --------------------------- | ------------------------------------------------------------- | ----------------------------------------------------------------------------------------- |
-| Largest Contentful Paint    | ≤ 2.5 s on mid-range mobile                                   | ≤ 2.5 s after sign-in                                                                     |
-| Interaction to Next Paint   | ≤ 200 ms                                                      | ≤ 200 ms                                                                                  |
-| Cumulative Layout Shift     | ≤ 0.1                                                         | ≤ 0.1                                                                                     |
-| JS transferred (compressed) | ≤ 100 KiB per page, excluding a hero runtime only if approved | today 118 KiB gzip if compressed, 406 KiB if not; code splitting would cut the first load |
-| Fonts                       | ≤ 2 families, latin subset preloaded                          | as today                                                                                  |
+| Target                      | Marketing pages                                               | Dashboard (signed in)                                                                           |
+| --------------------------- | ------------------------------------------------------------- | ----------------------------------------------------------------------------------------------- |
+| Largest Contentful Paint    | ≤ 2.5 s on mid-range mobile                                   | ≤ 2.5 s after sign-in                                                                           |
+| Interaction to Next Paint   | ≤ 200 ms                                                      | ≤ 200 ms                                                                                        |
+| Cumulative Layout Shift     | ≤ 0.1                                                         | ≤ 0.1                                                                                           |
+| JS transferred (compressed) | ≤ 100 KiB per page, excluding a hero runtime only if approved | today 108.1 KiB brotli as served (117.9 gzip; 406 raw); code splitting would cut the first load |
+| Fonts                       | ≤ 2 families, latin subset preloaded                          | as today                                                                                        |
 
 These are the common Web Vitals "good" thresholds; they have not been measured on the current dashboard.
 
@@ -156,8 +156,8 @@ These are the common Web Vitals "good" thresholds; they have not been measured o
 
 ### Content Security Policy
 
-- **No CSP is set today** (`docs/SECURITY_REVIEW.md`, "Still open"). HSTS and `frame-ancestors` are not set either: there is no `strict-transport-security` or framing header in `packages/api/src` or `infra/aws`.
-- **What affects a future CSP:**
+- **A CSP is enforced** on every response since Phase 2.3: `default-src 'self'` with `script-src`, `style-src`, `font-src` and `connect-src` all `'self'`, `img-src 'self' data:`, `frame-ancestors 'none'`, plus `X-Frame-Options: DENY`, `X-Content-Type-Options: nosniff`, `Referrer-Policy: no-referrer`, and HSTS over https only (`packages/api/src/http/security-headers.ts`). 0 violations over 94 screens on the production build in Chrome 157 (2026-11-18).
+- **What would require changing the CSP:**
   - **Fonts:** self-hosted today, so `font-src 'self'` works. Google Fonts or another font CDN would add origins.
   - **Animation runtimes:** Rive's WebAssembly needs `wasm-unsafe-eval`; some Lottie players need `unsafe-eval` for expressions. Both are UNVERIFIED and must be checked against the chosen versions.
   - **Analytics:** adds `script-src` and `connect-src` origins.

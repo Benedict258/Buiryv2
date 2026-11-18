@@ -98,6 +98,33 @@ No critical findings.
 - **Least-privilege database user** for the app (the deployment uses the RDS master user; see DEPLOYMENT).
 - **Dev-only advisories** (picomatch, minimatch) as above, no fixed releases in range.
 
+## M8: an agent can auto-promote its own memory (found 2026-11-18, open)
+
+- **Severity: medium.** It needs a precondition (a valid agent token for the project). It defeats the anti-gaming rule that only other sessions' reports promote a memory (BD9), so an agent's unreviewed memory can become `confirmed` and be weighted as trusted in later briefings.
+- **Code.**
+  - `packages/core/src/learning.ts:255`-`:257`: a helpful report counts toward promotion unless it comes from the creating agent **and** the creating session.
+  - `packages/api/src/service/auth.ts:88`: the session id is the client-supplied `x-buiry-session` header, or a fresh id for every request when the header is absent.
+  - Promotion needs 3 counted reports from 2 distinct sessions (`learning.ts:52`), with at most 2 helpful reports per memory per day (`learning.ts:34`).
+- **Covering tests.** `packages/core/test/learning.test.ts:113` covers only the same agent in the same session. No test covers the same agent in a new session.
+- **Probe (throwaway test, not committed, PGlite, 2026-11-18).** One agent token wrote a memory, then reported it helpful twice on day 0 and once on day 1, with no session header. Result: `proposed` 0.376, then 0.401, then `confirmed` 0.8, "auto-promoted after repeated successful reuse".
+- **Not fixed** (Phase 4 is docs only). A fix would count a report only from a different agent identity, or from a person.
+
+## Finding count (Phase 4.3, 2026-11-18)
+
+- **Review findings** (the summary table): 12, namely 3 high (H1–H3), 7 medium (M1–M7) and 2 low (L1, L2), with no critical. Of these:
+  - 10 are fixed with a regression test;
+  - M4 is fixed for new agent tokens only (API tokens still have no default expiry);
+  - L2 is fixed without its own regression test: `packages/api/test/static.test.ts` tests a `..` escape, not a sibling directory with the same prefix.
+- **Found later:**
+  - three items fixed after the review ("Found after the review");
+  - M8 above (open);
+  - error-text sweep A1–A13, of which A1 and A6 are fixed;
+  - fallback sweep B1–B8, of which B1 and B2 are fixed for production.
+
+  The sweep items have no severity assigned yet.
+
+- **Wording.** The line "12 findings (3 high, 7 medium, 2 low), all fixed with regression tests" was wrong about "all fixed with regression tests". It is corrected in `docs/design/01` and `03` and in `docs/ARCHITECT_BRIEFING.md`.
+
 ## Security headers (Phase 2.3, 2026-11-18)
 
 Every response from the single HTTP listener now carries the headers below (`packages/api/src/http/security-headers.ts`, set in `startHttp`). That covers REST, MCP, the dashboard's static files and the SPA fallback, and error answers.

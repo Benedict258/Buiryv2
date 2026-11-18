@@ -32,9 +32,9 @@ Buiry is a shared project memory for AI coding agents.
 
 **Gate and tests.**
 
-- Typecheck (root and dashboard), ESLint and Prettier pass, and all 487 tests in 53 files pass.
+- Typecheck (root and dashboard), ESLint and Prettier pass; 500 tests pass and 2 Postgres-only tests are skipped (57 files). The isolation suite has 39 tests.
 - Conformance passes 30/30.
-- `pnpm audit --prod` reports 0 advisories.
+- `pnpm audit --prod`: "No known vulnerabilities found" (2026-11-18, production dependencies only).
 - Recorded in: `HANDOFF.md` s4 and `docs/PROGRESS.md` ("Final checks").
 
 **Built.** Every package in section 5, the dashboard, the CLI, and these additions:
@@ -66,7 +66,7 @@ Buiry is a shared project memory for AI coding agents.
 - expiry: 15 epochs, about 210 days (L-W1, L-W2);
 - Tatum Mainnet gRPC (L-T0, L-T2).
 
-**Verified against real Postgres once** (L-A3, L-A4): migrations 001–005 and row-level security. **Migrations added since then have run only on PGlite.**
+**Verified against real Postgres** (L-PG1, 2026-11-18): migrations 001–009, row-level security and the isolation suite, 43 tests on PostgreSQL 16.15 in a throwaway container. Earlier: L-A3, L-A4. **Backups are unproven:** the backup passed and the restore failed (L-BAK1).
 
 **Verified only on mocks or PGlite:**
 
@@ -74,8 +74,8 @@ Buiry is a shared project memory for AI coding agents.
 - relayer rate limits under sustained load;
 - bring-your-own accounts (L-BYO1 is waiting for a second account);
 - the SMTP mailer (fake server only);
-- key rotation (L-KEY1 is pending on Postgres);
-- backups (L-BAK1 used stub tools);
+- key rotation (L-KEY1 not run on Postgres);
+- backups (stub tools in tests; on Postgres the restore failed, L-BAK1);
 - every Terraform and Docker artifact.
 
 **Not verified at all:**
@@ -91,7 +91,7 @@ Buiry is a shared project memory for AI coding agents.
 
 **Security review** (`docs/SECURITY_REVIEW.md`). It is an internal code reading, not a penetration test.
 
-- There are no critical findings. All 12 findings are fixed with regression tests: three high (H1–H3), seven medium (M1–M7) and two low (L1, L2). M4 is fixed only for new agent tokens.
+- There are no critical findings. 12 review findings: three high (H1–H3), seven medium (M1–M7) and two low (L1, L2). 10 are fixed with regression tests; M4 is fixed only for new agent tokens; L2 is fixed without its own regression test.
 
 **Load and latency** (`docs/LOAD.md`). The local runs used PGlite on one Windows machine with sequential calls; treat them as indicative only.
 
@@ -112,7 +112,7 @@ Buiry is a shared project memory for AI coding agents.
 
 1. Rate limits, SSE caps and MCP sessions are held per process: N API tasks allow N times each limit, and a restart resets them.
 2. API tokens have no default expiry. Agent tokens issued before the expiry change (M4) have none either.
-3. The dashboard sets no Content Security Policy.
+3. Error-text sweep items A2–A5, A7, A10 and A12, and the self-promotion finding (`docs/SECURITY_REVIEW.md`). The CSP is enforced since Phase 2.3.
 4. The app connects as the RDS master user, not a least-privilege database user.
 5. Two dev-only advisories (picomatch, minimatch) have no fixed release in range.
 6. The worker's job handlers, supply chain and expensive-query denial of service were not reviewed.
@@ -197,7 +197,7 @@ pnpm monorepo, TypeScript (strict, ESM), Node 20 or newer. Source of truth: `doc
 - Verified evidence raises confidence, up to 0.9.
 - Each "helpful" report raises confidence. At most two increases count per memory per day; an agent's report weighs 0.5 and a person's 1.0.
 - Confidence decays with a half-life that depends on the memory type, applied when the memory is read.
-- Auto-promotion counts only reports from sessions other than the creator's (BD9). An agent never confirms its own memory (BD11).
+- Auto-promotion counts only reports from sessions other than the creator's (BD9). An agent never confirms its own memory directly (BD11). **But** the same agent token in a new session counts as another session, so an agent can auto-promote its own memory (finding 2026-11-18, open).
 - Projects can override the rules (BD27).
 - Agents never see scores (BD29).
 
@@ -331,4 +331,4 @@ Constraints for this work:
 
 ## 10. Last updated
 
-Matches commit `eb82230` on `main` ("docs: Phase E final checks, HANDOFF state, owner steps and next steps rewritten"), the commit before the one that adds this file.
+Facts refreshed in Phase 4 (2026-11-18): 100 routes, the Phase 2 hardening (BD42, security headers with an enforced CSP, compression) and the Phase 3 check results. Matches `main` as of the Phase 4 commit; earlier text matched `eb82230`.

@@ -11,7 +11,7 @@ Part of the design report (`00-index.md`). These are inputs for the copywriter a
   - calls to action must say "join the preview" or "bring your Walrus Memory account", or the owner must decide to run multi-tenant managed mode and accept A26.
 - **The install command is blocked.**
   - Nothing is published (BD39), and the npm names are still the owner's call.
-  - The dashboard and onboarding show `npx buiry ...`, but the release name for the CLI is `@buiry/cli` (`release.json`), not `buiry`. What `npx buiry` would fetch today is UNVERIFIED.
+  - The dashboard and onboarding show `npx buiry ...`, but the release name for the CLI is `@buiry/cli` (`release.json`), not `buiry`. `npm view buiry` returned E404 on 2026-11-18, so it fetches nothing. The owner chose `npx @buiry/cli` (decision 16); it is unpublished too.
   - No page may show an install command until the packages are published under confirmed names.
 - **The open-source block is blocked** until the licence notice is re-read (BD1) and the packages are published. Only `core`, `mcp` and `cli` are Apache-2.0; everything else is proprietary.
 - **Name the network.** Every proof says "Sui testnet" unless it is the 2026-11-10 Mainnet check (section 4).
@@ -64,13 +64,13 @@ Part of the design report (`00-index.md`). These are inputs for the copywriter a
 
 ### Candidate positioning lines
 
-| #   | Line (candidate)                                                             | Claims it relies on                                                     | Risks                                                                                                      |
-| --- | ---------------------------------------------------------------------------- | ----------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------- |
-| 1   | Project memory that every coding agent shares.                               | MCP tools work across clients (L-M2 config; L-B1 Claude Code, OpenCode) | "Every" overclaims: Cursor not run, Codex no behaviour run. Say "any MCP client" only with that qualifier. |
-| 2   | Your agents remember what failed, and notice when a fact goes stale.         | Failure-first briefing and drift (L-D1, testnet)                        | One live run; testnet only.                                                                                |
-| 3   | Memory that belongs to the project, not the tool.                            | Memory stored per project on Walrus; export packs                       | Implies portability across deployments; re-index from Walrus is not built.                                 |
-| 4   | Every memory shows its source, and confidence is earned, never self-granted. | Evidence, BD9, BD11, the provenance tab                                 | Unit-tested on mocks; the confidence rules are not tuned on real usage.                                    |
-| 5   | Verifiable project memory, stored on Walrus and checked on Sui.              | L-W1T, L-D1, L-T4                                                       | "Verifiable" invites "verified by whom?"; only chain evidence is checked. Must name testnet.               |
+| #   | Line (candidate)                                                             | Claims it relies on                                                     | Risks                                                                                                                                                            |
+| --- | ---------------------------------------------------------------------------- | ----------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 1   | Project memory that every coding agent shares.                               | MCP tools work across clients (L-M2 config; L-B1 Claude Code, OpenCode) | "Every" overclaims: Cursor not run, Codex no behaviour run. Say "any MCP client" only with that qualifier.                                                       |
+| 2   | Your agents remember what failed, and notice when a fact goes stale.         | Failure-first briefing and drift (L-D1, testnet)                        | One live run; testnet only.                                                                                                                                      |
+| 3   | Memory that belongs to the project, not the tool.                            | Memory stored per project on Walrus; export packs                       | Implies portability across deployments; re-index from Walrus is not built.                                                                                       |
+| 4   | Every memory shows its source, and confidence is earned, never self-granted. | Evidence, BD9, BD11, the provenance tab                                 | Unit-tested on mocks; the confidence rules are not tuned on real usage. Since 2026-11-18 known false: an agent can promote its own memory through a new session. |
+| 5   | Verifiable project memory, stored on Walrus and checked on Sui.              | L-W1T, L-D1, L-T4                                                       | "Verifiable" invites "verified by whom?"; only chain evidence is checked. Must name testnet.                                                                     |
 
 ### Proof points (all need the qualifiers in section 4)
 
@@ -78,7 +78,7 @@ Part of the design report (`00-index.md`). These are inputs for the copywriter a
 - **Failure first:** a second agent identity's first briefing listed the first agent's failure first (testnet, scripted).
 - **Storage report:** every stored memory has a Walrus blob id in the storage and verification report (testnet; the ids lapse around 2026-11-21).
 - **Behaviour:** in our test of 10 behaviours (one run each), Claude Code called check first, ignored a planted instruction, and refused to store a secret (testnet).
-- **Security:** an internal security review found 12 issues, all fixed with tests (by the code's author; not an audit).
+- **Security:** an internal security review found 12 issues (3 high, 7 medium, 2 low); 10 are fixed with regression tests, M4 is fixed for new agent tokens only, and L2 is fixed without its own test (by the code's author; not an audit). Later sweep items and a self-promotion finding are open.
 
 ### Objections, with honest answers
 

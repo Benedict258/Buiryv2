@@ -44,6 +44,6 @@ Full list with recommendations in section 12.
 - `HANDOFF.md` is now current state only; history moved to `Development.md`.
 - Status notes were added to `docs/01`–`03`.
 - Two report-only sweeps were appended to `docs/SECURITY_REVIEW.md`.
-- L-PG1 (migrations on real Postgres 16) was added to `LOCAL_CHECKS.md`.
+- L-PG1 (migrations on real Postgres 16) was added to `LOCAL_CHECKS.md`; it passed on 2026-11-18 (43 tests, PostgreSQL 16.15).
 
 Details are in `Development.md`.
