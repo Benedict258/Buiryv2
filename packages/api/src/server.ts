@@ -106,7 +106,13 @@ export async function buildRuntime(env: Env = process.env): Promise<Runtime> {
   const gateway = createGatewayIfConfigured(env, { sink: tatumCallSink(deps) });
   if (gateway) deps.gateway = gateway;
   let adapter: WalrusMemoryAdapter | undefined;
-  if (env.WALRUS_RELAYER_URL && env.WALRUS_DELEGATE_KEY && env.WALRUS_ACCOUNT_ID) {
+  // BUIRY_MANAGED=off: no shared account even when WALRUS_* are present (first deploy, BD42).
+  if (
+    env.BUIRY_MANAGED !== 'off' &&
+    env.WALRUS_RELAYER_URL &&
+    env.WALRUS_DELEGATE_KEY &&
+    env.WALRUS_ACCOUNT_ID
+  ) {
     adapter = buildWalrusAdapter(
       {
         relayerUrl: env.WALRUS_RELAYER_URL,

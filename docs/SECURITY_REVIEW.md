@@ -169,6 +169,8 @@ Client-side only, so not a server leak:
 | B7  | `packages/api/src/server.ts:54`, `:83`, `:90`, `:161`                           | Console mailer, in-memory database, random development secret key, localhost base URL.                                                                             | Yes: config-check refuses each in production (`config-check.ts:16`, `:19`, `:30`, `:61`).                                       |
 | B8  | Learning settings (BD27)                                                        | Invalid per-project values are ignored, and the service defaults apply.                                                                                            | The Settings page banner says so; it is not an error.                                                                           |
 
+**Phase 2.2 update.** B1 and B2 are fixed for production (BD42): the startup check requires `BUIRY_MANAGED_WORKSPACE_ID` or `BUIRY_MANAGED=off`, and refuses `BUIRY_MANAGED_MULTI_TENANT=1`. Tests are in `packages/api/test/production.test.ts`. Development keeps the first-creator claim.
+
 **Can config-check require `BUIRY_MANAGED_WORKSPACE_ID` or an explicit managed-off in production?** Yes, with a small change.
 
 - **Requiring the workspace id.** `checkProductionConfig` is a pure check over the environment. Inside the block that runs when all three `WALRUS_*` settings are present (`config-check.ts:42`), it could require `BUIRY_MANAGED_WORKSPACE_ID` unless `BUIRY_MANAGED_MULTI_TENANT=1` is set deliberately.

@@ -145,7 +145,7 @@ The bugs found only by live runs are listed in `Development.md`.
 6. **AWS choices and plan** (L-AWS2): region, domain, RDS instance class, backup retention and the backup bucket's account or region. Check prices on AWS. Run `terraform plan` and review it.
 7. **Apply and deploy** (L-AWS3):
    - set every secret in Secrets Manager;
-   - set `BUIRY_MANAGED_WORKSPACE_ID` to your workspace;
+   - first apply with `managed_workspace_id` empty (managed storage off), sign in, then apply again with your workspace id (BD42, `docs/DEPLOYMENT.md`);
    - run the migration task, scale the services;
    - run `scripts/smoke-deploy.ts` and check that rate limits behave behind the ALB (`BUIRY_TRUSTED_PROXY_HOPS=1`).
 8. **npm names** in `release.json` (BD39), a legal re-read of the root `LICENSE` notice, then publish with your npm account.

@@ -18,6 +18,16 @@ variable "image" {
   description = "Container image reference, pinned by digest (repository@sha256:...)."
 }
 
+variable "managed_workspace_id" {
+  type        = string
+  default     = ""
+  description = "Workspace that owns the shared Walrus account (BUIRY_MANAGED_WORKSPACE_ID). Empty on the first deploy: managed storage is then off (BUIRY_MANAGED=off) until you sign in, copy your workspace id and apply again (DEPLOYMENT.md, BD42)."
+  validation {
+    condition     = var.managed_workspace_id == "" || can(regex("^wsp_[0-9A-Z]{26}$", var.managed_workspace_id))
+    error_message = "managed_workspace_id must be empty or a workspace id (wsp_...)."
+  }
+}
+
 variable "sui_network" {
   type        = string
   description = "testnet or mainnet; must match the Walrus account and the Tatum key."

@@ -34,6 +34,12 @@ Rate limits key on the client address. Behind the ALB the task definition sets `
 7. Scale the `api` and `worker` services to their desired counts, or let the apply do it.
 8. Run `pnpm tsx scripts/smoke-deploy.ts https://<domain> --network <testnet|mainnet>`. Then sign in, create a project, connect an agent and check that a memory reaches the Storage page as stored.
 
+**Naming the managed tenant (BD42).** Production refuses to start unless it either names the workspace that owns the shared Walrus account (`BUIRY_MANAGED_WORKSPACE_ID`) or switches managed storage off (`BUIRY_MANAGED=off`). It also refuses `BUIRY_MANAGED_MULTI_TENANT=1`. A workspace id exists only after the first sign-in, so the first deploy runs with managed storage off:
+
+1. Apply with `managed_workspace_id` empty (the default). The task definitions get `BUIRY_MANAGED=off`. The `WALRUS_*` secrets can already hold their values; they are not used while managed storage is off.
+2. Sign in. Your workspace id is in the dashboard URL (`/w/wsp_.../projects`) and in `GET /v1/auth/me`. Do not create a project yet: with managed storage off it could only bring its own account.
+3. Set `managed_workspace_id` to that id in your `*.tfvars`, apply again, and let the services roll. Managed storage then serves only that workspace.
+
 For later deploys: build and push, run `migrate`, then update the services with the new image digest. The deployment circuit breaker rolls back a failing service.
 
 ## Backups and restore

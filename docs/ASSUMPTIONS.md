@@ -35,7 +35,7 @@ The live documentation was read on 2026-10-28 (results in "Step 0 results" below
 
 **Onboarding and tenancy (2026-11-18, Phase D)**
 
-- Without `BUIRY_MANAGED_WORKSPACE_ID`, the first workspace to create a managed project claims the shared account. On a fresh public deployment, that is whoever signs up and creates a project first, so production should set the variable to the owner's workspace id.
+- Without `BUIRY_MANAGED_WORKSPACE_ID`, the first workspace to create a managed project claims the shared account. This now applies to development only: production refuses to start without the variable or an explicit `BUIRY_MANAGED=off` (BD42, Phase 2.2).
 
 **Backups (2026-11-18, Phase C)**
 

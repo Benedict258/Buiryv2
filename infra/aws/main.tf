@@ -345,6 +345,10 @@ locals {
     { name = "BUIRY_TRUSTED_PROXY_HOPS", value = "1" },
     { name = "WALRUS_NETWORK", value = var.sui_network },
     { name = "TATUM_NETWORK", value = var.sui_network },
+    # Managed-account tenancy (BD42): one named workspace, or managed storage off on the first deploy.
+    var.managed_workspace_id == ""
+    ? { name = "BUIRY_MANAGED", value = "off" }
+    : { name = "BUIRY_MANAGED_WORKSPACE_ID", value = var.managed_workspace_id },
   ]
   secrets = [for n in var.secret_names : { name = n, valueFrom = aws_secretsmanager_secret.app[n].arn }]
   container = {

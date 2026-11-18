@@ -3,6 +3,7 @@ import { Ed25519Signer } from '@buiry/storage';
 
 type Env = Record<string, string | undefined>;
 
+const WORKSPACE_ID = /^wsp_[0-9A-Z]{26}$/;
 const PLACEHOLDER = /^(change[-_ ]?me|changeme|secret|password|test|example|placeholder|x+|0+)/i;
 
 /**
@@ -48,6 +49,26 @@ export function productionProblems(env: Env): string[] {
       p.push('WALRUS_DELEGATE_KEY is not a valid Ed25519 key');
     }
   }
+  // Managed-account tenancy (BD42): production names the one workspace that owns the shared account, or switches
+  // managed storage off explicitly. Never "first workspace to create a project wins", never every workspace (A26).
+  const managed = env.BUIRY_MANAGED?.trim();
+  const managedOff = managed === 'off';
+  if (managed && !managedOff) p.push('BUIRY_MANAGED must be off or unset');
+  if (env.BUIRY_MANAGED_MULTI_TENANT === '1')
+    p.push(
+      'BUIRY_MANAGED_MULTI_TENANT=1 is refused in production: one Seal session would reach every workspace on the shared account (A26)',
+    );
+  const tenant = env.BUIRY_MANAGED_WORKSPACE_ID?.trim();
+  if (managedOff && tenant) p.push('set BUIRY_MANAGED_WORKSPACE_ID or BUIRY_MANAGED=off, not both');
+  if (!managedOff) {
+    if (!tenant)
+      p.push(
+        'BUIRY_MANAGED_WORKSPACE_ID is not set: name the workspace that owns the shared storage account, or set BUIRY_MANAGED=off (first deploy: docs/DEPLOYMENT.md)',
+      );
+    else if (!WORKSPACE_ID.test(tenant)) p.push('BUIRY_MANAGED_WORKSPACE_ID is not a workspace id (wsp_...)');
+    if (set.length === 0) p.push('no managed Walrus account is configured (WALRUS_*): set BUIRY_MANAGED=off');
+  }
+
   p.push(...tatumConfigProblems(env)); // the Tatum key is only ever read inside packages/chain
 
   for (const [id, secret] of [
