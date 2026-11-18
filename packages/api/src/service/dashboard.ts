@@ -16,6 +16,7 @@ import {
 } from '@buiry/core';
 import type { Tx } from '../db/db.js';
 import { createAgent, issueAgentToken, revokeAgent } from './admin.js';
+import { claimManagedOnCreate } from './byo-storage.js';
 import { assertManage } from './members.js';
 import { assertProjectNetworks } from './networks.js';
 import { assertAllowed, createMemoryTx, loadMemoryRow, loadProject } from './ops.js';
@@ -156,6 +157,7 @@ export async function createProjectChecked(
     `insert into branches (id, workspace_id, project_id, slug, namespace, protected, created_by) values ($1,$2,$3,'main',$4,true,$5)`,
     [main, p.workspaceId, id, `buiry.v1.${id}.main`, p.userId],
   );
+  if ((input.walrusMode ?? 'managed') === 'managed') await claimManagedOnCreate(deps, tx, p.workspaceId);
   await logActivity(tx, deps, {
     workspaceId: p.workspaceId,
     projectId: id,

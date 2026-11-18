@@ -66,6 +66,10 @@ export interface ProjectStorageView {
   updatedAt?: Date;
   /** Whether this project may use the deployment's managed account (see the managed-tenancy guard). */
   managedAllowed: boolean;
+  /** The project was set up to bring its own account (onboarding choice). */
+  requested?: 'byo';
+  /** Memories cannot be stored until this project's own account is connected. */
+  needsOwnAccount?: boolean;
 }
 
 interface StorageRow {
@@ -117,6 +121,41 @@ async function hasData(tx: Tx, projectId: string): Promise<boolean> {
   return r.rows.length > 0;
 }
 
+/** Agent-facing messages: they say what to do and where (the dashboard's Storage page). */
+export const CONNECT_OWN_ACCOUNT =
+  'this project stores memories in its own Walrus Memory account, which is not connected yet; a project admin connects it in the dashboard (project, Storage, Use your own account). Until then memories cannot be stored';
+export const SHARED_ACCOUNT_TAKEN =
+  "this deployment's shared Walrus account serves another workspace; a project admin connects this project's own Walrus Memory account in the dashboard (project, Storage, Use your own account). Until then memories cannot be stored";
+
+/** Whether new projects in a workspace can use the shared (managed) account, and if not, why. */
+export async function storagePolicy(
+  deps: ServiceDeps,
+  tx: Tx,
+  workspaceId: string,
+): Promise<{ managedAvailable: boolean; reason?: string }> {
+  if (deps.storage && !deps.storage.managed)
+    return {
+      managedAvailable: false,
+      reason: 'This deployment has no shared storage account; connect your own.',
+    };
+  if (await managedAllowed(deps, tx, workspaceId, false)) return { managedAvailable: true };
+  return {
+    managedAvailable: false,
+    reason:
+      "This deployment's shared storage serves another workspace. Use your own Walrus Memory account for this project.",
+  };
+}
+
+/**
+ * Claims the shared account for a workspace when it creates its first project that uses it, so which workspace owns
+ * the single-tenant shared account does not depend on who happens to write first. Does nothing if already claimed.
+ */
+export async function claimManagedOnCreate(deps: ServiceDeps, tx: Tx, workspaceId: string): Promise<void> {
+  const t = deps.storage?.tenancy;
+  if (!t || t.multi || t.workspaceId) return;
+  await managedAllowed(deps, tx, workspaceId, true);
+}
+
 async function managedAllowed(
   deps: ServiceDeps,
   tx: Tx,
@@ -158,13 +197,15 @@ export async function assertStorageAllowed(
   workspaceId: string,
   projectId: string,
 ): Promise<void> {
-  if (!deps.storage?.tenancy) return;
   if (await storageRow(tx, projectId)) return;
+  // A project set up to bring its own account never falls back to the shared one.
+  const mode = await tx.query<{ walrus_mode: string }>('select walrus_mode from projects where id = $1', [
+    projectId,
+  ]);
+  if (mode.rows[0]?.walrus_mode === 'byo') throw new BuiryError('forbidden', CONNECT_OWN_ACCOUNT);
+  if (!deps.storage?.tenancy) return;
   if (await managedAllowed(deps, tx, workspaceId, true)) return;
-  throw new BuiryError(
-    'forbidden',
-    "this deployment's managed Walrus account serves a single workspace; connect this project's own Walrus Memory account (project settings, Storage)",
-  );
+  throw new BuiryError('forbidden', SHARED_ACCOUNT_TAKEN);
 }
 
 export async function getProjectStorage(
@@ -176,7 +217,17 @@ export async function getProjectStorage(
   await loadProject(tx, p, projectId);
   const row = await storageRow(tx, projectId);
   const allowed = await managedAllowed(deps, tx, p.workspaceId, false);
-  if (!row) return { mode: 'managed', managedAllowed: allowed };
+  const wanted = (
+    await tx.query<{ walrus_mode: string }>('select walrus_mode from projects where id = $1', [projectId])
+  ).rows[0]?.walrus_mode;
+  if (!row)
+    return {
+      mode: 'managed',
+      managedAllowed: allowed,
+      ...(wanted === 'byo' ? { requested: 'byo' as const } : {}),
+      // True when agents cannot store memories until an own account is connected.
+      needsOwnAccount: wanted === 'byo' || !allowed,
+    };
   return {
     mode: 'byo',
     relayerUrl: row.relayer_url,

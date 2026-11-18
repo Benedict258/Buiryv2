@@ -42,7 +42,7 @@ export interface UserSummary {
   email: string | null;
   displayName: string | null;
   identities: { provider: string; subject: string }[];
-  workspaces: { id: string; name: string; role: Role; plan: string }[];
+  workspaces: { id: string; name: string; role: Role; plan: string; projects: number }[];
 }
 
 const SESSION_PREFIX = 'bry_ses_';
@@ -309,8 +309,10 @@ export class AuthService {
         'select provider, subject from identities where user_id = $1',
         [userId],
       );
-      const ws = await tx.query<{ id: string; name: string; role: Role; plan: string }>(
-        'select w.id, w.name, m.role, w.plan from memberships m join workspaces w on w.id = m.workspace_id where m.user_id = $1 order by w.created_at',
+      const ws = await tx.query<{ id: string; name: string; role: Role; plan: string; projects: string }>(
+        `select w.id, w.name, m.role, w.plan,
+                (select count(*) from projects p where p.workspace_id = w.id and p.archived_at is null) as projects
+           from memberships m join workspaces w on w.id = m.workspace_id where m.user_id = $1 order by w.created_at`,
         [userId],
       );
       return {
@@ -318,7 +320,8 @@ export class AuthService {
         email: u.rows[0].email,
         displayName: u.rows[0].display_name,
         identities: ids.rows,
-        workspaces: ws.rows,
+        // Project counts let onboarding reuse the empty personal workspace created at first sign-in.
+        workspaces: ws.rows.map((w) => ({ ...w, projects: Number(w.projects) })),
       };
     });
   }

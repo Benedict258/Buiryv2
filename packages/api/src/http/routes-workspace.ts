@@ -27,8 +27,30 @@ import {
   type Registrar,
 } from './context.js';
 import { genId } from '../service/util.js';
+import { storagePolicy } from '../service/byo-storage.js';
 
 export const registerWorkspace: Registrar = (_app, ctx, r) => {
+  r({ method: 'PATCH', path: '/v1/workspaces/:ws', auth: 'user', scope: 'workspace' }, async (c) => {
+    const p = await workspacePrincipal(ctx, await userCaller(ctx, c), c.req.param('ws')!);
+    if (p.role !== 'owner' && p.role !== 'admin')
+      throw new BuiryError('forbidden', 'only owners and admins rename');
+    const { name } = parse(z.object({ name: z.string().trim().min(1).max(80) }), await body(c));
+    await ctx.deps.db.tenant(p.workspaceId, (tx) =>
+      tx.query('update workspaces set name = $1 where id = $2', [name, p.workspaceId]),
+    );
+    return ok(c, { id: p.workspaceId, name });
+  });
+  // Whether projects here can use the deployment's shared storage (onboarding and the dashboard explain if not).
+  r(
+    { method: 'GET', path: '/v1/workspaces/:ws/storage-policy', auth: 'user', scope: 'workspace' },
+    async (c) => {
+      const p = await workspacePrincipal(ctx, await userCaller(ctx, c), c.req.param('ws')!);
+      return ok(
+        c,
+        await ctx.deps.db.tenant(p.workspaceId, (tx) => storagePolicy(ctx.deps, tx, p.workspaceId)),
+      );
+    },
+  );
   r({ method: 'POST', path: '/v1/workspaces', auth: 'user', scope: 'self' }, async (c) => {
     const who = await userCaller(ctx, c);
     if (who.type !== 'session') throw new BuiryError('forbidden', 'sign in to create a workspace');
