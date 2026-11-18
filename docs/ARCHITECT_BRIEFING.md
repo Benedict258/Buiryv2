@@ -161,16 +161,16 @@ pnpm monorepo, TypeScript (strict, ESM), Node 20 or newer. Source of truth: `doc
 
 **Packages.**
 
-| Package          | Role                                                                                                                                                                              |
-| ---------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `core`           | Pure logic, no I/O: header codec, namespaces, idempotency keys, redaction, prompt-injection scan, learning loop, briefing builder, `BUIRY.md`                                     |
-| `storage`        | The only Walrus code: signed relayer client, Seal session, mock relayer, durable write queue, write worker, recall merge, expiry reconcile                                        |
-| `chain`          | The only Tatum code: the gateway `src/tatum.ts`, transports in `src/tatum/` (gRPC; JSON-RPC only when `TATUM_JSONRPC_URL` is set), mock server, verifiers                         |
-| `mcp`            | MCP server over stdio and Streamable HTTP: 13 tools, 3 resources, 2 prompts                                                                                                       |
-| `api`            | Hono REST server (about 90 routes, including `/v1/agent/*`), Postgres schema with row-level security, auth, SSE feed, webhooks, packs, branches, showcase; serves the dashboard   |
-| `worker`         | Server entry and jobs: write drains (one per account), relayer probe, expiry scan, renewal, webhooks, drift scan, snapshots, isolation canary; the migrate and rotate-key entries |
-| `cli`            | `buiry` command (login, init, connect, doctor, briefing, remember, recall, verify, export, import, branch, evidence, and others)                                                  |
-| `apps/dashboard` | Vite, React and TypeScript SPA; hand-written CSS from design tokens                                                                                                               |
+| Package          | Role                                                                                                                                                                                                            |
+| ---------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `core`           | Pure logic, no I/O: header codec, namespaces, idempotency keys, redaction, prompt-injection scan, learning loop, briefing builder, `BUIRY.md`                                                                   |
+| `storage`        | The only Walrus code: signed relayer client, Seal session, mock relayer, durable write queue, write worker, recall merge, expiry reconcile                                                                      |
+| `chain`          | The only Tatum code: the gateway `src/tatum.ts`, transports in `src/tatum/` (gRPC; JSON-RPC only when `TATUM_JSONRPC_URL` is set), mock server, verifiers                                                       |
+| `mcp`            | MCP server over stdio and Streamable HTTP: 13 tools, 3 resources, 2 prompts                                                                                                                                     |
+| `api`            | Hono REST server (100 routes, including 16 under `/v1/agent/*`; count corrected 2026-11-18), Postgres schema with row-level security, auth, SSE feed, webhooks, packs, branches, showcase; serves the dashboard |
+| `worker`         | Server entry and jobs: write drains (one per account), relayer probe, expiry scan, renewal, webhooks, drift scan, snapshots, isolation canary; the migrate and rotate-key entries                               |
+| `cli`            | `buiry` command (login, init, connect, doctor, briefing, remember, recall, verify, export, import, branch, evidence, and others)                                                                                |
+| `apps/dashboard` | Vite, React and TypeScript SPA; hand-written CSS from design tokens                                                                                                                                             |
 
 **Data flow.**
 

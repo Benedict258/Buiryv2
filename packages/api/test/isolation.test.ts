@@ -413,6 +413,27 @@ describe("REST: every user route against tenant B's identifiers", () => {
     expect(scoped.length).toBeGreaterThan(55);
   });
 
+  it('covers each route added since the route count was first recorded (Phase 2.6)', () => {
+    // Added after 64729f5 (bring-your-own storage, renewal, onboarding). Each must be a user route whose scope the
+    // cross-tenant loops below fill with B's ids, so it is called with another tenant's ids and must answer 404.
+    const added = [
+      'GET /v1/projects/:id/storage/account',
+      'PUT /v1/projects/:id/storage/account',
+      'DELETE /v1/projects/:id/storage/account',
+      'POST /v1/projects/:id/storage/renew',
+      'PATCH /v1/workspaces/:ws',
+      'GET /v1/workspaces/:ws/storage-policy',
+    ];
+    const covered = new Set(
+      w.built.routes.filter((r) => r.auth === 'user' && KINDS[r.scope]).map((r) => `${r.method} ${r.path}`),
+    );
+    for (const r of added) expect(covered.has(r), r).toBe(true);
+    // The registry size, so a new route also forces the counts in HANDOFF.md to be updated.
+    expect(w.built.routes).toHaveLength(100);
+    expect(w.built.routes.filter((r) => r.auth === 'agent')).toHaveLength(16);
+    expect(w.built.routes.filter((r) => r.auth === 'public')).toHaveLength(8);
+  });
+
   const callers: [string, () => string][] = [
     ['A session', () => A.token],
     ['A API token (read+write)', () => A.apiToken],
