@@ -30,6 +30,16 @@ Legend: **done** (implemented and tested), **mocked** (tested only against a moc
 
 - Baseline (`pnpm typecheck && pnpm lint && pnpm test`) also passes on Windows. The 0600 check on the credentials file is a conditional assertion inside its test: it is not made on Windows (NTFS has no POSIX modes) and still runs on Linux and macOS.
 
+## Backups (Phase C, 2026-11-18)
+
+- `scripts/backup/backup.sh` and `restore.sh`:
+  - checksummed, metadata-labelled `pg_dump` archives, uploaded with SSE-KMS, with retention;
+  - restore verifies the checksum, refuses to restore over the live database, and prints counts only;
+  - a `file://` mode for local tests.
+- `Dockerfile.backup`, and `infra/aws/backup.tf` (bucket, schedule, alarm; `terraform validate` passes).
+- Recovery steps, and what is lost if the database is lost, in `docs/OPERATIONS.md`.
+- Tested with stand-in pg and aws commands. The real round trip on Postgres is L-BAK1, because there is no Postgres here.
+
 ## Key custody tooling (Phase B, 2026-11-18)
 
 - `BUIRY_SECRET_KEY` rotation:

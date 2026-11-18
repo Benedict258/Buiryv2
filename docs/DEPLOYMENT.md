@@ -41,7 +41,7 @@ For later deploys: build and push, run `migrate`, then update the services with 
 Requirements are in `docs/OPERATIONS.md` (the database maps memories to Walrus blobs and holds sealed secrets; it must be backed up, and `BUIRY_SECRET_KEY` must be kept separately).
 
 - **Automated backups:** RDS point-in-time recovery within `db_backup_retention_days` (default 14, the owner's choice). Snapshots are kept on delete (final snapshot, deletion protection on).
-- **Logical copy:** a scheduled `pg_dump` to an S3 bucket in another account or region, encrypted. Not provisioned by this Terraform; add it before production data matters.
+- **Logical copy:** `infra/aws/backup.tf` provisions a KMS-encrypted, versioned, private bucket with a lifecycle rule, and a daily EventBridge schedule that runs `scripts/backup/backup.sh` from `Dockerfile.backup`. Set `backup_image` to enable the schedule. For off-site protection, move the bucket to another account or region. Restore: `docs/OPERATIONS.md`, "Recovering from a dump".
 - **Restore drill**, on a schedule the owner sets:
   1. Restore to a new instance: point-in-time, or from a snapshot.
   2. Run the migration task against it.

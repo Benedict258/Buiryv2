@@ -73,6 +73,7 @@ Root `LICENSE` is now a short per-package notice (Apache-2.0 for core, mcp, cli;
 ### Gate (Windows, Node 24.16, pnpm 10.28.0 via corepack)
 
 - At `c182a34` (start of the audit; `ef146be` before the author rewrite): install ok; typecheck ok except that the old script's nested `pnpm` call failed when pnpm was not on PATH; lint ok; 33 files, 372 tests passed.
+- Backups (2026-11-18): off-site dump and restore scripts, backup image and scheduled task (Terraform), recovery steps in `docs/OPERATIONS.md`; the Postgres round trip (L-BAK1) is the owner's.
 - Key custody (2026-11-18): `BUIRY_SECRET_KEY` rotation tool and `BUIRY_SECRET_KEY_PREVIOUS` overlap, runbooks in `docs/KEY_CUSTODY.md`; L-KEY1 on Postgres is the owner's.
 - Security findings M1 to M5, M7 and L1 closed with tests (2026-11-18); open items listed in `docs/SECURITY_REVIEW.md`.
 - Load and latency (2026-11-17): `docs/LOAD.md`; two fixes (cheaper conflict scan, agent reads retried once).

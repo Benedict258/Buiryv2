@@ -29,6 +29,12 @@ The live documentation was read on 2026-10-28 (results in "Step 0 results" below
 - Difference that needed code (fixed, with regression tests): expiry margins and the status "expiring" window were a fixed 28 days, two Mainnet epochs, so every 5-day testnet memory would have been "expiring" at once. They now follow the network epoch (`walrusEpochMs`).
 - Connection problems seen on testnet too (A24): the startup `/config` connect timeout, and 1 of 6 `curl` connections to `relayer.dev.memwal.ai` failed with a TLS error.
 
+**Backups (2026-11-18, Phase C)**
+
+- `pg_dump` custom format restored with `pg_restore --clean --if-exists` reproduces the schema and data for the same major version or newer. That is standard Postgres behaviour (postgresql.org documentation for pg_dump and pg_restore, version 16), but not run here: there is no Postgres on this machine (L-BAK1).
+- The `postgres:16-bookworm` image ships the version 16 client tools, and Debian bookworm's `awscli` package provides `aws s3 cp`, `aws s3 ls` and `aws s3 rm` with `--sse aws:kms`. Not built here (no Docker); the image must be built and pinned by digest (L-AWS1).
+- EventBridge Scheduler can run an ECS task on Fargate with a network configuration (`aws_scheduler_schedule` with `ecs_parameters`, AWS provider 5.100.0, accepted by `terraform validate`). Not applied.
+
 **Key rotation (2026-11-18, Phase B)**
 
 - The rotation transaction locks the rows it re-seals (`select ... for update`); a server writing a new webhook or delegate key during the run waits for it. Verified on PGlite only; on Postgres the same SQL applies (L-KEY1).
