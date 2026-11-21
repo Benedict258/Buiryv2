@@ -108,19 +108,27 @@ describe('only a person can confirm a memory (M8)', () => {
     expect((await status(id)).status).toBe('proposed');
   });
 
-  it("records the remaining limit: an API token is a person's credential and can confirm", async () => {
-    // Not an agent token: API tokens act as the person who created them (UserPrincipal). Handing one to an agent
-    // tool gives it a person's power, including confirm. Documented in SECURITY_REVIEW (M8, limits).
-    const apiToken = (
-      await w.req('POST', `/v1/workspaces/${owner.workspaceId}/api-tokens`, {
-        token: owner.token,
-        body: { name: 'ci', scopes: ['read', 'write'] },
-      })
-    ).json.data.token as string;
+  it('an API token confirms only with the explicit confirm scope (Phase 7.4)', async () => {
+    const mint = async (scopes: string[]) =>
+      (
+        await w.req('POST', `/v1/workspaces/${owner.workspaceId}/api-tokens`, {
+          token: owner.token,
+          body: { name: `ci-${scopes.join('-')}`, scopes },
+        })
+      ).json.data.token as string;
     const tok = await agent('for-api', ['read', 'write']);
     const id = await remember(tok, 'Pin dependencies exactly.');
-    const r = await w.req('POST', `/v1/memories/${id}/confirm`, { token: apiToken, body: {} });
-    expect(r.status, JSON.stringify(r.json)).toBe(200);
+    const plain = await w.req('POST', `/v1/memories/${id}/confirm`, {
+      token: await mint(['read', 'write']),
+      body: {},
+    });
+    expect(plain.status, JSON.stringify(plain.json)).toBe(403);
+    expect((await status(id)).status).toBe('proposed');
+    const scoped = await w.req('POST', `/v1/memories/${id}/confirm`, {
+      token: await mint(['read', 'write', 'confirm']),
+      body: {},
+    });
+    expect(scoped.status, JSON.stringify(scoped.json)).toBe(200);
     expect((await status(id)).status).toBe('confirmed');
   });
 

@@ -30,6 +30,8 @@ export type UserPrincipal = {
   role: Role;
   /** Projects this member may access; null means all. */
   projectScope: string[] | null;
+  /** Set only when the caller is an API token: its scopes (Phase 7.4). Sessions leave it undefined. */
+  apiTokenScopes?: string[];
 };
 
 export type Principal = AgentPrincipal | UserPrincipal;

@@ -69,6 +69,14 @@ export interface BranchRow {
 
 export type Need = 'read' | 'write' | 'confirm' | 'tombstone' | 'merge';
 
+/**
+ * Whether this principal may move a memory to confirmed (BD44, Phase 7.4): a person signed in, or an API token that
+ * carries the explicit `confirm` scope. Agents never.
+ */
+export function canConfirm(p: Principal): boolean {
+  return p.kind === 'user' && (p.apiTokenScopes === undefined || p.apiTokenScopes.includes('confirm'));
+}
+
 export function assertAllowed(
   p: Principal,
   need: Need,
@@ -572,7 +580,8 @@ export async function createMemoryTx(
 
   const id = genId(deps, 'mem');
   const actor = actorFor(p);
-  const asConfirmed = p.kind === 'user' && (opts.confirmed ?? false);
+  // A person's own memory starts confirmed only when they may confirm (an API token needs the confirm scope).
+  const asConfirmed = canConfirm(p) && (opts.confirmed ?? false);
   const st = initialState({
     id,
     type: input.type,
@@ -813,6 +822,8 @@ export async function resolveTx(
   let signal: Signal;
   switch (i.action) {
     case 'confirm':
+      if (p.kind === 'user' && !canConfirm(p))
+        throw new BuiryError('forbidden', 'this API token lacks the confirm scope');
       assertAllowed(p, 'confirm', branch);
       signal = { kind: 'confirm', actor: actorFor(p), delegated: p.kind === 'agent' };
       break;

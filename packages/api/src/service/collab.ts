@@ -9,6 +9,7 @@ import {
   loadBranch,
   loadMemoryRow,
   loadProject,
+  canConfirm,
 } from './ops.js';
 import type { Principal, ServiceDeps } from './types.js';
 import { actorOf, evidenceFor, genId, logActivity, notFound, type MemoryRow } from './util.js';
@@ -123,7 +124,7 @@ export async function mergeBranchTx(
           : {}),
         idempotencyKey: `merge:${row.id}:${tgt.id}`,
       },
-      { confirmed: p.kind === 'user', skipConflicts: true, mergedFrom: row.id },
+      { confirmed: canConfirm(p), skipConflicts: true, mergedFrom: row.id },
     );
     // A merged memory keeps the trust it earned on the branch.
     await tx.query(

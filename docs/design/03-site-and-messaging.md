@@ -90,7 +90,7 @@ Part of the design report (`00-index.md`). These are inputs for the copywriter a
 | "Does it work with my agent?"                 | It speaks MCP. Claude Code and OpenCode ran on testnet; Codex configuration parsed; Cursor not tried.                                                                                     |
 | "Why a blockchain?"                           | Storage is on Walrus, and chain evidence such as a deployment is checked on Sui so staleness is detected (L-D1). Whether this matters to a given user is their call.                      |
 | "What does it cost?"                          | Prices are not set (BD21). Tatum credit cost is unmeasured (A9).                                                                                                                          |
-| "Can agents game their own confidence?"       | Only a person can confirm a memory; an agent token cannot, on any path tested (BD44). Agents' helpful reports do raise confidence while the memory stays proposed.                        |
+| "Can agents game their own confidence?"       | Only a person can confirm a memory; an agent token cannot, on any path tested (BD44). Agents' helpful reports raise confidence only up to 0.7, below a person's confirm (0.8).            |
 | "How do you compare with other memory tools?" | Not researched here. Comparisons are listed as questions for the owner (section 12).                                                                                                      |
 
 ### Glossary (product term, then the exact code name)

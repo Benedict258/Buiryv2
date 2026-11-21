@@ -889,7 +889,10 @@ export async function upsertAlertRule(
 // ---------- API tokens ----------
 
 export const API_TOKEN_PREFIX = 'bry_pat_';
-type Scope = 'read' | 'write' | 'admin';
+type Scope = 'read' | 'write' | 'admin' | 'confirm';
+
+/** API tokens expire after this many days unless the creator asks for fewer or more (Phase 7.4). */
+export const API_TOKEN_DEFAULT_DAYS = 90;
 
 export async function createApiToken(
   deps: ServiceDeps,
@@ -898,8 +901,8 @@ export async function createApiToken(
   i: { name: string; scopes: Scope[]; projectIds?: string[]; expiresInDays?: number },
 ) {
   assertManage(p);
-  if (!i.scopes.length || i.scopes.some((s) => !['read', 'write', 'admin'].includes(s)))
-    throw new BuiryError('invalid_input', 'scopes must be read, write and/or admin');
+  if (!i.scopes.length || i.scopes.some((s) => !['read', 'write', 'admin', 'confirm'].includes(s)))
+    throw new BuiryError('invalid_input', 'scopes must be read, write, admin and/or confirm');
   if (i.scopes.includes('admin') && p.role !== 'owner')
     throw new BuiryError('forbidden', 'only the owner can mint admin-scoped tokens');
   for (const id of i.projectIds ?? [])
@@ -918,7 +921,7 @@ export async function createApiToken(
       i.scopes,
       i.projectIds ?? null,
       (p as UserPrincipal).userId,
-      i.expiresInDays ? new Date(deps.now() + i.expiresInDays * 86_400_000) : null,
+      new Date(deps.now() + (i.expiresInDays ?? API_TOKEN_DEFAULT_DAYS) * 86_400_000),
     ],
   );
   await logActivity(tx, deps, {
@@ -981,6 +984,7 @@ export async function authenticateApiToken(deps: ServiceDeps, token: string): Pr
     displayName: 'API token',
     role,
     projectScope: r.project_ids,
+    apiTokenScopes: r.scopes,
   };
 }
 

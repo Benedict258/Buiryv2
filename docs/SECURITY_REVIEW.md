@@ -94,7 +94,7 @@ No critical findings.
 ## Still open after Phase A (2026-11-17)
 
 - **Per-process limits.** The auth and public rate limits, the SSE stream caps and MCP sessions are held in each API process's memory, so N API tasks allow N times each limit, and a restart resets them. Acceptable for the prototype; a shared store (Postgres or Redis) would make them global.
-- **API tokens** still have no default expiry (optional per token); agent tokens issued before M4 keep no expiry until rotated.
+- **Token expiry for old tokens.** New API tokens expire after 90 days by default (Phase 7.4). API tokens created before that, and agent tokens issued before M4, keep no expiry until they are rotated; a migration is proposed, not applied (`.buiry-local/reports/phase-7.md`).
 - **Content Security Policy:** fixed in Phase 2.3 (see "Security headers" below).
 - **Least-privilege database user** for the app (the deployment uses the RDS master user; see DEPLOYMENT).
 - **Dev-only advisories** (picomatch, minimatch) as above, no fixed releases in range.
@@ -138,10 +138,10 @@ No critical findings.
   - **Raise confidence without confirming.**
     - With 2 helpful reports a day, an agent's own memory reaches 0.633 after a week and 0.944 after 30 days while staying `proposed`. This was measured with the real learning code. A person's confirmation sets 0.8.
     - Confidence feeds briefing ranking (BD29), so a persistent agent can lift its own proposed memory in briefings.
-    - **Low:** it needs a valid token over weeks, the memory stays marked proposed, and the decision allows agent reports to raise confidence. A cap on report-driven confidence below 0.8 would close it (owner decision).
+    - **Closed in Phase 7.3:** agent reports stop at `agentReportCap` = 0.7 (below a person's 0.8, at the top of the medium band), and never raise a memory that evidence already put higher. Over 60 days of reports a memory now stays at 0.7 at most (`learning.test.ts`). Briefing and recall put a person-confirmed memory first on an exact score tie (`briefing.test.ts`, `recall.test.ts`). **Remaining, low:** verified chain evidence can still lift an agent's memory to 0.9 (`evidenceCap`), and an old confirmed memory whose confidence has decayed can rank below a fresh agent-only one.
   - **Flood proposals.** Bounded by the per-agent write budget (6 a minute by default) and plan limits. **Low.**
   - **Contest a person's confirmed memory** with two "wrong" reports (allowed by the decision). **Low:** it raises a flag for people to review.
-  - **Use an API token if a person gives it one.** It then acts as that person, including confirm. **Low to medium,** depending on how API tokens are handed out; API tokens also have no default expiry (M4).
+  - **Use an API token if a person gives it one.** **Narrowed in Phase 7.4:** confirming now needs an explicit `confirm` scope, off by default. Without it a token cannot confirm, cannot create a memory as confirmed, and a merge it runs brings memories in as proposed. New tokens expire after 90 days by default, and agent connections (`/v1/agent/*`, `/mcp`) refuse API tokens with a message saying they act as a person (`api-tokens.test.ts`). **Remaining, low:** a token minted with the `confirm` scope and handed to an agent still confirms, and tokens created before Phase 7.4 keep no expiry until rotated.
 - **Dashboard text not changed (6.4).** The Settings "auto-promotion" control and the Agents `confirm` permission still appear, though they no longer confirm anything (`docs/design/02`).
 
 ## Finding count (Phase 4.3, 2026-11-18)
@@ -149,7 +149,7 @@ No critical findings.
 - **Findings on the review scale:** 13, namely 3 high (H1–H3), 8 medium (M1–M8) and 2 low (L1, L2), with no critical. Phase 6.2 recount:
   - 12 are fixed with a dedicated regression test (L2 gained one in Phase 6.2: `insideRoot` in `packages/api/src/server.ts`, tested in `static.test.ts`, failing on the pre-fix `startsWith(root)`; M8 is tested by `agent-confirm.test.ts`);
   - M4 is fixed for new agent tokens only (API tokens still have no default expiry);
-  - M4 is fixed for new agent tokens only (tested by `agent-token-expiry.test.ts`). The gap is in the code, not the tests: API tokens have no default expiry, and agent tokens issued before M4 never expire.
+  - M4 is fixed for new agent tokens (tested by `agent-token-expiry.test.ts`) and, since Phase 7.4, new API tokens expire after 90 days by default (`api-tokens.test.ts`). Still partly open: tokens of either kind created before those changes keep no expiry until rotated (migration proposed, not applied).
 - **Found later:**
   - three items fixed after the review ("Found after the review");
   - M8 above (fixed in Phase 6.1, limits recorded);

@@ -123,7 +123,7 @@ export const registerWorkspace: Registrar = (_app, ctx, r) => {
       const b = parse(
         z.object({
           name: z.string().min(1).max(80),
-          scopes: z.array(z.enum(['read', 'write', 'admin'])).min(1),
+          scopes: z.array(z.enum(['read', 'write', 'admin', 'confirm'])).min(1),
           projectIds: z.array(z.string()).optional(),
           expiresInDays: z.number().int().min(1).max(365).optional(),
         }),

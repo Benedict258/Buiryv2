@@ -14,7 +14,7 @@ Every command below is copied from `LOCAL_CHECKS.md`, `docs/DEPLOYMENT.md` or `d
 
 ## 2. L-BAK1: backup and restore round trip on Postgres
 
-**Status:** backup verified on Postgres 16; the restore has not passed (**unverified**). The working method, exact commands and the 2026-11-18 results are in `LOCAL_CHECKS.md` L-BAK1.
+**Status:** verified 2026-11-21 in a throwaway `postgres:16` (Debian) container: backup, restore, equal row counts and an identical content checksum over all 36 tables. The exact commands are in `LOCAL_CHECKS.md` L-BAK1. Still yours: the same with `BACKUP_S3_URI=s3://...` on AWS.
 
 | Field      | Value                                                                                                                                                                                                             |
 | ---------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
@@ -24,7 +24,7 @@ Every command below is copied from `LOCAL_CHECKS.md`, `docs/DEPLOYMENT.md` or `d
 | Pass       | `restore.sh` exits 0 with matching counts                                                                                                                                                                         |
 | Paste back | Both outputs (no passwords) and the source counts                                                                                                                                                                 |
 
-In the Alpine image, `restore.sh` stops at `sha256sum --check` (BusyBox), so that image cannot finish the check.
+Since Phase 6.3, `restore.sh` uses `sha256sum -c`, which BusyBox also accepts.
 
 ## 3. L-KEY1: secret key rotation on Postgres
 

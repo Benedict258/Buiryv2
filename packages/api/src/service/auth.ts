@@ -11,6 +11,11 @@ export async function authenticateAgentToken(
   token: string,
   sessionId?: string,
 ): Promise<AgentPrincipal> {
+  if (token.startsWith('bry_pat_'))
+    throw new BuiryError(
+      'unauthorized',
+      'this is an API token (bry_pat_...), which acts as a person; agents need an agent token (bry_at_...) from `buiry connect` or the Agents page',
+    );
   if (!token.startsWith('bry_at_')) throw new BuiryError('unauthorized', 'invalid agent token');
   const hashes = tokenHashes(deps, token);
   const row = await deps.db.system(async (tx) => {
