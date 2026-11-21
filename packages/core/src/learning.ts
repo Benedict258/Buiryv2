@@ -7,6 +7,11 @@ const DAY_MS = 86_400_000;
 export interface LearningConfig {
   initialAgent: number;
   humanFloor: number;
+  /**
+   * Highest confidence helpful reports from agents can produce (Phase 7.3). Kept below `humanFloor`, the value a
+   * person's confirm sets, and at the top of the medium band (0.70), so agent-only memories never look confirmed.
+   */
+  agentReportCap: number;
   evidenceBoost: number;
   evidenceCap: number;
   helpfulRate: number;
@@ -28,6 +33,7 @@ export interface LearningConfig {
 export const DEFAULT_LEARNING: LearningConfig = {
   initialAgent: 0.35,
   humanFloor: 0.8,
+  agentReportCap: 0.7,
   evidenceBoost: 0.25,
   evidenceCap: 0.9,
   helpfulRate: 0.08,
@@ -247,7 +253,14 @@ export function applySignal(
       const weight = human ? cfg.humanWeight : cfg.agentWeight;
       const next: LearningState = {
         ...s,
-        confidence: s.confidence + (1 - s.confidence) * cfg.helpfulRate * weight,
+        // Agent reports stop at agentReportCap; they never raise a memory past it, and never lower one that evidence
+        // already put above it. People's reports are not capped.
+        confidence: human
+          ? s.confidence + (1 - s.confidence) * cfg.helpfulRate * weight
+          : Math.min(
+              s.confidence + (1 - s.confidence) * cfg.helpfulRate * weight,
+              Math.max(s.confidence, cfg.agentReportCap),
+            ),
         lastReinforcedAt: at,
         helpfulByDay: { ...s.helpfulByDay, [day]: used + 1 },
       };

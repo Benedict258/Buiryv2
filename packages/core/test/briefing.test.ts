@@ -4,7 +4,9 @@ import {
   BRIEFING_PREAMBLE,
   SNAPSHOT_END,
   SNAPSHOT_START,
+  applySignal,
   buildBriefing,
+  initialState,
   estimateTokens,
   generateBuiryMd,
   parseBuiryMd,
@@ -202,5 +204,55 @@ describe('BUIRY.md', () => {
   it('returns null for files that are not BUIRY.md', () => {
     expect(parseBuiryMd('# hello')).toBeNull();
     expect(projectIdFromBuiryMd('---\nfoo: 1\n---\n')).toBeNull();
+  });
+});
+
+describe('person-confirmed memories rank ahead of agent-only ones at equal relevance (Phase 7.3)', () => {
+  const same = { createdAt: NOW - H, updatedAt: NOW - H, lastReinforcedAt: NOW - H };
+  const order = (mems: MemoryRecord[]) =>
+    buildBriefing({ now: NOW, memories: mems, task: 'session storage database' }).items.map(
+      (i) => i.memoryId,
+    );
+
+  it('an agent-only memory at the report cap cannot outrank a confirmed one on confidence', () => {
+    // The highest an agent can push its own memory by reports is the cap (0.7); a person's confirm sets 0.8.
+    let s = initialState({
+      id: 'x',
+      type: 'decision',
+      actor: { kind: 'agent', id: 'a', sessionId: 's' },
+      at: NOW - 61 * 86_400_000,
+    });
+    for (let d = 0; d < 60; d++)
+      for (const k of [0, 1])
+        s = applySignal(
+          s,
+          { kind: 'report', actor: { kind: 'agent', id: 'a', sessionId: `s${d}${k}` }, outcome: 'helped' },
+          NOW - (60 - d) * 86_400_000 + k,
+        ).state;
+    const agentOnly = m('mem_a_agent', 'decision', 'Store sessions in the database.', {
+      ...same,
+      status: 'proposed',
+      confidence: s.confidence,
+    });
+    const person = m('mem_b_person', 'decision', 'Store sessions in the database.', {
+      ...same,
+      status: 'confirmed',
+      confidence: 0.8,
+    });
+    expect(order([agentOnly, person])).toEqual(['mem_b_person', 'mem_a_agent']);
+  });
+
+  it('breaks an exact tie in favour of the confirmed memory, not by id', () => {
+    const agentOnly = m('mem_a_agent', 'decision', 'Store sessions in the database.', {
+      ...same,
+      status: 'proposed',
+      confidence: 0.7,
+    });
+    const person = m('mem_b_person', 'decision', 'Store sessions in the database.', {
+      ...same,
+      status: 'confirmed',
+      confidence: 0.7,
+    });
+    expect(order([agentOnly, person])).toEqual(['mem_b_person', 'mem_a_agent']);
   });
 });

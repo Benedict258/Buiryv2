@@ -13,6 +13,11 @@ export const BRIEFING_WEIGHTS = { relevance: 0.5, confidence: 0.3, recency: 0.1,
 export const DEFAULT_BUDGET = 1500;
 export const ONBOARDING_BUDGET = 3000;
 
+/** Orders a person-confirmed memory before any other at equal score (Phase 7.3). */
+export function confirmedFirst(a: { status: string }, b: { status: string }): number {
+  return (b.status === 'confirmed' ? 1 : 0) - (a.status === 'confirmed' ? 1 : 0);
+}
+
 /** Deterministic token estimate: ceil(chars / 4). */
 export function estimateTokens(text: string): number {
   return Math.ceil(text.length / 4);
@@ -166,7 +171,8 @@ export function buildBriefing(input: BriefingInput): Briefing {
       return { m, section, components, score: Math.round(score * 1e6) / 1e6 };
     })
     .filter((x): x is NonNullable<typeof x> => x !== null)
-    .sort((a, b) => b.score - a.score || a.m.id.localeCompare(b.m.id));
+    // At an exact tie a person-confirmed memory goes first (Phase 7.3), then the id keeps the order stable.
+    .sort((a, b) => b.score - a.score || confirmedFirst(a.m, b.m) || a.m.id.localeCompare(b.m.id));
 
   // Flags: stale / contested memories, decayed-below-threshold, plus caller extras.
   const flagLines: string[] = [];

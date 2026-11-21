@@ -258,3 +258,27 @@ describe('confirmation is for people only (M8, supersedes BD11 delegated confirm
     expect(applySignal(s, { kind: 'confirm', actor: { kind: 'system', id: 'job' } }, T0).applied).toBe(false);
   });
 });
+
+describe('report-driven confidence is capped at 0.7, below a person confirm (Phase 7.3)', () => {
+  it("an agent's helpful reports never lift its memory above 0.7, even over 60 days", () => {
+    let s = fresh();
+    for (let d = 0; d < 60; d++)
+      for (const k of [0, 1])
+        s = applySignal(
+          s,
+          { kind: 'report', actor: { ...agentA, sessionId: `s${d}${k}` }, outcome: 'helped' },
+          T0 + d * DAY + k,
+        ).state;
+    expect(s.status).toBe('proposed');
+    expect(s.confidence).toBeLessThanOrEqual(0.7);
+    expect(s.confidence).toBeGreaterThan(0.65);
+    expect(DEFAULT_LEARNING.agentReportCap).toBe(0.7);
+    expect(DEFAULT_LEARNING.agentReportCap).toBeLessThan(DEFAULT_LEARNING.humanFloor);
+  });
+
+  it('reports do not raise a memory that verified evidence already put above the cap, and never lower it', () => {
+    const s = { ...fresh(), confidence: 0.85 };
+    const r = applySignal(s, { kind: 'report', actor: agentB, outcome: 'helped' }, T0 + DAY);
+    expect(r.state.confidence).toBe(0.85);
+  });
+});

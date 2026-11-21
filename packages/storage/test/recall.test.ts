@@ -402,3 +402,24 @@ describe('A23: recall needs a client-built Seal session (cause confirmed live)',
     expect(raw.results).toHaveLength(1);
   });
 });
+
+describe('recall ranks person-confirmed memories ahead of agent-only ones at equal relevance (Phase 7.3)', () => {
+  it('breaks an exact tie in favour of the confirmed memory, not by id', async () => {
+    const { svc, write, clock } = await rig();
+    await write('mem_a_agent', 'Store sessions in the database.', 'main', {
+      status: 'proposed',
+      confidence: 0.7,
+    });
+    await write('mem_b_person', 'Store sessions in the database.', 'main', {
+      status: 'confirmed',
+      confidence: 0.7,
+    });
+    const r = await svc.recall({
+      projectId: PROJECT,
+      branch: 'main',
+      query: 'sessions database',
+      now: clock.now(),
+    });
+    expect(r.results.map((x) => x.memoryId)).toEqual(['mem_b_person', 'mem_a_agent']);
+  });
+});

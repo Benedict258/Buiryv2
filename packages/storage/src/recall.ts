@@ -9,6 +9,7 @@ import {
   type MemoryRecord,
   type MemoryType,
   type Status,
+  confirmedFirst,
 } from '@buiry/core';
 import type { WalrusMemoryAdapter } from './adapter.js';
 
@@ -149,7 +150,8 @@ export class RecallService {
         const rel = relayerScore.get(m.id) ?? relevance(i.query, m.text);
         return { m, eff, score: 0.6 * rel + 0.4 * eff };
       })
-      .sort((a, b) => b.score - a.score || a.m.id.localeCompare(b.m.id))
+      // At an exact tie a person-confirmed memory goes first (Phase 7.3), then the id keeps the order stable.
+      .sort((a, b) => b.score - a.score || confirmedFirst(a.m, b.m) || a.m.id.localeCompare(b.m.id))
       .slice(0, limit);
 
     return {
