@@ -176,6 +176,16 @@ describe.skipIf(!BASH)('backup and restore scripts', () => {
     expect(w.calls()).not.toMatch(/pg_restore --clean/);
   });
 
+  it('calls sha256sum with short options only, which BusyBox accepts (Phase 6.3)', () => {
+    // The postgres:16-alpine image's BusyBox sha256sum refused "--check" (L-BAK1, 2026-11-18). A PATH stub cannot
+    // shadow sha256sum here (Git for Windows puts /usr/bin first), so the scripts' text is checked; the real proof is
+    // the round trip in a Debian postgres:16 container (LOCAL_CHECKS L-BAK1).
+    for (const f of ['backup.sh', 'restore.sh', 'lib.sh']) {
+      const text = readFileSync(join(HERE, f), 'utf8');
+      expect(text, f).not.toMatch(/sha256sum[^\n]*\s--[a-z]/);
+    }
+  });
+
   it('refuses to restore over the live database', () => {
     const w = world();
     const r = w.run('restore.sh', {

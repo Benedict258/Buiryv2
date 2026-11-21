@@ -39,7 +39,8 @@ echo "[restore] fetching $obj"
 store_get "$obj" "$work/$obj"
 store_get "$obj.sha256" "$work/$obj.sha256"
 store_get "$obj.json" "$work/$obj.json" || true
-(cd "$work" && sha256sum --check --quiet "$obj.sha256")
+# Short options only: BusyBox (Alpine images) has no --check or --quiet (L-BAK1, 2026-11-18).
+(cd "$work" && sha256sum -c "$obj.sha256" > /dev/null)
 echo "[restore] checksum ok"
 if [ -f "$work/$obj.json" ]; then echo "[restore] metadata: $(cat "$work/$obj.json")"; fi
 
