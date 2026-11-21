@@ -99,16 +99,16 @@ describe('signals', () => {
 
 describe('auto-promotion', () => {
   const cfg = DEFAULT_LEARNING;
-  it('promotes after 3 helpful reports from 2 distinct non-creating sessions with no wrong signals', () => {
+  it('never confirms from reports (M8): 3 helpful reports from 2 other sessions only mark it ready for a person', () => {
     let s = fresh();
     const day = (n: number) => T0 + n * DAY;
     s = applySignal(s, { kind: 'report', actor: agentB, outcome: 'helped' }, day(0)).state;
     s = applySignal(s, { kind: 'report', actor: agentB, outcome: 'helped' }, day(0) + 1).state;
-    expect(s.status).toBe('proposed');
     const r = applySignal(s, { kind: 'report', actor: agentC, outcome: 'helped' }, day(1));
-    expect(r.state.status).toBe('confirmed');
-    expect(r.reason).toMatch(/auto-promoted/);
-    expect(r.state.confidence).toBeGreaterThanOrEqual(cfg.humanFloor);
+    expect(r.state.status).toBe('proposed');
+    expect(r.reason).toMatch(/ready for a person to confirm/);
+    expect(r.state.confidence).toBeGreaterThan(s.confidence);
+    expect(r.state.confidence).toBeLessThan(cfg.humanFloor);
   });
   it('does not count the creating session toward its own promotion', () => {
     let s = fresh();
@@ -246,13 +246,15 @@ describe('conflict candidates and failure surfacing', () => {
   });
 });
 
-describe('delegated confirmation (agent token with the confirm scope)', () => {
-  it('lets another agent confirm but never the creator, and never without delegation', () => {
+describe('confirmation is for people only (M8, supersedes BD11 delegated confirmation)', () => {
+  it('refuses every agent confirm, with or without the confirm permission, and the system', () => {
     const s = initialState({ id: 'mem_1', type: 'decision', actor: agentA, at: T0 });
-    expect(applySignal(s, { kind: 'confirm', actor: agentB, delegated: true }, T0).state.status).toBe(
-      'confirmed',
-    );
-    expect(applySignal(s, { kind: 'confirm', actor: agentA, delegated: true }, T0).applied).toBe(false);
-    expect(applySignal(s, { kind: 'confirm', actor: agentB }, T0).applied).toBe(false);
+    for (const actor of [agentA, agentB])
+      for (const delegated of [true, false]) {
+        const r = applySignal(s, { kind: 'confirm', actor, delegated }, T0);
+        expect(r.applied).toBe(false);
+        expect(r.state.status).toBe('proposed');
+      }
+    expect(applySignal(s, { kind: 'confirm', actor: { kind: 'system', id: 'job' } }, T0).applied).toBe(false);
   });
 });

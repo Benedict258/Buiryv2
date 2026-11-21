@@ -64,11 +64,13 @@ describe('project learning settings are applied', () => {
     expect(await eff(a.backend, q, fast.memoryId)).toBeLessThan(await eff(other.a.backend, q, slow.memoryId));
   });
 
-  it('promotion thresholds come from the project; disabling promotion stops auto-confirm', async () => {
+  it('promotion thresholds come from the project, but reports never confirm (M8); off stays proposed too', async () => {
     const { prj, a, b, c } = await setup();
     await setSettings(prj.id, { autoPromotion: { enabled: true, helpfulReports: 1, distinctSessions: 1 } });
     const m = await a.backend.remember({ text: 'Prefer small pull requests.', type: 'preference' });
-    expect((await b.backend.report({ memoryId: m.memoryId, outcome: 'helped' })).status).toBe('confirmed');
+    const first = await b.backend.report({ memoryId: m.memoryId, outcome: 'helped' });
+    expect(first.status).toBe('proposed');
+    expect(first.reason).toMatch(/ready for a person to confirm/); // the project's threshold of 1 is applied
 
     const off = await setup();
     await setSettings(off.prj.id, { autoPromotion: { enabled: false } });

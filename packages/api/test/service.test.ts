@@ -218,7 +218,7 @@ describe('recall (index only, no relayer)', () => {
 });
 
 describe('learning loop through the API', () => {
-  it('helpful reports raise confidence; cap holds; auto-promotion needs other sessions; agents cannot confirm', async () => {
+  it('helpful reports raise confidence; cap holds; reports never confirm (M8); agents cannot confirm', async () => {
     const { a, b, prj, ws } = await setup();
     const c = await stack.newAgent({ workspaceId: ws.id, projectId: prj.id, name: 'cursor', tool: 'cursor' });
     const m = await a.backend.remember({
@@ -232,15 +232,15 @@ describe('learning loop through the API', () => {
     expect((await b.backend.report({ memoryId: m.memoryId, outcome: 'helped' })).applied).toBe(false); // daily cap
     clock.advance(86_400_000);
     const r4 = await c.backend.report({ memoryId: m.memoryId, outcome: 'helped' });
-    expect(r4.status).toBe('confirmed'); // 3 reports from 2 sessions, none by the creator
-    expect(r4.reason).toMatch(/auto-promoted/);
+    expect(r4.status).toBe('proposed'); // M8: reports never confirm, even from other agents
+    expect(r4.reason).toMatch(/ready for a person to confirm/);
     const durable = await stack.db.system((tx) =>
       tx.query<{ type: string }>(
         `select type from memory_events where memory_id = $1 and tier = 'A' order by created_at, seq`,
         [m.memoryId],
       ),
     );
-    expect(durable.rows.map((e) => e.type)).toEqual(['memory.created', 'memory.confirmed']);
+    expect(durable.rows.map((e) => e.type)).toEqual(['memory.created']);
     const m2 = await a.backend.remember({
       text: 'Another preference about commit style.',
       type: 'preference',
@@ -272,7 +272,7 @@ describe('learning loop through the API', () => {
     expect(flag.rows).toHaveLength(1);
   });
 
-  it("people with the confirm permission can promote another agent's memory; owners of the memory cannot", async () => {
+  it('an agent token with the confirm permission cannot confirm any memory (M8, supersedes BD11)', async () => {
     const { ws, prj, a } = await setup();
     const lead = await stack.newAgent({
       workspaceId: ws.id,
@@ -283,8 +283,9 @@ describe('learning loop through the API', () => {
     });
     const m = await a.backend.remember({ text: 'Use strict TypeScript everywhere.', type: 'constraint' });
     expect(
-      await lead.backend.resolve({ memoryId: m.memoryId, action: 'confirm', reason: 'reviewed' }),
-    ).toMatchObject({ status: 'confirmed', confidence: 0.8 });
+      (await err(lead.backend.resolve({ memoryId: m.memoryId, action: 'confirm', reason: 'reviewed' })))
+        ?.code,
+    ).toBe('forbidden');
     const own = await lead.backend.remember({ text: 'My own note about lint rules.', type: 'fact' });
     expect((await err(lead.backend.resolve({ memoryId: own.memoryId, action: 'confirm' })))?.code).toBe(
       'forbidden',

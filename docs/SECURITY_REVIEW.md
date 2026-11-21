@@ -6,20 +6,21 @@ Severity: **critical** = remote compromise or cross-tenant data access without c
 
 ## Summary
 
-| ID  | Severity | Finding                                                                    | Status                                             |
-| --- | -------- | -------------------------------------------------------------------------- | -------------------------------------------------- |
-| H1  | high     | Malformed URL escape threw inside the raw request listener                 | Fixed in `83b58e9`, regression test                |
-| H2  | high     | No request body size limit (REST and MCP), unauthenticated routes included | Fixed in `83b58e9`, regression tests               |
-| H3  | high     | Sign-in links (bearer secrets) printed to logs when no mailer is set       | Fixed in `83b58e9` for production, regression test |
-| M1  | medium   | Rate limiter keys on the first `X-Forwarded-For` entry                     | Fixed (trusted proxy hops, tested)                 |
-| M2  | medium   | Webhook destination check: DNS rebinding window, missing reserved ranges   | Fixed (pinned connection, tested)                  |
-| M3  | medium   | No cap on concurrent SSE streams; streams outlive a revoked session        | Fixed (caps and session re-check, tested)          |
-| M4  | medium   | Agent tokens never expire; API token expiry is optional and off by default | Fixed for new agent tokens (expiry, tested)        |
-| M5  | medium   | Unexpected (500) errors are not logged                                     | Fixed (logged without messages, tested)            |
-| M6  | medium   | Production can start on an in-memory database                              | Fixed (production startup check, tested)           |
-| M7  | medium   | No item count cap on pack import (only the 2 MiB body cap from H2)         | Fixed (item, text and evidence caps, tested)       |
-| L1  | low      | MCP sessions live in process memory with no idle expiry                    | Fixed (30-minute idle expiry, tested)              |
-| L2  | low      | Dashboard static path check used a bare prefix match                       | Fixed in `83b58e9` (separator-aware)               |
+| ID  | Severity | Finding                                                                    | Status                                                               |
+| --- | -------- | -------------------------------------------------------------------------- | -------------------------------------------------------------------- |
+| H1  | high     | Malformed URL escape threw inside the raw request listener                 | Fixed in `83b58e9`, regression test                                  |
+| H2  | high     | No request body size limit (REST and MCP), unauthenticated routes included | Fixed in `83b58e9`, regression tests                                 |
+| H3  | high     | Sign-in links (bearer secrets) printed to logs when no mailer is set       | Fixed in `83b58e9` for production, regression test                   |
+| M1  | medium   | Rate limiter keys on the first `X-Forwarded-For` entry                     | Fixed (trusted proxy hops, tested)                                   |
+| M2  | medium   | Webhook destination check: DNS rebinding window, missing reserved ranges   | Fixed (pinned connection, tested)                                    |
+| M3  | medium   | No cap on concurrent SSE streams; streams outlive a revoked session        | Fixed (caps and session re-check, tested)                            |
+| M4  | medium   | Agent tokens never expire; API token expiry is optional and off by default | Fixed for new agent tokens (expiry, tested)                          |
+| M5  | medium   | Unexpected (500) errors are not logged                                     | Fixed (logged without messages, tested)                              |
+| M6  | medium   | Production can start on an in-memory database                              | Fixed (production startup check, tested)                             |
+| M7  | medium   | No item count cap on pack import (only the 2 MiB body cap from H2)         | Fixed (item, text and evidence caps, tested)                         |
+| L1  | low      | MCP sessions live in process memory with no idle expiry                    | Fixed (30-minute idle expiry, tested)                                |
+| L2  | low      | Dashboard static path check used a bare prefix match                       | Fixed in `83b58e9` (separator-aware); test added in Phase 6.2        |
+| M8  | medium   | An agent could auto-promote its own memory through a new session           | Fixed in Phase 6.1 (only a person confirms, tested); limits recorded |
 
 No critical findings.
 
@@ -98,7 +99,7 @@ No critical findings.
 - **Least-privilege database user** for the app (the deployment uses the RDS master user; see DEPLOYMENT).
 - **Dev-only advisories** (picomatch, minimatch) as above, no fixed releases in range.
 
-## M8: an agent can auto-promote its own memory (found 2026-11-18, open)
+## M8: an agent can auto-promote its own memory (found 2026-11-18, fixed in Phase 6.1)
 
 - **Severity: medium.** It needs a precondition (a valid agent token for the project). It defeats the anti-gaming rule that only other sessions' reports promote a memory (BD9), so an agent's unreviewed memory can become `confirmed` and be weighted as trusted in later briefings.
 - **Code.**
@@ -107,17 +108,51 @@ No critical findings.
   - Promotion needs 3 counted reports from 2 distinct sessions (`learning.ts:52`), with at most 2 helpful reports per memory per day (`learning.ts:34`).
 - **Covering tests.** `packages/core/test/learning.test.ts:113` covers only the same agent in the same session. No test covers the same agent in a new session.
 - **Probe (throwaway test, not committed, PGlite, 2026-11-18).** One agent token wrote a memory, then reported it helpful twice on day 0 and once on day 1, with no session header. Result: `proposed` 0.376, then 0.401, then `confirmed` 0.8, "auto-promoted after repeated successful reuse".
-- **Not fixed** (Phase 4 is docs only). A fix would count a report only from a different agent identity, or from a person.
+- **Fixed in Phase 6.1** (owner decision, BD44): only a person confirms.
+  - `packages/core/src/learning.ts`: the `confirm` signal refuses every agent, with or without the `confirm` permission, and the system.
+  - Helpful reports raise confidence but never change status; meeting the old promotion thresholds only marks the report "ready for a person to confirm".
+  - Session headers play no part.
+- **Test.** `packages/api/test/agent-confirm.test.ts`, through the agent REST operations, which the MCP server uses.
+  - It covers one agent's own reports over several days and sessions, other agents' reports, `resolve confirm` with the permission (403), `remember`, `remember_bulk` and `handoff` (proposed), and branch `create` and `propose_merge` (no change).
+  - A person can still confirm.
+  - On the old code, 3 of these failed: own reports gave `confirmed`, other agents' reports gave `confirmed`, and `resolve confirm` returned 200 with `"status":"confirmed"`.
+- **Older tests updated.** Five tests encoded the old rule: `learning.test.ts` (auto-promotion, delegated confirm), `service.test.ts` (two) and `learning-settings.test.ts`.
+- **Paths checked:**
+
+| Path                                                                                                              | Can it set confirmed?                                                                         | How checked               |
+| ----------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------- | ------------------------- |
+| Agent: remember, remember_bulk, handoff                                                                           | No; they start proposed                                                                       | test                      |
+| Agent: report (own or other agents', any session)                                                                 | No                                                                                            | test                      |
+| Agent: resolve confirm (with or without the `confirm` permission)                                                 | No; refused with 403                                                                          | test                      |
+| Agent: branch create, propose_merge                                                                               | No; propose_merge only reads                                                                  | test                      |
+| Agent: verify, chain_read, check, recall, status, memory, briefing, project, connect                              | No; evidence can only make a memory stale                                                     | code (`learning.ts`)      |
+| MCP tools                                                                                                         | Same agent service as above (REST backend, or the in-process backend over HTTP)               | same tests                |
+| Person: dashboard confirm (`POST /v1/memories/:id/confirm`), memory created by a person, branch merge by an admin | Yes, by design                                                                                | test (confirm)            |
+| API token (`UserPrincipal`, acts as the person who created it)                                                    | Yes                                                                                           | test, recorded as a limit |
+| Pack import                                                                                                       | No; imported memories are always proposed (`dashboard.ts:1193`)                               | code                      |
+| Worker jobs (drift, expiry, renewal, snapshot, canary, webhooks, write drain)                                     | No; nothing in them sets confirmed (search over `packages/worker` and the services they call) | code                      |
+| Event replay (`collab.ts` `EVENT_STATUS`)                                                                         | Only replays an existing `memory.confirmed` event                                             | code                      |
+| Webhooks                                                                                                          | No status changes                                                                             | code                      |
+
+- **What an agent can still do (remaining limits):**
+  - **Raise confidence without confirming.**
+    - With 2 helpful reports a day, an agent's own memory reaches 0.633 after a week and 0.944 after 30 days while staying `proposed`. This was measured with the real learning code. A person's confirmation sets 0.8.
+    - Confidence feeds briefing ranking (BD29), so a persistent agent can lift its own proposed memory in briefings.
+    - **Low:** it needs a valid token over weeks, the memory stays marked proposed, and the decision allows agent reports to raise confidence. A cap on report-driven confidence below 0.8 would close it (owner decision).
+  - **Flood proposals.** Bounded by the per-agent write budget (6 a minute by default) and plan limits. **Low.**
+  - **Contest a person's confirmed memory** with two "wrong" reports (allowed by the decision). **Low:** it raises a flag for people to review.
+  - **Use an API token if a person gives it one.** It then acts as that person, including confirm. **Low to medium,** depending on how API tokens are handed out; API tokens also have no default expiry (M4).
+- **Dashboard text not changed (6.4).** The Settings "auto-promotion" control and the Agents `confirm` permission still appear, though they no longer confirm anything (`docs/design/02`).
 
 ## Finding count (Phase 4.3, 2026-11-18)
 
-- **Review findings** (the summary table): 12, namely 3 high (H1–H3), 7 medium (M1–M7) and 2 low (L1, L2), with no critical. Of these:
-  - 10 are fixed with a regression test;
+- **Findings on the review scale:** 13, namely 3 high (H1–H3), 8 medium (M1–M8) and 2 low (L1, L2), with no critical. Phase 6.2 recount:
+  - 12 are fixed with a dedicated regression test (L2 gained one in Phase 6.2: `insideRoot` in `packages/api/src/server.ts`, tested in `static.test.ts`, failing on the pre-fix `startsWith(root)`; M8 is tested by `agent-confirm.test.ts`);
   - M4 is fixed for new agent tokens only (API tokens still have no default expiry);
-  - L2 is fixed without its own regression test: `packages/api/test/static.test.ts` tests a `..` escape, not a sibling directory with the same prefix.
+  - M4 is fixed for new agent tokens only (tested by `agent-token-expiry.test.ts`). The gap is in the code, not the tests: API tokens have no default expiry, and agent tokens issued before M4 never expire.
 - **Found later:**
   - three items fixed after the review ("Found after the review");
-  - M8 above (open);
+  - M8 above (fixed in Phase 6.1, limits recorded);
   - error-text sweep A1–A13, of which A1 and A6 are fixed;
   - fallback sweep B1–B8, of which B1 and B2 are fixed for production.
 

@@ -177,10 +177,9 @@ export function applySignal(
   }
   switch (signal.kind) {
     case 'confirm': {
-      if (signal.actor.kind === 'agent') {
-        if (!signal.delegated) return refuse(s, 'agents cannot confirm memories');
-        if (signal.actor.id === s.createdByAgent) return refuse(s, 'an agent cannot confirm its own memory');
-      }
+      // Only a person confirms (finding M8, owner decision 2026-11-18). An agent token never does, with or without the
+      // `confirm` permission (this supersedes BD11's delegated confirmation), and the system never does.
+      if (signal.actor.kind === 'agent') return refuse(s, 'only a person can confirm a memory');
       if (signal.actor.kind === 'system') return refuse(s, 'system cannot confirm memories');
       return commit(
         s,
@@ -261,6 +260,9 @@ export function applySignal(
           ? s.promotionSessions
           : [...s.promotionSessions, sid];
       }
+      // Reports raise confidence but never change status (finding M8): a memory whose reuse would once have
+      // auto-promoted it is only marked as ready for a person to confirm. Session ids are client-supplied, so they
+      // cannot separate one agent from another.
       let reason = 'reported helpful';
       if (
         cfg.promotion.enabled &&
@@ -268,11 +270,8 @@ export function applySignal(
         next.wrongCount === 0 &&
         next.promotionReports >= cfg.promotion.helpfulReports &&
         next.promotionSessions.length >= cfg.promotion.distinctSessions
-      ) {
-        next.status = 'confirmed';
-        next.confidence = Math.max(next.confidence, cfg.humanFloor);
-        reason = 'auto-promoted after repeated successful reuse';
-      }
+      )
+        reason = 'reported helpful; repeated successful reuse, ready for a person to confirm';
       return commit(s, next, at, 'report.helped', reason);
     }
   }

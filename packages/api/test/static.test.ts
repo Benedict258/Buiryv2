@@ -134,3 +134,16 @@ describe('mailer selection', () => {
     }
   });
 });
+
+describe('L2: static containment (dedicated test, Phase 6.2)', () => {
+  it('accepts the root and files under it, refuses a sibling directory that shares the prefix', async () => {
+    const { insideRoot } = await import('../src/server.js');
+    const { join, sep } = await import('node:path');
+    const root = join(tmpdir(), 'buiry-dist');
+    expect(insideRoot(root, root)).toBe(true);
+    expect(insideRoot(root, join(root, 'assets', 'app.js'))).toBe(true);
+    // The pre-fix check was file.startsWith(root), which accepted these:
+    expect(insideRoot(root, `${root}-other${sep}secret.txt`)).toBe(false);
+    expect(insideRoot(root, `${root}x`)).toBe(false);
+  });
+});

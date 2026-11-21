@@ -106,6 +106,13 @@ There is no route for the marketing site, a 500 page, the internal admin console
 | Copy commands across pages                     | `npx buiry ...` appears in Overview, Memory, Projects, Agents, Settings and Onboarding. The owner chose `npx @buiry/cli` (decision 16); the dashboard still shows the old command. | Blocked: packages are unpublished, and the npm name `buiry` is not a release name (section 13). |
 | Inline styles                                  | 187 `style={{...}}` attributes across the pages (count from `grep`).                                                                                                               | Spacing and layout drift outside the tokens.                                                    |
 
+### Controls whose effect changed in Phase 6.1 (dashboard not changed)
+
+| Control                                          | Where                          | Effect now                                                                                                                                                     |
+| ------------------------------------------------ | ------------------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| "Auto-promotion" setting (thresholds, on or off) | Project Settings, memory rules | Reports never confirm (M8, BD44). The thresholds now only decide when a report is marked "ready for a person to confirm". The label still says auto-promotion. |
+| `confirm` permission when connecting an agent    | Agents                         | No longer lets an agent confirm (supersedes BD11). The option is still offered.                                                                                |
+
 ### Accessibility: tested versus assumed
 
 | Aspect                              | Status                                                                                                       |

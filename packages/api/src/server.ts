@@ -238,6 +238,14 @@ const MIME: Record<string, string> = {
   '.ico': 'image/x-icon',
 };
 
+/**
+ * Whether `file` is the dashboard root or inside it (SECURITY_REVIEW L2). A bare prefix check would also accept a
+ * sibling directory whose name starts with the root's name (`/srv/dist-other` for root `/srv/dist`).
+ */
+export function insideRoot(root: string, file: string): boolean {
+  return file === root || file.startsWith(root + sep);
+}
+
 /** Serves the built dashboard; unknown paths fall back to index.html so client-side routes work. */
 function serveStatic(
   root: string,
@@ -255,7 +263,7 @@ function serveStatic(
   }
   const path = normalize(decoded).replace(/^([/\\]\.\.)+/, '');
   let file = join(root, path);
-  if (!(file === root || file.startsWith(root + sep)) || !existsSync(file) || statSync(file).isDirectory())
+  if (!insideRoot(root, file) || !existsSync(file) || statSync(file).isDirectory())
     file = join(root, 'index.html');
   if (!existsSync(file)) {
     res.writeHead(404).end('dashboard not built');
