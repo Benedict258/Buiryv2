@@ -59,3 +59,16 @@ Two layers:
 ## Storage lifetime and renewal
 
 Walrus storage is paid for a fixed period (testnet about 5 days, Mainnet about 210 days as observed; see ASSUMPTIONS). The expiry scan reads each memory's expiry and raises a warning inside the margin. With `BUIRY_RENEWAL=on` it also queues a rewrite of each expiring memory: the same text is stored again as a new blob, the memory switches to it once stored, and the old blob stays until it lapses. Renewal costs the same as a new write on the account that stores the project (managed or the project's own).
+
+## API tokens: expiry and the confirm scope
+
+- **Expiry.** API tokens expire after 90 days unless the creator asks for a different number of days (1 to 365, `expiresInDays`). Agent tokens expire after `BUIRY_AGENT_TOKEN_MAX_DAYS` (default 90).
+- **Before any tester gets access.** No deployed environment exists yet. On the first deployed database, run the migration below as a dry run, send the owner the output, and apply it only after the owner's go-ahead. Until then finding M4 stays partly fixed.
+- **Old tokens.** Tokens created before those changes may have no expiry. `scripts/real-pg/token-expiry.ts` lists them (dry run, counts and scopes only) and, with `--apply`, gives each active one an expiry 90 days out, in one transaction. It never adds the confirm scope.
+- **The confirm scope.** Confirming a memory, creating one as confirmed and merging as confirmed need the explicit `confirm` scope, which is off by default. A token without it gets 403 "this API token lacks the confirm scope" and its merges bring memories in as proposed.
+- **Reissuing a token that must confirm** (the owner or an admin):
+  1. Create a new token with the scopes it needs plus `confirm`: `POST /v1/workspaces/<ws>/api-tokens` with `{"name": "...", "scopes": ["read", "write", "confirm"], "expiresInDays": 90}` and a signed-in session. The token is shown once.
+  2. Put it where the old one was used, and check one confirm works.
+  3. Revoke the old token: `DELETE /v1/api-tokens/<id>`.
+  4. Never give a token with `confirm` to an agent tool: it would confirm as a person (`docs/SECURITY_REVIEW.md`, M8).
+- The dashboard's API token page does not yet offer the `confirm` scope or show expiry (`docs/design/02`); until it does, use the API call above.

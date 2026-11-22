@@ -91,7 +91,7 @@ Buiry is a shared project memory for AI coding agents.
 
 **Security review** (`docs/SECURITY_REVIEW.md`). It is an internal code reading, not a penetration test.
 
-- There are no critical findings. 13 findings: three high (H1–H3), eight medium (M1–M8) and two low (L1, L2). 12 are fixed with a dedicated regression test; M4 is fixed only for new agent tokens (API tokens and older agent tokens have no expiry).
+- There are no critical findings. 13 findings: three high (H1–H3), eight medium (M1–M8) and two low (L1, L2). 12 are fixed with a dedicated regression test; M4 is partly fixed: new agent tokens (M4, `agent-token-expiry.test.ts`) and new API tokens (90 days by default, Phase 7.4, `api-tokens.test.ts`) expire; tokens created before those changes keep no expiry until the migration in `scripts/real-pg/token-expiry.ts` is applied (no deployed environment exists yet; the migration must run on the first deployed database, dry run first and then the owner's go-ahead, before any tester gets access).
 
 **Load and latency** (`docs/LOAD.md`). The local runs used PGlite on one Windows machine with sequential calls; treat them as indicative only.
 
