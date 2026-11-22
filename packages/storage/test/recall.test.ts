@@ -423,3 +423,46 @@ describe('recall ranks person-confirmed memories ahead of agent-only ones at equ
     expect(r.results.map((x) => x.memoryId)).toEqual(['mem_b_person', 'mem_a_agent']);
   });
 });
+
+describe('recall: status first (Phase 8 B2)', () => {
+  it('ranks a confirmed memory above an evidence-lifted agent-only one with higher relevance', async () => {
+    const { svc, write, clock } = await rig();
+    await write('mem_a_agent', 'Store sessions in the database session storage.', 'main', {
+      status: 'proposed',
+      confidence: 0.9,
+    });
+    await write('mem_b_person', 'Sessions live in the database.', 'main', {
+      status: 'confirmed',
+      confidence: 0.8,
+    });
+    const r = await svc.recall({
+      projectId: PROJECT,
+      branch: 'main',
+      query: 'session storage database',
+      now: clock.now(),
+    });
+    expect(r.results.map((x) => x.memoryId)).toEqual(['mem_b_person', 'mem_a_agent']);
+  });
+});
+
+describe('recall: status first only among relevant results (Phase 9 A2)', () => {
+  it('an irrelevant confirmed memory neither appears nor displaces a relevant proposed one', async () => {
+    const { svc, write, clock } = await rig();
+    await write('mem_a_relevant', 'Store sessions in the database session storage.', 'main', {
+      status: 'proposed',
+      confidence: 0.35,
+    });
+    await write('mem_b_offtopic', 'Release notes go in the changelog file.', 'main', {
+      status: 'confirmed',
+      confidence: 0.8,
+    });
+    const r = await svc.recall({
+      projectId: PROJECT,
+      branch: 'main',
+      query: 'session storage database',
+      now: clock.now(),
+      limit: 2,
+    });
+    expect(r.results.map((x) => x.memoryId)).toEqual(['mem_a_relevant']);
+  });
+});

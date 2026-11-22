@@ -256,3 +256,84 @@ describe('person-confirmed memories rank ahead of agent-only ones at equal relev
     expect(order([agentOnly, person])).toEqual(['mem_b_person', 'mem_a_agent']);
   });
 });
+
+describe('status first: person-confirmed memories rank above all others (Phase 8 B2)', () => {
+  const order = (mems: MemoryRecord[]) =>
+    buildBriefing({ now: NOW, memories: mems, task: 'session storage database' }).items.map(
+      (i) => i.memoryId,
+    );
+  const at = (days: number) => ({
+    createdAt: NOW - days * 86_400_000,
+    updatedAt: NOW - days * 86_400_000,
+    lastReinforcedAt: NOW - days * 86_400_000,
+  });
+
+  it('an agent-only memory lifted to 0.9 by verified evidence ranks below a confirmed one', () => {
+    const agentOnly = m('mem_a_agent', 'decision', 'Store sessions in the database.', {
+      ...at(1),
+      status: 'proposed',
+      confidence: 0.9,
+    });
+    const person = m('mem_b_person', 'decision', 'Store sessions in the database.', {
+      ...at(1),
+      status: 'confirmed',
+      confidence: 0.8,
+    });
+    expect(order([agentOnly, person])).toEqual(['mem_b_person', 'mem_a_agent']);
+  });
+
+  it('a confirmed memory whose confidence decayed still ranks above a fresh agent-only one', () => {
+    const agentOnly = m('mem_a_agent', 'fact', 'Store sessions in the database.', {
+      ...at(0),
+      status: 'proposed',
+      confidence: 0.7,
+    });
+    const person = m('mem_b_person', 'fact', 'Store sessions in the database.', {
+      ...at(400),
+      status: 'confirmed',
+      confidence: 0.8,
+    });
+    expect(order([agentOnly, person])).toEqual(['mem_b_person', 'mem_a_agent']);
+  });
+
+  it('a confirmed memory ranks above a more relevant agent-only one (the trade-off, by decision)', () => {
+    const agentOnly = m(
+      'mem_a_agent',
+      'decision',
+      'Store sessions in the database for the session storage layer.',
+      { ...at(1), status: 'proposed', confidence: 0.7 },
+    );
+    const person = m('mem_b_person', 'decision', 'Use pnpm workspaces for storage of packages.', {
+      ...at(1),
+      status: 'confirmed',
+      confidence: 0.8,
+    });
+    expect(order([agentOnly, person])).toEqual(['mem_b_person', 'mem_a_agent']);
+  });
+});
+
+describe('status first only among relevant results (Phase 9 A2)', () => {
+  it('an irrelevant confirmed memory does not displace a relevant proposed one', () => {
+    const t = {
+      createdAt: NOW - 86_400_000,
+      updatedAt: NOW - 86_400_000,
+      lastReinforcedAt: NOW - 86_400_000,
+    };
+    const relevant = m('mem_a_relevant', 'decision', 'Store sessions in the database.', {
+      ...t,
+      status: 'proposed',
+      confidence: 0.35,
+    });
+    const offTopic = m('mem_b_offtopic', 'decision', 'Release notes go in the changelog file.', {
+      ...t,
+      status: 'confirmed',
+      confidence: 0.8,
+    });
+    const ids = buildBriefing({
+      now: NOW,
+      memories: [offTopic, relevant],
+      task: 'session storage database',
+    }).items.map((i) => i.memoryId);
+    expect(ids.indexOf('mem_a_relevant')).toBeLessThan(ids.indexOf('mem_b_offtopic'));
+  });
+});

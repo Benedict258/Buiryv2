@@ -23,6 +23,7 @@ import {
   type Signal,
   type Status,
   MEMORY_TYPES,
+  AGENT_REVIEW_REASON,
 } from '@buiry/core';
 import { PgWriteQueue, WriteService, type IndexedMemory } from '@buiry/storage';
 import { storageMode } from './byo-storage.js';
@@ -778,6 +779,16 @@ export async function reportTx(
       extra: { outcome: i.outcome, ...(note ? { note } : {}) },
     },
   );
+  if (a.reason === AGENT_REVIEW_REASON) {
+    await raiseFlag(deps, tx, {
+      workspaceId: p.workspaceId,
+      projectId,
+      memoryId: row.id,
+      kind: 'contested',
+      severity: 'warning',
+      detail: 'Agents reported this confirmed memory wrong; a person should review it',
+    });
+  }
   if (a.after.status === 'contested' && a.before.status !== 'contested') {
     await raiseFlag(deps, tx, {
       workspaceId: p.workspaceId,

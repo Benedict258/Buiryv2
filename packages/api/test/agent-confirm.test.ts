@@ -132,6 +132,31 @@ describe('only a person can confirm a memory (M8)', () => {
     expect((await status(id)).status).toBe('confirmed');
   });
 
+  it('agents reporting a person-confirmed memory wrong flag it for review but cannot demote it (Phase 8 B2)', async () => {
+    const created = await w.req('POST', `/v1/projects/${projectId}/memories`, {
+      token: owner.token,
+      body: {
+        text: 'Sessions live in Postgres, decided by the lead.',
+        type: 'decision',
+        status: 'confirmed',
+      },
+    });
+    const id = created.json.data.memoryId as string;
+    for (const name of ['critic-a', 'critic-b']) {
+      const t = await agent(name, ['read', 'write']);
+      expect((await call(t, 'report', { memoryId: id, outcome: 'wrong' })).status).toBe(200);
+    }
+    const m = await status(id);
+    expect(m.status).toBe('confirmed');
+    expect(m.confidence).toBe(0.8);
+    const flags = (await w.req('GET', `/v1/projects/${projectId}/flags`, { token: owner.token })).json
+      .data as {
+      memory_id: string;
+      kind: string;
+    }[];
+    expect(flags.some((f) => f.memory_id === id && f.kind === 'contested')).toBe(true);
+  });
+
   it('a person can still confirm from the dashboard', async () => {
     const tok = await agent('for-human', ['read', 'write']);
     const id = await remember(tok, 'Prefer small pull requests.');

@@ -30,6 +30,9 @@ export interface LearningConfig {
   conflictThreshold: number;
 }
 
+/** The reason given when agents' wrong reports reach two on a person-confirmed memory (Phase 8 B2). */
+export const AGENT_REVIEW_REASON = 'agents reported this confirmed memory wrong; a person should review it';
+
 export const DEFAULT_LEARNING: LearningConfig = {
   initialAgent: 0.35,
   humanFloor: 0.8,
@@ -201,6 +204,9 @@ export function applySignal(
       );
     }
     case 'contest':
+      // Only a person can contest a memory a person confirmed (Phase 8 B2); an agent reports it wrong instead.
+      if (signal.actor.kind !== 'human' && s.status === 'confirmed')
+        return refuse(s, 'only a person can contest a confirmed memory; report it wrong instead');
       return commit(
         s,
         { ...s, status: 'contested', confidence: s.confidence * cfg.contestFactor },
@@ -234,6 +240,22 @@ export function applySignal(
       const human = signal.actor.kind === 'human';
       if (signal.outcome === 'irrelevant') {
         return commit(s, { ...s }, at, 'report.irrelevant', 'reported irrelevant; confidence unchanged');
+      }
+      if (
+        (signal.outcome === 'wrong' || signal.outcome === 'outdated') &&
+        !human &&
+        s.status === 'confirmed'
+      ) {
+        // Agents cannot demote a person-confirmed memory (Phase 8 B2): the report is counted and, at two, a person is
+        // asked to review it; status and confidence stay.
+        const wrongCount = s.wrongCount + 1;
+        return commit(
+          s,
+          { ...s, wrongCount },
+          at,
+          `report.${signal.outcome}`,
+          wrongCount === 2 ? AGENT_REVIEW_REASON : `reported ${signal.outcome} by an agent; status unchanged`,
+        );
       }
       if (signal.outcome === 'wrong' || signal.outcome === 'outdated') {
         const wrongCount = s.wrongCount + 1;

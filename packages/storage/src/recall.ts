@@ -10,6 +10,7 @@ import {
   type MemoryType,
   type Status,
   confirmedFirst,
+  RELEVANCE_CUTOFF,
 } from '@buiry/core';
 import type { WalrusMemoryAdapter } from './adapter.js';
 
@@ -148,10 +149,12 @@ export class RecallService {
       .map((m) => {
         const eff = effectiveConfidence(m, i.now, this.cfg);
         const rel = relayerScore.get(m.id) ?? relevance(i.query, m.text);
-        return { m, eff, score: 0.6 * rel + 0.4 * eff };
+        return { m, eff, rel, score: 0.6 * rel + 0.4 * eff };
       })
-      // At an exact tie a person-confirmed memory goes first (Phase 7.3), then the id keeps the order stable.
-      .sort((a, b) => b.score - a.score || confirmedFirst(a.m, b.m) || a.m.id.localeCompare(b.m.id))
+      // Results below the relevance cutoff are dropped, so status cannot pull in an off-topic memory (Phase 9 A2).
+      .filter((x) => x.rel >= RELEVANCE_CUTOFF)
+      // Status first among relevant results (Phase 8 B2, Phase 9 A2): person-confirmed first, then score, then id.
+      .sort((a, b) => confirmedFirst(a.m, b.m) || b.score - a.score || a.m.id.localeCompare(b.m.id))
       .slice(0, limit);
 
     return {

@@ -282,3 +282,33 @@ describe('report-driven confidence is capped at 0.7, below a person confirm (Pha
     expect(r.state.confidence).toBe(0.85);
   });
 });
+
+describe('agents cannot demote a person-confirmed memory (Phase 8 B2)', () => {
+  const person = { kind: 'human' as const, id: 'usr_lead' };
+  const confirmed = () => initialState({ id: 'mem_c', type: 'decision', actor: person, at: T0 });
+
+  it("an agent's wrong reports are counted but do not change status or confidence", () => {
+    let s = confirmed();
+    for (const actor of [agentA, agentB])
+      s = applySignal(s, { kind: 'report', actor, outcome: 'wrong' }, T0 + DAY).state;
+    expect(s.status).toBe('confirmed');
+    expect(s.confidence).toBe(0.8);
+    expect(s.wrongCount).toBe(2);
+  });
+
+  it("an agent's explicit contest of a confirmed memory is refused", () => {
+    const r = applySignal(confirmed(), { kind: 'contest', actor: agentA }, T0 + DAY);
+    expect(r.applied).toBe(false);
+    expect(r.state.status).toBe('confirmed');
+  });
+
+  it("a person can still contest it, and people's wrong reports still count as before", () => {
+    expect(applySignal(confirmed(), { kind: 'contest', actor: person }, T0 + DAY).state.status).toBe(
+      'contested',
+    );
+    let s = confirmed();
+    for (const id of ['usr_a', 'usr_b'])
+      s = applySignal(s, { kind: 'report', actor: { kind: 'human', id }, outcome: 'wrong' }, T0 + DAY).state;
+    expect(s.status).toBe('contested');
+  });
+});
