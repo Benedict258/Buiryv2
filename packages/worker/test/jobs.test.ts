@@ -1,7 +1,13 @@
 import { randomBytes } from 'node:crypto';
 import { describe, expect, it } from 'vitest';
 import { FIXTURES_DIR, GrpcBackend, MockTatum, TatumGateway, loadFixtures } from '@buiry/chain';
-import { EPOCH_MS, Ed25519Signer, HttpWalrusAdapter, MockRelayer } from '@buiry/storage';
+import {
+  EPOCH_MS,
+  Ed25519Signer,
+  HttpWalrusAdapter,
+  MockRelayer,
+  type WalrusMemoryAdapter,
+} from '@buiry/storage';
 import { StorageRegistry, createDrain, createStack, type UserPrincipal } from '@buiry/api';
 import {
   Scheduler,
@@ -394,6 +400,8 @@ describe('isolation canary', () => {
     // Found in the Phase 9 runs: the canary's planted memory claimed the managed account on a fresh deployment, so
     // the first real workspace was refused, and every hourly run queued a real Walrus write.
     const storage = new StorageRegistry({
+      // A single-tenant shared account (Phase 9: stubbed, as in onboarding-tenancy.test.ts; writes only queue here).
+      managed: {} as WalrusMemoryAdapter,
       build: () => {
         throw new Error('no own accounts in this test');
       },
@@ -414,6 +422,33 @@ describe('isolation canary', () => {
     });
     await agent.backend.remember({ text: 'The first real workspace can write.', type: 'fact' });
     expect(await sys('select 1 from write_jobs')).toBe(1);
+    await stack.close();
+  }, 120_000);
+
+  it('passes with no shared account (preview), still writing nothing, while real projects without one are refused', async () => {
+    const storage = new StorageRegistry({
+      build: () => {
+        throw new Error('no own accounts in this test');
+      },
+      tenancy: { multi: false },
+    });
+    const stack = await createStack({ now: new Clock().now, random: rand, storage });
+    expect((await isolationCanary(stack.deps)).ok).toBe(true);
+    const sys = (q: string) => stack.db.system(async (tx) => (await tx.query(q)).rows.length);
+    expect(await sys('select 1 from managed_tenant')).toBe(0);
+    expect(await sys('select 1 from write_jobs')).toBe(0);
+    const ws = await stack.newWorkspace('Preview tester');
+    const prj = await stack.newProject(ws.id);
+    const agent = await stack.newAgent({
+      workspaceId: ws.id,
+      projectId: prj.id,
+      name: 'a',
+      tool: 'claude-code',
+    });
+    await expect(agent.backend.remember({ text: 'No account yet.', type: 'fact' })).rejects.toThrow(
+      /no shared Walrus account/,
+    );
+    expect(await sys('select 1 from write_jobs')).toBe(0);
     await stack.close();
   }, 120_000);
 });

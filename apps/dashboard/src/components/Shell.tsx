@@ -49,6 +49,7 @@ import { Banner, BranchPill, Popover, Toasts } from './ui';
 import { CommandPalette } from './CommandPalette';
 import { MemoryDrawer } from '../pages/MemoryDrawer';
 import { initials } from '../lib/format';
+import { ownAccountReason } from '../lib/storage-text';
 
 export function WorkspaceLayout() {
   const { ws, pid } = useParams();
@@ -482,11 +483,8 @@ export function ProjectLayout() {
     <ProjContext.Provider value={value}>
       {storageAccount.data?.needsOwnAccount && !loc.pathname.endsWith('/storage') && (
         <Banner kind="warning" full action={<Link to={`${base}/storage`}>Connect a storage account</Link>}>
-          {storageAccount.data.requested === 'byo'
-            ? 'This project stores memories in its own Walrus Memory account, which is not connected yet.'
-            : "This deployment's shared storage serves another workspace."}{' '}
-          Agents can read this project now; they can store memories once you connect a Walrus Memory account
-          on the Storage page.
+          {ownAccountReason(storageAccount.data)} Agents can read this project now; they can store memories
+          once you connect a Walrus Memory account on the Storage page.
         </Banner>
       )}
       {degraded.map((d) => (

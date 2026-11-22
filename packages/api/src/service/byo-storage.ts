@@ -70,6 +70,8 @@ export interface ProjectStorageView {
   requested?: 'byo';
   /** Memories cannot be stored until this project's own account is connected. */
   needsOwnAccount?: boolean;
+  /** The deployment has no shared storage account (BUIRY_MANAGED=off, preview mode). */
+  noSharedAccount?: boolean;
 }
 
 interface StorageRow {
@@ -127,6 +129,33 @@ export const CONNECT_OWN_ACCOUNT =
 export const SHARED_ACCOUNT_TAKEN =
   "this deployment's shared Walrus account serves another workspace; a project admin connects this project's own Walrus Memory account in the dashboard (project, Storage, Use your own account). Until then memories cannot be stored";
 
+export const NO_SHARED_ACCOUNT =
+  'this deployment has no shared Walrus account, so each project stores memories in its own Walrus Memory account; a project admin connects it in the dashboard (project, Storage, Use your own account). Until then memories cannot be stored';
+
+/** True when a storage registry is configured but holds no shared (managed) account: BUIRY_MANAGED=off (preview). */
+function noSharedAccount(deps: ServiceDeps): boolean {
+  return !!deps.storage && !deps.storage.managed;
+}
+
+/**
+ * Writes queued for projects that have no account to store them in: no own account and no shared account on this
+ * deployment (Phase 9 C1). They stay queued and are reported at startup, never deleted; connecting the project's own
+ * account lets them be stored. Empty when the deployment has a shared account.
+ */
+export async function strandedWrites(
+  deps: ServiceDeps,
+  tx: Tx,
+): Promise<{ projectId: string; queued: number }[]> {
+  if (!noSharedAccount(deps)) return [];
+  const r = await tx.query<{ project_id: string; n: string }>(
+    `select w.project_id, count(*) as n from write_jobs w
+      where w.state in ('queued','submitting','submitted')
+        and not exists (select 1 from project_storage s where s.project_id = w.project_id)
+      group by w.project_id order by w.project_id`,
+  );
+  return r.rows.map((x) => ({ projectId: x.project_id, queued: Number(x.n) }));
+}
+
 /** Whether new projects in a workspace can use the shared (managed) account, and if not, why. */
 export async function storagePolicy(
   deps: ServiceDeps,
@@ -152,7 +181,7 @@ export async function storagePolicy(
  */
 export async function claimManagedOnCreate(deps: ServiceDeps, tx: Tx, workspaceId: string): Promise<void> {
   const t = deps.storage?.tenancy;
-  if (!t || t.multi || t.workspaceId) return;
+  if (!t || t.multi || t.workspaceId || noSharedAccount(deps)) return;
   await managedAllowed(deps, tx, workspaceId, true);
 }
 
@@ -203,6 +232,8 @@ export async function assertStorageAllowed(
     projectId,
   ]);
   if (mode.rows[0]?.walrus_mode === 'byo') throw new BuiryError('forbidden', CONNECT_OWN_ACCOUNT);
+  // No shared account (preview): refuse up front rather than queue a write nothing can store (Phase 9 C1).
+  if (noSharedAccount(deps)) throw new BuiryError('forbidden', NO_SHARED_ACCOUNT);
   if (!deps.storage?.tenancy) return;
   if (await managedAllowed(deps, tx, workspaceId, true)) return;
   throw new BuiryError('forbidden', SHARED_ACCOUNT_TAKEN);
@@ -216,7 +247,7 @@ export async function getProjectStorage(
 ): Promise<ProjectStorageView> {
   await loadProject(tx, p, projectId);
   const row = await storageRow(tx, projectId);
-  const allowed = await managedAllowed(deps, tx, p.workspaceId, false);
+  const allowed = !noSharedAccount(deps) && (await managedAllowed(deps, tx, p.workspaceId, false));
   const wanted = (
     await tx.query<{ walrus_mode: string }>('select walrus_mode from projects where id = $1', [projectId])
   ).rows[0]?.walrus_mode;
@@ -227,6 +258,7 @@ export async function getProjectStorage(
       ...(wanted === 'byo' ? { requested: 'byo' as const } : {}),
       // True when agents cannot store memories until an own account is connected.
       needsOwnAccount: wanted === 'byo' || !allowed,
+      ...(noSharedAccount(deps) ? { noSharedAccount: true } : {}),
     };
   return {
     mode: 'byo',

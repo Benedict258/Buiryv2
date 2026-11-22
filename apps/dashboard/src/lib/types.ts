@@ -279,4 +279,6 @@ export interface ProjectStorageView {
   managedAllowed: boolean;
   requested?: 'byo';
   needsOwnAccount?: boolean;
+  /** The deployment has no shared storage account (preview mode). */
+  noSharedAccount?: boolean;
 }

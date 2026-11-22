@@ -8,11 +8,11 @@ import { createGatewayIfConfigured } from '@buiry/chain';
 import { Ed25519Signer, HttpWalrusAdapter, type WalrusMemoryAdapter } from '@buiry/storage';
 import { BuiryError } from '@buiry/core';
 import { MemoryMailer, type Mailer } from './auth/auth-service.js';
-import { productionProblems } from './config-check.js';
+import { previewProblems, productionProblems } from './config-check.js';
 import { cspModeFromEnv, requestIsHttps, securityHeaders } from './http/security-headers.js';
 import { chooseEncoding, compressedFile, isCompressible } from './http/static-compression.js';
 import { SmtpMailer, smtpConfigFromEnv } from './auth/smtp.js';
-import { StorageRegistry } from './service/byo-storage.js';
+import { StorageRegistry, strandedWrites } from './service/byo-storage.js';
 import { buildWalrusAdapter } from './service/walrus.js';
 import { GitHubOAuth, GoogleOAuth, type OAuthProvider } from './auth/oauth.js';
 import { SuiPersonalMessageVerifier } from './auth/wallet.js';
@@ -60,6 +60,11 @@ export function mailerFromEnv(env: Env): Mailer {
 /** Builds service dependencies from the documented environment variables. Nothing is read from files. */
 export async function buildRuntime(env: Env = process.env): Promise<Runtime> {
   const production = env.NODE_ENV === 'production';
+  const preview = previewProblems(env);
+  if (preview.length)
+    throw new Error(
+      ['[buiry] refusing to start in preview mode:', ...preview.map((x) => ` - ${x}`)].join('\n'),
+    );
   if (production) {
     const problems = productionProblems(env);
     if (problems.length)
@@ -140,6 +145,12 @@ export async function buildRuntime(env: Env = process.env): Promise<Runtime> {
     },
     ...(env.BUIRY_BYO_ADAPTER_CACHE ? { maxCached: Number(env.BUIRY_BYO_ADAPTER_CACHE) } : {}),
   });
+  // Writes queued before preview mode for projects with no account to store them in: reported, never deleted (C1).
+  const stranded = await db.system((tx) => strandedWrites(deps, tx));
+  if (stranded.length)
+    console.warn(
+      `[buiry] ${stranded.reduce((n, x) => n + x.queued, 0)} queued writes in ${stranded.length} projects cannot be stored: this deployment has no shared storage account and these projects have not connected their own. They stay queued, not deleted, until each connects one: ${stranded.map((x) => `${x.projectId} (${x.queued})`).join(', ')}`,
+    );
   // Refuse to start when Walrus, the gateway, the relayer, the demo or a project point at different Sui networks.
   const net = await checkRuntimeNetworks({
     env,

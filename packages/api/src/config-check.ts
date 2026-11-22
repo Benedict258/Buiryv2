@@ -7,6 +7,22 @@ const WORKSPACE_ID = /^wsp_[0-9A-Z]{26}$/;
 const PLACEHOLDER = /^(change[-_ ]?me|changeme|secret|password|test|example|placeholder|x+|0+)/i;
 
 /**
+ * Preview mode (BUIRY_PREVIEW=1, Phase 9 C1): testers bring their own Walrus testnet accounts (BD36), so there is no
+ * shared storage account at all. Checked in every environment, not only production. Messages name variables only.
+ */
+export function previewProblems(env: Env): string[] {
+  if (env.BUIRY_PREVIEW !== '1') return [];
+  const p: string[] = [];
+  if (env.BUIRY_MANAGED?.trim() !== 'off')
+    p.push('preview mode needs BUIRY_MANAGED=off: testers connect their own Walrus accounts');
+  if (env.BUIRY_MANAGED_MULTI_TENANT === '1')
+    p.push('BUIRY_MANAGED_MULTI_TENANT=1 is refused in preview mode: there is no shared account to share');
+  if (env.BUIRY_MANAGED_WORKSPACE_ID?.trim())
+    p.push('BUIRY_MANAGED_WORKSPACE_ID must not be set in preview mode: there is no shared account');
+  return p;
+}
+
+/**
  * Settings a production server must not start with. Messages name variables only, never values. Called by
  * buildRuntime when NODE_ENV=production; `buiry doctor`-style tooling can call it too.
  */
