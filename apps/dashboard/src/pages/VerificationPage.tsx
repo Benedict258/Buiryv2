@@ -163,7 +163,7 @@ export function VerificationPage() {
                   ) : (
                     <div
                       className="row"
-                      style={{ alignItems: 'flex-end', height: 90, gap: 2 }}
+                      style={{ alignItems: 'flex-end', height: 90, gap: 1, minWidth: 0 }}
                       role="img"
                       aria-label="Calls per hour split by transport"
                     >
@@ -173,6 +173,7 @@ export function VerificationPage() {
                           title={`${h.hour}: gRPC ${h.grpc}, JSON-RPC ${h.jsonrpc}, cache ${h.cache}`}
                           style={{
                             flex: 1,
+                            minWidth: 0,
                             maxWidth: 40,
                             display: 'flex',
                             flexDirection: 'column-reverse',
@@ -213,28 +214,30 @@ export function VerificationPage() {
                   {v.usage.byMethod.length === 0 ? (
                     <Empty text="No calls yet." />
                   ) : (
-                    <table className="tbl">
-                      <thead>
-                        <tr>
-                          <th>Method</th>
-                          <th>Transport</th>
-                          <th>Calls</th>
-                          <th>Avg latency</th>
-                          <th>Errors</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {v.usage.byMethod.map((m) => (
-                          <tr key={m.method}>
-                            <td className="mono">{m.method}</td>
-                            <td>{m.transport}</td>
-                            <td>{m.calls}</td>
-                            <td>{Math.round(m.avgLatencyMs)} ms</td>
-                            <td>{m.errors}</td>
+                    <div className="tbl-wrap">
+                      <table className="tbl">
+                        <thead>
+                          <tr>
+                            <th>Method</th>
+                            <th>Transport</th>
+                            <th>Calls</th>
+                            <th>Avg latency</th>
+                            <th>Errors</th>
                           </tr>
-                        ))}
-                      </tbody>
-                    </table>
+                        </thead>
+                        <tbody>
+                          {v.usage.byMethod.map((m) => (
+                            <tr key={m.method}>
+                              <td className="mono">{m.method}</td>
+                              <td>{m.transport}</td>
+                              <td>{m.calls}</td>
+                              <td>{Math.round(m.avgLatencyMs)} ms</td>
+                              <td>{m.errors}</td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
                   )}
                 </Card>
               </div>
@@ -243,7 +246,7 @@ export function VerificationPage() {
                 className="mt"
                 flush
                 actions={
-                  <span className="row">
+                  <span className="row wrap">
                     <Segmented
                       label="Result"
                       value={rf}

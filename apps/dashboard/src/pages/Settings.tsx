@@ -236,7 +236,7 @@ function General({ p, admin, reload }: P) {
   );
 }
 
-function MemoryRules({ p, admin, reload }: P) {
+export function MemoryRules({ p, admin, reload }: P) {
   const { busy, save } = useSave(p, reload);
   const s = p.settings;
   const [ap, setAp] = useState({
@@ -274,8 +274,8 @@ function MemoryRules({ p, admin, reload }: P) {
     >
       <div className="col">
         <Banner kind="info">
-          These values apply to this project's scoring: decay, promotion and the needs-review threshold.
-          Invalid values are ignored.
+          These values apply to this project's scoring: decay, when a memory is marked ready for a person to
+          confirm, and the needs-review threshold. Invalid values are ignored.
         </Banner>
         <label className="check">
           <input
@@ -293,8 +293,9 @@ function MemoryRules({ p, admin, reload }: P) {
             checked={ap.enabled}
             onChange={(e) => setAp({ ...ap, enabled: e.target.checked })}
           />
-          Auto-promote memories that agents repeatedly report helpful
+          Mark a memory ready for a person to confirm when agents repeatedly report it helpful
         </label>
+        <div className="small muted">Agents raise confidence up to 0.7. Only a person confirms.</div>
         <div className="grid g2">
           <Field label="Helpful reports needed">
             {(id) => (

@@ -16,7 +16,6 @@ import {
   Bot,
   ChevronsUpDown,
   CircleHelp,
-  CreditCard,
   FileStack,
   FolderKanban,
   GitBranch,
@@ -50,6 +49,7 @@ import { CommandPalette } from './CommandPalette';
 import { MemoryDrawer } from '../pages/MemoryDrawer';
 import { initials } from '../lib/format';
 import { ownAccountReason } from '../lib/storage-text';
+import { BillingNavLink, PlanChip } from '../lib/preview';
 
 export function WorkspaceLayout() {
   const { ws, pid } = useParams();
@@ -86,9 +86,21 @@ export function WorkspaceLayout() {
   return (
     <WsContext.Provider value={value}>
       <div className={`shell${collapsed ? ' collapsed' : ''}`}>
+        {/* First stop for keyboard users: past the sidebar to the page content (Phase 9 D8). */}
+        <a
+          className="skip-link"
+          href="#main"
+          onClick={(e) => {
+            e.preventDefault();
+            document.getElementById('main')?.focus();
+          }}
+        >
+          Skip to content
+        </a>
         <aside className="sidebar" aria-label="Sidebar">
           <div className="head">
             <Popover
+              block
               trigger={({ toggle }) => (
                 <button className="navbtn" style={{ padding: 4 }} onClick={toggle} aria-haspopup="menu">
                   <span className="avatar" aria-hidden>
@@ -97,7 +109,7 @@ export function WorkspaceLayout() {
                   <span className="t grow trunc" style={{ color: 'var(--text-primary)', fontWeight: 600 }}>
                     {value.name}
                   </span>
-                  <span className="chip hide-collapsed">{value.plan}</span>
+                  <PlanChip plan={value.plan} />
                   <ChevronsUpDown size={14} className="hide-collapsed" aria-hidden />
                 </button>
               )}
@@ -177,10 +189,7 @@ export function WorkspaceLayout() {
               <KeyRound size={16} />
               <span className="t">API tokens</span>
             </NavLink>
-            <NavLink to={`/w/${ws}/billing`}>
-              <CreditCard size={16} />
-              <span className="t">Billing</span>
-            </NavLink>
+            <BillingNavLink ws={ws!} size={16} />
           </div>
           <div className="foot nav">
             <a href="https://github.com/benedict258/buiryv2/tree/main/docs" target="_blank" rel="noreferrer">
@@ -262,7 +271,7 @@ export function WorkspaceLayout() {
             </a>
           </div>
         </header>
-        <main className="main" id="main">
+        <main className="main" id="main" tabIndex={-1}>
           <Outlet />
         </main>
         <nav className="bottomtabs" aria-label="Primary">
@@ -385,10 +394,7 @@ function ProjectTabs() {
           <Plug size={18} />
           Integrations
         </NavLink>
-        <NavLink to={`/w/${ws}/billing`}>
-          <CreditCard size={18} />
-          Billing
-        </NavLink>
+        <BillingNavLink ws={ws!} size={18} tab />
         <NavLink to={`/w/${ws}/account`}>
           <Menu size={18} />
           More

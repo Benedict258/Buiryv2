@@ -194,14 +194,14 @@ export function Overview() {
                       {rows.map((m) => (
                         <div
                           key={m.id}
-                          className="row"
+                          className="row wrap"
                           style={{
                             padding: '10px 16px',
                             borderTop: '1px solid var(--border-subtle)',
                             alignItems: 'flex-start',
                           }}
                         >
-                          <div className="grow col" style={{ gap: 4 }}>
+                          <div className="grow col" style={{ gap: 4, flexBasis: 200 }}>
                             <div className="clamp2">
                               <button
                                 className="btn ghost sm"

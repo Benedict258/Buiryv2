@@ -22,6 +22,7 @@ import {
   Banner,
   cx,
 } from '../components/ui';
+import { PlanNote } from '../lib/preview';
 
 export function Projects() {
   const { wsId, projects, role, plan } = useWs();
@@ -262,13 +263,9 @@ function NewProject({
       }
     >
       {err && (
-        <Banner
-          kind="warning"
-          action={
-            err.toLowerCase().includes('limit') ? <Link to={`/w/${wsId}/billing`}>Upgrade</Link> : undefined
-          }
-        >
-          {err} ({plan} plan)
+        <Banner kind="warning">
+          {err}
+          <PlanNote wsId={wsId} plan={plan} limit={err.toLowerCase().includes('limit')} />
         </Banner>
       )}
       <Field label="Name">

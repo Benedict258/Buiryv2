@@ -1,54 +1,94 @@
-/* Design tokens (UI spec section 2). Components reference tokens, never raw values. */
+/*
+ * Design tokens (Phase 9 D1; hand-written, BD23). Components reference tokens, never raw values. Dark is the
+ * default theme; light is supported. Values marked "derived" are not in the palette brief and are recorded in
+ * docs/DECISIONS.md. Contrast is checked by apps/dashboard/src/lib/contrast.test.ts.
+ */
 :root,
 :root[data-theme='dark'] {
-  --bg-canvas: #0b0f14;
-  --bg-surface: #11171e;
-  --bg-raised: #18202a;
-  --border-subtle: #1f2935;
-  --border-default: #2b3948;
-  --text-primary: #e8edf2;
-  --text-secondary: #9aa7b5;
-  --text-tertiary: #6b7887;
-  --brand: #2dd4bf;
-  --brand-subtle: #0f2b2a;
-  --on-brand: #04201d;
-  --s-proposed: #60a5fa;
-  --s-confirmed: #34d399;
-  --s-contested: #fbbf24;
-  --s-stale: #f87171;
-  --s-superseded: #94a3b8;
-  --s-tombstoned: #64748b;
-  --s-expired: #a78bfa;
-  --s-verified: #2dd4bf;
+  --bg-canvas: #0a1f1b;
+  --bg-surface: #122b25;
+  --bg-raised: #19302b; /* derived: surface 70% + line 30% */
+  --border-subtle: #2a3d39;
+  --border-default: #2a3d39;
+  --input-border: #64736d;
+  --text-primary: #eef3ef;
+  --text-secondary: #a6b5ad;
+  --text-tertiary: #a6b5ad; /* derived: same as text-muted, so no text falls below 4.5:1 */
+  --brand: #bfea7a; /* primary */
+  --on-brand: #1b2a08;
+  --brand-hover: #cdf08f; /* derived: primary lightened for hover */
+  --brand-subtle: #1b4a3b; /* secondary */
+  --link: #bfea7a;
+  --focus: #bfea7a;
+  --accent: #bfea7a;
+  --accent-ink: #1b2a08;
+  /* small status text */
+  --s-proposed: #5b8cff; /* info */
+  --s-confirmed: #15a25e; /* success */
+  --s-contested: #e3a52c; /* warning */
+  --s-stale: #f5585b; /* danger */
+  --s-superseded: #a6b5ad; /* muted */
+  --s-tombstoned: #a6b5ad; /* muted */
+  --s-expired: #a6b5ad; /* muted */
+  --s-verified: #bfea7a; /* verified text on dark: accent */
+  /* status fills (dots, bars; never the only signal) */
+  --f-success: #0d9f5b;
+  --f-warning: #e3a52c;
+  --f-danger: #e5484d;
+  --f-info: #5b8cff;
+  --f-muted: #64736d; /* derived: input border */
+  --danger-solid: #ce303a;
+  --on-danger: #eef3ef;
+  --overlay: rgba(4, 12, 10, 0.6);
+  /* Status chips sit on the surface colour in dark: any tint pulls the brief's status text below 4.5:1. */
+  --chip-tint: 0%;
   --shadow-pop: none;
   color-scheme: dark;
 }
 :root[data-theme='light'] {
-  --bg-canvas: #f7f9fb;
-  --bg-surface: #ffffff;
-  --bg-raised: #f0f3f7;
-  --border-subtle: #e3e8ee;
-  --border-default: #d0d7e0;
-  --text-primary: #0f1720;
-  --text-secondary: #4a5766;
-  --text-tertiary: #5f6c7b;
-  --brand: #0d9488;
-  --brand-subtle: #e0f5f2;
-  --on-brand: #ffffff;
-  --s-proposed: #2563eb;
-  --s-confirmed: #059669;
-  --s-contested: #b45309;
-  --s-stale: #dc2626;
-  --s-superseded: #64748b;
-  --s-tombstoned: #64748b;
-  --s-expired: #7c3aed;
-  --s-verified: #0d9488;
-  --shadow-pop: 0 8px 24px rgba(15, 23, 32, 0.12);
+  --bg-canvas: #f4f5f1;
+  --bg-surface: #fdfefc;
+  --bg-raised: #e8ebe5; /* muted fill */
+  --border-subtle: #dde2dc;
+  --border-default: #dde2dc;
+  --input-border: #90948f;
+  --text-primary: #0a1f1b;
+  --text-secondary: #5b6b65;
+  --text-tertiary: #5b6b65; /* derived: same as text-muted */
+  --brand: #0a1f1b; /* primary */
+  --on-brand: #eef3ef;
+  --brand-hover: #1b4a3b;
+  --brand-subtle: #e8ebe5; /* derived: muted fill for selected rows and the active nav item */
+  --link: #1b4a3b; /* derived: hover/focus colour; links are also underlined in running text */
+  --focus: #1b4a3b;
+  --accent: #bfea7a;
+  --accent-ink: #1b2a08;
+  --s-proposed: #3663d2;
+  --s-confirmed: #007a38;
+  --s-contested: #955b00;
+  --s-stale: #c82a36;
+  --s-superseded: #5b6b65;
+  --s-tombstoned: #5b6b65;
+  --s-expired: #5b6b65;
+  --s-verified: #1b2a08; /* verified text on light: accent-ink */
+  --f-success: #0d9f5b;
+  --f-warning: #e3a52c;
+  --f-danger: #e5484d;
+  --f-info: #5b8cff;
+  --f-muted: #90948f; /* derived: input border */
+  --danger-solid: #ce303a;
+  --on-danger: #eef3ef;
+  --overlay: rgba(10, 31, 27, 0.45);
+  --chip-tint: 12%;
+  --shadow-pop: 0 8px 24px rgba(10, 31, 27, 0.12);
   color-scheme: light;
 }
 :root {
-  --font-ui: 'Inter Variable', Inter, system-ui, -apple-system, 'Segoe UI', sans-serif;
+  --font-display: 'Bricolage Grotesque Variable', 'IBM Plex Sans', system-ui, sans-serif;
+  --font-ui: 'IBM Plex Sans', system-ui, -apple-system, 'Segoe UI', sans-serif;
   --font-mono: 'JetBrains Mono Variable', 'JetBrains Mono', ui-monospace, 'SFMono-Regular', Menlo, monospace;
+  --focus-width: 2px;
+  --focus-offset: 2px;
   --r-sm: 6px;
   --r-md: 8px;
   --r-lg: 12px;

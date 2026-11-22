@@ -4,7 +4,7 @@ import { Plus, Send, Trash2 } from 'lucide-react';
 import { api } from '../lib/api';
 import { can, useApp, useQuery } from '../lib/app';
 import { useWs } from '../lib/ctx';
-import { ago, plural, when } from '../lib/format';
+import { ago, dateOnly, plural, when } from '../lib/format';
 import type { Billing as BillingT, Flag, Member, Role } from '../lib/types';
 import {
   Async,
@@ -686,6 +686,63 @@ interface Tok {
   last_used_at: string | null;
   expires_at?: string | null;
 }
+/** API tokens expire after this many days unless the creator picks another (the API's default, Phase 7.4). */
+export const TOKEN_DEFAULT_DAYS = 90;
+const TOKEN_SCOPES = [
+  ['read', 'read'],
+  ['write', 'write'],
+  ['admin', 'admin'],
+  ['confirm', 'Can confirm memories'],
+] as const;
+
+/** The create request: always sends an expiry (90 days by default). */
+export function tokenCreateBody(i: { name: string; scopes: string[]; projectIds: string[]; days?: number }) {
+  return {
+    name: i.name.trim(),
+    scopes: i.scopes,
+    ...(i.projectIds.length ? { projectIds: i.projectIds } : {}),
+    expiresInDays: i.days ?? TOKEN_DEFAULT_DAYS,
+  };
+}
+
+/** Scope checkboxes; "Can confirm memories" is off unless chosen, and warns once it is. */
+export function TokenScopePicker({
+  scopes,
+  onChange,
+}: {
+  scopes: string[];
+  onChange: (s: string[]) => void;
+}) {
+  return (
+    <div className="field">
+      <span className="lab">Scopes</span>
+      <div className="row wrap">
+        {TOKEN_SCOPES.map(([s, label]) => (
+          <label key={s} className="check chip">
+            <input
+              type="checkbox"
+              checked={scopes.includes(s)}
+              onChange={(e) => onChange(e.target.checked ? [...scopes, s] : scopes.filter((x) => x !== s))}
+            />
+            {label}
+          </label>
+        ))}
+      </div>
+      {scopes.includes('confirm') && (
+        <Banner kind="warning">
+          A token with this scope confirms memories as you. Never give it to an agent tool. Agents use their
+          own tokens and cannot confirm.
+        </Banner>
+      )}
+    </div>
+  );
+}
+
+/** A token's expiry date, or that a token made before expiry existed has none. */
+export function TokenExpiry({ at }: { at: string | null | undefined }) {
+  return <span className="small muted">{at ? dateOnly(at) : 'No expiry (older token)'}</span>;
+}
+
 export function ApiTokens() {
   const { wsId, role, projects } = useWs();
   const { toast } = useApp();
@@ -694,6 +751,7 @@ export function ApiTokens() {
   const [name, setName] = useState('');
   const [scopes, setScopes] = useState<string[]>(['read']);
   const [pids, setPids] = useState<string[]>([]);
+  const [days, setDays] = useState<number>(TOKEN_DEFAULT_DAYS);
   const [token, setToken] = useState<string | null>(null);
   const [revoke, setRevoke] = useState<Tok | null>(null);
   const admin = can(role, 'admin');
@@ -719,6 +777,7 @@ export function ApiTokens() {
                       <th>Projects</th>
                       <th>Created</th>
                       <th>Last used</th>
+                      <th>Expires</th>
                       <th />
                     </tr>
                   </thead>
@@ -740,6 +799,9 @@ export function ApiTokens() {
                         </td>
                         <td className="small muted">{ago(t.created_at)}</td>
                         <td className="small muted">{ago(t.last_used_at)}</td>
+                        <td>
+                          <TokenExpiry at={t.expires_at} />
+                        </td>
                         <td>
                           <Button size="sm" variant="danger" disabled={!admin} onClick={() => setRevoke(t)}>
                             Revoke
@@ -769,7 +831,7 @@ export function ApiTokens() {
                 try {
                   const r = await api<{ token: string }>(`/v1/workspaces/${wsId}/api-tokens`, {
                     method: 'POST',
-                    body: { name: name.trim(), scopes, ...(pids.length ? { projectIds: pids } : {}) },
+                    body: tokenCreateBody({ name, scopes, projectIds: pids, days }),
                   });
                   setOpen(false);
                   setToken(r.token);
@@ -790,23 +852,22 @@ export function ApiTokens() {
             <input id={id} className="inp" value={name} onChange={(e) => setName(e.target.value)} autoFocus />
           )}
         </Field>
-        <div className="field">
-          <span className="lab">Scopes</span>
-          <div className="row wrap">
-            {['read', 'write', 'admin'].map((s) => (
-              <label key={s} className="check chip">
-                <input
-                  type="checkbox"
-                  checked={scopes.includes(s)}
-                  onChange={(e) =>
-                    setScopes(e.target.checked ? [...scopes, s] : scopes.filter((x) => x !== s))
-                  }
-                />
-                {s}
-              </label>
-            ))}
-          </div>
-        </div>
+        <TokenScopePicker scopes={scopes} onChange={setScopes} />
+        <Field label="Expires after (days, 1 to 365)">
+          {(id) => (
+            <input
+              id={id}
+              className="inp"
+              type="number"
+              min={1}
+              max={365}
+              value={days}
+              onChange={(e) =>
+                setDays(Math.min(365, Math.max(1, Number(e.target.value) || TOKEN_DEFAULT_DAYS)))
+              }
+            />
+          )}
+        </Field>
         <div className="field">
           <span className="lab">Projects (none selected means all)</span>
           <div className="row wrap">

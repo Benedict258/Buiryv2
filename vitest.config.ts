@@ -15,7 +15,12 @@ export default defineConfig({
     },
   },
   test: {
-    include: ['packages/*/test/**/*.test.ts', 'scripts/**/*.test.ts', 'apps/*/src/**/*.test.ts'],
+    include: [
+      'packages/*/test/**/*.test.ts',
+      'scripts/**/*.test.ts',
+      'apps/*/src/**/*.test.ts',
+      'apps/*/src/**/*.test.tsx',
+    ],
     // PGlite-backed suites build a fresh database per test; under a full parallel run on a slow machine they
     // approached 20 s and timed out at random (seen 2026-11-17). Tests still fail fast on real errors.
     testTimeout: 60000,

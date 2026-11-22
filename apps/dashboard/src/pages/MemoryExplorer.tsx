@@ -411,7 +411,7 @@ export function MemoryExplorer() {
                         <td>
                           <TypeChip type={m.type} />
                         </td>
-                        <td style={{ maxWidth: 420 }}>
+                        <td className="memcol" style={{ maxWidth: 420 }}>
                           <div
                             className={`clamp2${m.status === 'superseded' || m.status === 'tombstoned' || m.expired ? ' struck' : ''}`}
                           >

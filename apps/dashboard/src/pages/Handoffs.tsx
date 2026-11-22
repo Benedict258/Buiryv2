@@ -42,7 +42,7 @@ export function Handoffs() {
                 <Card
                   key={h.id}
                   title={
-                    <span className="row">
+                    <span className="row wrap">
                       <AgentBadge name={h.agent_slug} />
                       <BranchPill name={h.branch_slug} />
                       <span className="faint small">{ago(h.created_at)}</span>

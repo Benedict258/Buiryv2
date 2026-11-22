@@ -19,7 +19,8 @@ import { Briefing } from './pages/Briefing';
 import { Packs } from './pages/Packs';
 import { StoragePage } from './pages/StoragePage';
 import { Settings } from './pages/Settings';
-import { Team, Integrations, ApiTokens, Billing, Account, Notifications } from './pages/WorkspacePages';
+import { Team, Integrations, ApiTokens, Account, Notifications } from './pages/WorkspacePages';
+import { BillingRoute } from './lib/preview';
 import { Skeleton } from './components/ui';
 import { Showcase } from './pages/Showcase';
 import { AcceptInvite } from './pages/AcceptInvite';
@@ -78,7 +79,7 @@ export function App() {
         <Route path="team" element={<Team />} />
         <Route path="integrations" element={<Integrations />} />
         <Route path="api" element={<ApiTokens />} />
-        <Route path="billing" element={<Billing />} />
+        <Route path="billing" element={<BillingRoute />} />
         <Route path="account" element={<Account />} />
         <Route path="notifications" element={<Notifications />} />
         <Route path="p/:pid" element={<ProjectLayout />}>

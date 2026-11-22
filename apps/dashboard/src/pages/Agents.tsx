@@ -26,11 +26,32 @@ import {
 } from '../components/ui';
 
 const TOOLS = ['claude-code', 'opencode', 'cursor', 'codex', 'other'];
-const PERMS = [
+/**
+ * Agent permissions. The stored value `confirm` lets an agent contest a memory for a person to review; agents never
+ * confirm, and cannot contest a memory a person confirmed (M8, Phase 8 B2), so it is shown as "contest".
+ */
+export const AGENT_PERMS = [
   ['read', 'Read: check, recall and read memories'],
   ['write', 'Write: record memories, reports and handoffs'],
-  ['confirm', "Confirm: confirm other agents' memories (never its own)"],
+  [
+    'confirm',
+    'Contest: flag a memory as contested for a person to review. Agents never confirm; only a person confirms',
+  ],
 ] as const;
+const permLabel = (p: string) => (p === 'confirm' ? 'contest' : p);
+
+/** An agent's permissions as chips, with the stored `confirm` shown as "contest". */
+export function PermChips({ perms }: { perms: string[] }) {
+  return (
+    <div className="row wrap">
+      {perms.map((p) => (
+        <span key={p} className="chip">
+          {permLabel(p)}
+        </span>
+      ))}
+    </div>
+  );
+}
 
 export function Agents() {
   const { projectId, openMemory } = useProject();
@@ -128,13 +149,7 @@ export function Agents() {
                             </span>
                           </td>
                           <td>
-                            <div className="row wrap">
-                              {a.permissions.map((p) => (
-                                <span key={p} className="chip">
-                                  {p}
-                                </span>
-                              ))}
-                            </div>
+                            <PermChips perms={a.permissions} />
                           </td>
                           <td className="mono small">{a.branchScope ?? 'all'}</td>
                           <td>{a.writes7d}</td>
@@ -357,7 +372,7 @@ function ConnectModal({
           Permissions
         </legend>
         <div className="col mt-s">
-          {PERMS.map(([p, d]) => (
+          {AGENT_PERMS.map(([p, d]) => (
             <label className="check" key={p}>
               <input
                 type="checkbox"
@@ -487,7 +502,8 @@ function AgentDrawer({
           </div>
           <div className="code">bry_at_••••••••••••••••</div>
           <Banner kind="info">
-            Permissions: {agent.permissions.join(', ')}. Branch scope: {agent.branchScope ?? 'all branches'}.
+            Permissions: {agent.permissions.map(permLabel).join(', ')}. Branch scope:{' '}
+            {agent.branchScope ?? 'all branches'}.
           </Banner>
         </div>
       )}

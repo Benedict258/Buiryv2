@@ -1,8 +1,6 @@
 import { useEffect, useId, useRef, useState, type CSSProperties, type ReactNode } from 'react';
 import {
   AlertTriangle,
-  Archive,
-  Ban,
   Bot,
   CheckCircle2,
   ChevronDown,
@@ -27,8 +25,9 @@ import {
   XCircle,
   GitBranch,
   FlaskConical,
-  Hourglass,
   Check,
+  Replace,
+  Strikethrough,
 } from 'lucide-react';
 import { ago, band, evidenceLabel, exact, initials, typeLabel, until } from '../lib/format';
 import { ApiError } from '../lib/api';
@@ -116,7 +115,7 @@ const STATUS_META: Record<Status | 'expired', { c: string; Icon: typeof Info; ti
   confirmed: {
     c: 'var(--s-confirmed)',
     Icon: CheckCircle2,
-    tip: 'Confirmed by a person or by enough independent evidence',
+    tip: 'Confirmed by a person',
   },
   contested: {
     c: 'var(--s-contested)',
@@ -124,9 +123,13 @@ const STATUS_META: Record<Status | 'expired', { c: string; Icon: typeof Info; ti
     tip: 'Conflicts with another memory or was reported wrong',
   },
   stale: { c: 'var(--s-stale)', Icon: XCircle, tip: 'Evidence no longer matches the current state' },
-  superseded: { c: 'var(--s-superseded)', Icon: Archive, tip: 'Replaced by a newer memory' },
-  tombstoned: { c: 'var(--s-tombstoned)', Icon: Ban, tip: 'Withdrawn from recall; stays in storage' },
-  expired: { c: 'var(--s-expired)', Icon: Hourglass, tip: 'Stored period ended; no longer used' },
+  superseded: { c: 'var(--s-superseded)', Icon: Replace, tip: 'Replaced by a newer memory' },
+  tombstoned: {
+    c: 'var(--s-tombstoned)',
+    Icon: Strikethrough,
+    tip: 'Withdrawn from recall; stays in storage',
+  },
+  expired: { c: 'var(--s-expired)', Icon: Clock, tip: 'Stored period ended; no longer used' },
 };
 export function StatusChip({ status }: { status: Status | 'expired' }) {
   const m = STATUS_META[status];
@@ -226,8 +229,11 @@ export function EvidenceChip({ e, result, onClick }: { e: Evidence; result?: str
           : 'unknown';
   return (
     <button
-      className="chip mono"
-      style={{ cursor: onClick ? 'pointer' : 'default', background: 'none', ...sv(col) }}
+      className={result === 'pass' ? 'chip mono verified' : 'chip mono'}
+      style={{
+        cursor: onClick ? 'pointer' : 'default',
+        ...(result === 'pass' ? {} : { background: 'none', ...sv(col) }),
+      }}
       onClick={onClick}
       title={`${e.kind}: ${evidenceLabel(e)} (${word})`}
       aria-label={`${e.kind} evidence ${word}`}
@@ -236,7 +242,7 @@ export function EvidenceChip({ e, result, onClick }: { e: Evidence; result?: str
       <span className="trunc" style={{ maxWidth: 140 }}>
         {evidenceLabel(e)}
       </span>
-      <R size={12} style={{ color: col }} aria-hidden />
+      <R size={12} style={result === 'pass' ? undefined : { color: col }} aria-hidden />
     </button>
   );
 }
@@ -787,10 +793,13 @@ export function Popover({
   trigger,
   children,
   align = 'left',
+  block = false,
 }: {
   trigger: (p: { open: boolean; toggle: () => void }) => ReactNode;
   children: (close: () => void) => ReactNode;
   align?: 'left' | 'right';
+  /** Fill the container's width (the sidebar's workspace switcher), so a long name truncates instead of clipping. */
+  block?: boolean;
 }) {
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
@@ -804,7 +813,7 @@ export function Popover({
   }, [open]);
   useKey('escape', () => setOpen(false), []);
   return (
-    <div ref={ref} style={{ position: 'relative', display: 'inline-block' }}>
+    <div ref={ref} style={{ position: 'relative', display: block ? 'block' : 'inline-block' }}>
       {trigger({ open, toggle: () => setOpen((o) => !o) })}
       {open && (
         <div className="menu" style={{ [align]: 0, top: '100%', marginTop: 4 }} role="menu">
