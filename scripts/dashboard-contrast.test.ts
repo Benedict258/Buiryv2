@@ -29,7 +29,7 @@ describe('dashboard tokens', () => {
       '--focus': '#1b4a3b',
       '--accent': '#bfea7a',
       '--accent-ink': '#1b2a08',
-      '--input-border': '#90948f',
+      '--input-border': '#8a8e89',
       '--s-confirmed': '#007a38',
       '--s-contested': '#955b00',
       '--s-stale': '#c82a36',

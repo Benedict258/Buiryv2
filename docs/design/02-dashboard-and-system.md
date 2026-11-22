@@ -116,17 +116,17 @@ There is no route for the marketing site, a 500 page, the internal admin console
 
 ### Accessibility: tested versus assumed
 
-| Aspect                              | Status                                                                                                                                                                                                |
-| ----------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Colour contrast                     | Computed by `scripts/dashboard-contrast.test.ts` for every pair the dashboard uses (Phase 9 D1); one known exception, the light input border on the page background (2.81:1). Not checked with users. |
-| Status not by colour alone          | Built: each status chip has an icon and a label (screenshots). Not tested with users.                                                                                                                 |
-| Focus outline                       | 2px ring in the focus colour, 2px offset; checked in Chrome on every Tab stop of Overview and Memory, both themes (`scripts/dashboard-a11y.ts`).                                                      |
-| Keyboard operation                  | 30 Tab stops per page on Overview and Memory reach only real controls (Phase 9 D8). Dialogs, drawers and the command palette by keyboard: not run.                                                    |
-| Screen readers                      | 107 `aria-*` attributes in the code. Never tested with a screen reader. UNVERIFIED.                                                                                                                   |
-| Reduced motion                      | With reduced motion emulated in Chrome, no element on the Memory page has a transition or animation (Phase 9 D8). Not tested on a device setting.                                                     |
-| Automated audit (axe or Lighthouse) | Not run (no third-party tool added). 200% zoom checked: no page wider than the window at 640x400 CSS pixels (Phase 9 D8).                                                                             |
-| Skip link, landmarks                | Skip link added (Phase 9 D8): first Tab stop, moves focus into `<main>`. Landmarks: `aside` sidebar, `main`.                                                                                          |
-| Language                            | `<html lang="en">` (`apps/dashboard/index.html`).                                                                                                                                                     |
+| Aspect                              | Status                                                                                                                                                                                                                     |
+| ----------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Colour contrast                     | Computed by `scripts/dashboard-contrast.test.ts` for every pair the dashboard uses (Phase 9 D1); all 78 required pairs meet their minimum since the owner set the light input border to `#8A8E89`. Not checked with users. |
+| Status not by colour alone          | Built: each status chip has an icon and a label (screenshots). Not tested with users.                                                                                                                                      |
+| Focus outline                       | 2px ring in the focus colour, 2px offset; checked in Chrome on every Tab stop of Overview and Memory, both themes (`scripts/dashboard-a11y.ts`).                                                                           |
+| Keyboard operation                  | 30 Tab stops per page on Overview and Memory reach only real controls (Phase 9 D8). Dialogs, drawers and the command palette by keyboard: not run.                                                                         |
+| Screen readers                      | 107 `aria-*` attributes in the code. Never tested with a screen reader. UNVERIFIED.                                                                                                                                        |
+| Reduced motion                      | With reduced motion emulated in Chrome, no element on the Memory page has a transition or animation (Phase 9 D8). Not tested on a device setting.                                                                          |
+| Automated audit (axe or Lighthouse) | Not run (no third-party tool added). 200% zoom checked: no page wider than the window at 640x400 CSS pixels (Phase 9 D8).                                                                                                  |
+| Skip link, landmarks                | Skip link added (Phase 9 D8): first Tab stop, moves focus into `<main>`. Landmarks: `aside` sidebar, `main`.                                                                                                               |
+| Language                            | `<html lang="en">` (`apps/dashboard/index.html`).                                                                                                                                                                          |
 
 ## 6. The design system as it exists
 

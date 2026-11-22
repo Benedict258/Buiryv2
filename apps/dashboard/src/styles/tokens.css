@@ -51,7 +51,7 @@
   --bg-raised: #e8ebe5; /* muted fill */
   --border-subtle: #dde2dc;
   --border-default: #dde2dc;
-  --input-border: #90948f;
+  --input-border: #8a8e89;
   --text-primary: #0a1f1b;
   --text-secondary: #5b6b65;
   --text-tertiary: #5b6b65; /* derived: same as text-muted */
@@ -75,7 +75,7 @@
   --f-warning: #e3a52c;
   --f-danger: #e5484d;
   --f-info: #5b8cff;
-  --f-muted: #90948f; /* derived: input border */
+  --f-muted: #8a8e89; /* derived: input border */
   --danger-solid: #ce303a;
   --on-danger: #eef3ef;
   --overlay: rgba(10, 31, 27, 0.45);

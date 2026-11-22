@@ -64,7 +64,7 @@ export const CHIP_TINT: Record<Theme, number> = { dark: 0, light: 0.12 };
  * Pairs below their minimum that are kept on purpose because they are the palette brief's own values, pending the
  * owner's decision (Phase 9 report). Any other failure fails the test.
  */
-export const KNOWN_EXCEPTIONS = ['light|input border on bg'];
+export const KNOWN_EXCEPTIONS: string[] = [];
 
 const STATUS = [
   'proposed',
