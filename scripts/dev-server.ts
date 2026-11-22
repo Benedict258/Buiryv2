@@ -41,9 +41,9 @@ async function enrich(
   for (const k of ['pnpm', 'internal', 'gas', 'release', 'prs']) await call(`/v1/memories/${m[k]}/confirm`);
   const { claude, opencode, cursor } = seeded.agents;
   const dep = await claude.backend.remember({
-    text: 'Registry package deployed on mainnet at ' + ids.PKG_V3 + ', version 3.',
+    text: 'Registry package deployed on testnet at ' + ids.PKG_V3 + ', version 3.',
     type: 'deployment',
-    evidence: [{ kind: 'package', id: ids.PKG_V3, network: 'sui:mainnet' }],
+    evidence: [{ kind: 'package', id: ids.PKG_V3, network: 'sui:testnet' }],
   });
   await opencode.backend.report({ memoryId: m.gas!, outcome: 'helped' });
   await cursor.backend.report({ memoryId: m.internal!, outcome: 'helped' });
@@ -76,6 +76,7 @@ export async function startDevServer(
   // The sample project is seeded in a burst, so the development server raises the per-minute admission budgets.
   const world = await mockWorld({
     realTime: true,
+    network: 'sui:testnet', // sample data is on testnet, never mainnet (Phase 9 D7)
     budgets: {
       perAgentPerMinute: 600,
       perAgentPerHour: 6000,
@@ -85,7 +86,11 @@ export async function startDevServer(
     },
   });
   const { stack } = world;
-  const seeded = await seedOrbitApi(stack);
+  // Every seeded view is labelled: the workspace name shows in the sidebar on every page.
+  const seeded = await seedOrbitApi(stack, {
+    workspaceName: 'Northwind Labs (sample data)',
+    networks: ['sui:testnet'],
+  });
 
   const env = {
     BUIRY_BASE_URL: `http://localhost:${o.port ?? 8787}`,

@@ -58,8 +58,18 @@ const rand = (n: number) => new Uint8Array(randomBytes(n));
 
 /** Everything on mocks: MockRelayer (async jobs, recall lag off) and MockTatum over real gRPC. */
 export async function mockWorld(
-  o: { realTime?: boolean; budgets?: AdmissionBudgets; expiryLagMs?: number } = {},
+  o: {
+    realTime?: boolean;
+    budgets?: AdmissionBudgets;
+    expiryLagMs?: number;
+    /**
+     * The Sui network the mock chain serves (default mainnet). The fixture set's ids are fictitious placeholders, so
+     * the dashboard's sample data can serve the same set on testnet (Phase 9 D7).
+     */
+    network?: 'sui:mainnet' | 'sui:testnet';
+  } = {},
 ): Promise<World> {
+  const net = o.network ?? 'sui:mainnet';
   const clock = o.realTime ? realClock() : fakeClock(Date.parse('2026-10-20T10:00:00Z'));
   const mockRelayer = await MockRelayer.start({
     now: clock.now,
@@ -76,11 +86,13 @@ export async function mockWorld(
   });
   const mockTatum = await MockTatum.start(
     { apiKey: 'mock' },
-    loadFixtures(FIXTURES_DIR).filter((f) => f.network === 'sui:mainnet'),
+    loadFixtures(FIXTURES_DIR)
+      .filter((f) => f.network === 'sui:mainnet')
+      .map((f) => ({ ...f, network: net })),
   );
   const gateway = new TatumGateway({
     backends: {
-      'sui:mainnet': [
+      [net]: [
         new GrpcBackend({
           endpoint: mockTatum.grpcEndpoint,
           apiKey: 'mock',
@@ -89,7 +101,7 @@ export async function mockWorld(
         }),
       ],
     },
-    defaultNetwork: 'sui:mainnet',
+    defaultNetwork: net,
     now: clock.now,
     sleep: async () => {},
     requestsPerSecond: 1000,
@@ -104,6 +116,7 @@ export async function mockWorld(
     ...(o.budgets ? { budgets: o.budgets } : {}),
   });
   gateway.setSink(tatumCallSink(stack.deps));
+  if (net === 'sui:testnet') stack.deps.networks = { ...stack.deps.networks, sui: 'testnet' };
   return {
     mode: 'mock',
     stack,

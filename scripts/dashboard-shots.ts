@@ -5,8 +5,12 @@
  *   pnpm --filter @buiry/dashboard build
  *   pnpm dev:api     # in another terminal; serves apps/dashboard/dist and prints the ids
  *   pnpm tsx scripts/dashboard-shots.ts <session-token> <workspace-id> <project-id> [outDir]
+ *
+ * SHOTS_PASSES (Phase 9 D5/D9), for example "dark:390x844,light:1280x800": theme and viewport per pass. Each screen
+ * is also measured for horizontal overflow (content wider than the viewport, outside intentional scroll areas);
+ * the findings are written to <outDir>/layout.json and printed, without failing the run.
  */
-import { mkdirSync } from 'node:fs';
+import { mkdirSync, writeFileSync } from 'node:fs';
 import { chromium } from 'playwright-core';
 
 const [token, ws, pid, out = '.buiry-local/shots'] = process.argv.slice(2);
@@ -53,6 +57,33 @@ async function settled(page: import('playwright-core').Page) {
 
 const browser = await chromium.launch({ executablePath: exe, args: ['--no-sandbox'] });
 const problems: string[] = [];
+const layout: { pass: string; screen: string; scrollWidth: number; width: number; offenders: string[] }[] =
+  [];
+
+/** Elements whose right edge passes the viewport, ignoring those inside a horizontally scrolling or clipping box. */
+/**
+ * Content cut off or pushed off screen: an element whose right edge passes the box that clips or scrolls it (or the
+ * viewport), reported at its outermost level. Table scroll areas (.tbl-wrap) and intentional ellipsis (.trunc,
+ * .clamp2) are excluded.
+ */
+async function overflow(page: import('playwright-core').Page) {
+  // Runs in the page; a string, because the scripts compile without DOM types.
+  const fn = [
+    '(() => {',
+    '  const vw = window.innerWidth;',
+    "  const clipper = (e) => { for (let p = e.parentElement; p && p !== document.body; p = p.parentElement) { const o = getComputedStyle(p).overflowX; if (o !== 'visible') return p; } return null; };",
+    // Inner scroll areas (tab bars, code blocks) are reachable by scrolling; the page's main area is not meant to scroll sideways.
+    "  const reachable = (c) => !!c && !c.classList.contains('main') && ['auto', 'scroll'].includes(getComputedStyle(c).overflowX);",
+    "  const skip = (e) => !!e.closest('.tbl-wrap, .trunc, .clamp2, .menu, [role=dialog], .drawer, .toast') || (e.tagName.toLowerCase() !== 'svg' && !!e.closest('svg'));",
+    '  const cut = (e) => { const r = e.getBoundingClientRect(); if (!(r.width > 0 && r.height > 0) || skip(e)) return false; const c = clipper(e); if (reachable(c)) return false; const edge = c ? Math.min(c.getBoundingClientRect().right, vw) : vw; return r.right > edge + 1; };',
+    "  const all = [...document.querySelectorAll('body *')].filter(cut);",
+    '  const outer = all.filter((e) => !all.includes(e.parentElement));',
+    "  const name = (e) => e.tagName.toLowerCase() + (e.className && typeof e.className === 'string' ? '.' + e.className.trim().split(' ').slice(0, 2).join('.') : '') + ' right=' + Math.round(e.getBoundingClientRect().right);",
+    '  return { scrollWidth: document.documentElement.scrollWidth, width: vw, offenders: outer.slice(0, 6).map(name) };',
+    '})()',
+  ].join(' ');
+  return page.evaluate(fn) as Promise<{ scrollWidth: number; width: number; offenders: string[] }>;
+}
 async function pass(theme: 'dark' | 'light', width: number, height: number, tag: string) {
   const ctx = await browser.newContext({ viewport: { width, height } });
   // Content Security Policy violations, enforced or Report-Only, become console errors and so count as problems.
@@ -78,6 +109,8 @@ async function pass(theme: 'dark' | 'light', width: number, height: number, tag:
     if (mode === 'review') await page.getByRole('button', { name: 'Review queue' }).click();
     await page.waitForTimeout(350);
     await page.screenshot({ path: `${out}/${tag}-${name}.png`, fullPage: false });
+    const o = await overflow(page);
+    if (o.scrollWidth > o.width + 1 || o.offenders.length) layout.push({ pass: tag, screen: name, ...o });
   }
   // briefing "why this item" popover and the invitations tab
   await page.goto(`${base}/w/${ws}/p/${pid}/briefing`, { waitUntil: 'load' });
@@ -112,10 +145,20 @@ async function pass(theme: 'dark' | 'light', width: number, height: number, tag:
   }
   await ctx.close();
 }
-await pass('dark', 1440, 900, 'dark');
-await pass('light', 1440, 900, 'light');
-await pass('dark', 390, 844, 'phone');
+const passes = (process.env.SHOTS_PASSES ?? 'dark:1440x900,light:1440x900,dark:390x844')
+  .split(',')
+  .map((p) => {
+    const [theme, size] = p.split(':') as ['dark' | 'light', string];
+    const [w, h] = size.split('x').map(Number) as [number, number];
+    return { theme, w, h, tag: `${theme}-${w}` };
+  });
+for (const p of passes) await pass(p.theme, p.w, p.h, p.tag);
 await browser.close();
+writeFileSync(`${out}/layout.json`, JSON.stringify(layout, null, 2));
+for (const l of layout)
+  console.log(
+    `[layout] ${l.pass} ${l.screen}: scrollWidth ${l.scrollWidth} > ${l.width}; ${l.offenders.join(', ')}`,
+  );
 if (problems.length) {
   console.error(problems.join('\n'));
   process.exit(1);
