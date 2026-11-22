@@ -1,0 +1,4 @@
+#!/bin/sh
+# Refuses a commit whose added lines contain a secret value from a local env file (.env, .env.<name>).
+# Prints variable names only, never values. Install once: pnpm hooks:install
+exec node node_modules/tsx/dist/cli.mjs scripts/secret-guard.ts --staged

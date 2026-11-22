@@ -20,7 +20,9 @@
     "dev:dashboard": "pnpm --filter @buiry/dashboard dev",
     "dashboard:shots": "tsx scripts/dashboard-shots.ts",
     "release:pack": "tsx scripts/release/pack.ts --dry-run",
-    "release:smoke": "tsx scripts/release/smoke.ts"
+    "release:smoke": "tsx scripts/release/smoke.ts",
+    "secret-guard": "tsx scripts/secret-guard.ts",
+    "hooks:install": "git config core.hooksPath .githooks"
   },
   "devDependencies": {
     "@electric-sql/pglite": "^0.5.11",

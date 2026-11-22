@@ -1,0 +1,3 @@
+#!/bin/sh
+# Refuses a commit message that contains a secret value from a local env file. Names only, never values.
+exec node node_modules/tsx/dist/cli.mjs scripts/secret-guard.ts --commit-msg "$1"
