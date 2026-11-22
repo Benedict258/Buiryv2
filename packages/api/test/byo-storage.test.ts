@@ -275,3 +275,78 @@ describe('managed account tenancy', () => {
     expect(r.mismatches.join(' ')).toContain('own Walrus account');
   });
 });
+
+describe('A11: relayer /config read failure text (Phase 8 B3)', () => {
+  it('warns by error class and code, never the exception message', async () => {
+    const lines: string[] = [];
+    await checkRuntimeNetworks({
+      env: {},
+      db: s.db,
+      gatewayConfigured: false,
+      relayerConfig: () =>
+        Promise.reject(
+          Object.assign(new Error('connect ECONNREFUSED 10.9.8.7:443 relayer.internal'), {
+            code: 'ECONNREFUSED',
+          }),
+        ),
+      warn: (l: string) => void lines.push(l),
+    });
+    expect(lines).toEqual([
+      '[buiry] could not read the relayer\'s /config, so its network was not checked: {"error":"Error","code":"ECONNREFUSED"}',
+    ]);
+  });
+});
+
+describe('A11: the relayer warning keeps the network code but never upstream text (Phase 9 A1)', () => {
+  const adapterAt = (baseUrl: string) =>
+    new HttpWalrusAdapter({ baseUrl, accountId: '0xacct', signer: new Ed25519Signer('44'.repeat(32)) });
+  const warnFor = async (adapter: HttpWalrusAdapter) => {
+    const lines: string[] = [];
+    await checkRuntimeNetworks({
+      env: {},
+      db: s.db,
+      gatewayConfigured: false,
+      relayerConfig: () => adapter.relayerConfig(),
+      warn: (l: string) => void lines.push(l),
+    });
+    return lines;
+  };
+
+  it('a relayer error response body (URL, token, secret) never reaches the warning; the kind and status do', async () => {
+    const { createServer } = await import('node:http');
+    const body = JSON.stringify({
+      error:
+        'upstream failed at https://relayer.internal/v1/config?token=SECRET-TOKEN-123 key=suiprivkey1secret',
+      message: 'Bearer SECRET-BEARER',
+    });
+    const server = createServer((_req, res) =>
+      res.writeHead(400, { 'content-type': 'application/json' }).end(body),
+    );
+    await new Promise<void>((r) => server.listen(0, '127.0.0.1', r));
+    const port = (server.address() as { port: number }).port;
+    try {
+      const lines = await warnFor(adapterAt(`http://127.0.0.1:${port}`));
+      expect(lines).toHaveLength(1);
+      for (const leak of ['relayer.internal', 'SECRET', 'suiprivkey', 'Bearer', 'https://', 'upstream'])
+        expect(lines[0], leak).not.toContain(leak);
+      expect(lines[0]).toContain('"kind":"client"');
+      expect(lines[0]).toContain('"status":400');
+    } finally {
+      server.closeAllConnections();
+      await new Promise((r) => server.close(r));
+    }
+  }, 60_000);
+
+  it('a network failure shows its cause code', async () => {
+    // A port that was just free and is now closed (port 1 is on fetch's blocked list and never reaches the network).
+    const { createServer } = await import('node:http');
+    const probe = createServer();
+    await new Promise<void>((r) => probe.listen(0, '127.0.0.1', r));
+    const port = (probe.address() as { port: number }).port;
+    await new Promise((r) => probe.close(r));
+    const lines = await warnFor(adapterAt(`http://127.0.0.1:${port}`));
+    expect(lines).toHaveLength(1);
+    expect(lines[0]).toMatch(/"cause":"(ECONNREFUSED|UND_ERR_[A-Z_]+)"/);
+    expect(lines[0]).not.toContain('127.0.0.1');
+  }, 60_000);
+});

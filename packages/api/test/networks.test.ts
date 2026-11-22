@@ -1,3 +1,4 @@
+import { RelayerError } from '@buiry/storage';
 import { afterEach, describe, expect, it } from 'vitest';
 import {
   buildRuntime,
@@ -60,7 +61,13 @@ describe('startup network consistency (B4)', () => {
       db: s.deps.db,
       gatewayConfigured: true,
       relayerConfig: async () => {
-        throw new Error('relayer unreachable: fetch failed (UND_ERR_CONNECT_TIMEOUT)');
+        // The adapter's own error type, as HttpWalrusAdapter throws it (Phase 9 A1): the cause code is a field.
+        throw Object.assign(
+          new RelayerError('unavailable', 'relayer unreachable (UND_ERR_CONNECT_TIMEOUT)'),
+          {
+            netCode: 'UND_ERR_CONNECT_TIMEOUT',
+          },
+        );
       },
       warn: (m) => void warnings.push(m),
     });

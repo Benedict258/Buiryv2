@@ -176,10 +176,13 @@ export class HttpWalrusAdapter implements WalrusMemoryAdapter {
       });
     } catch (e) {
       const aborted = e instanceof Error && e.name === 'AbortError';
-      throw new RelayerError(
+      const err = new RelayerError(
         aborted ? 'timeout' : 'unavailable',
         aborted ? 'relayer timeout' : `relayer unreachable${causeCode(e)}`, // sweep A12: no exception text
       );
+      const code = causeCode(e).replace(/^ \(|\)$/g, '');
+      if (code) err.netCode = code;
+      throw err;
     } finally {
       clearTimeout(timer);
     }

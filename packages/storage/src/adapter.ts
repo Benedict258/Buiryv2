@@ -18,6 +18,21 @@ export class RelayerError extends Error {
     this.name = 'RelayerError';
   }
 
+  /** The network cause code of an unreachable relayer (ECONNREFUSED, UND_ERR_CONNECT_TIMEOUT), when there is one. */
+  netCode?: string;
+
+  /**
+   * What may be logged about this error: kind, HTTP status and network cause code. Never the message, which for an
+   * error response is the relayer's own response text (Phase 9 A1).
+   */
+  describe(): { kind: RelayerErrorKind; status?: number; cause?: string } {
+    return {
+      kind: this.kind,
+      ...(this.status !== undefined ? { status: this.status } : {}),
+      ...(this.netCode ? { cause: this.netCode } : {}),
+    };
+  }
+
   /** Authentication and client errors are never retried. */
   get retryable(): boolean {
     return (

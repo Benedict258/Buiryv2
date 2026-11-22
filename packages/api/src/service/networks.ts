@@ -1,4 +1,5 @@
-import { BuiryError, checkNetworks, projectNetworkConflicts, type NetworkCheck } from '@buiry/core';
+import { BuiryError, checkNetworks, projectNetworkConflicts, type NetworkCheck, errorTag } from '@buiry/core';
+import { RelayerError } from '@buiry/storage';
 import type { Db } from '../db/db.js';
 import type { ServiceDeps } from './types.js';
 
@@ -32,7 +33,7 @@ export async function checkRuntimeNetworks(o: {
       relayer = (await o.relayerConfig()).network;
     } catch (e) {
       (o.warn ?? console.warn)(
-        `[buiry] could not read the relayer's /config, so its network was not checked: ${(e as Error).message}`,
+        `[buiry] could not read the relayer's /config, so its network was not checked: ${JSON.stringify(e instanceof RelayerError ? e.describe() : errorTag(e))}`, // A11: kind, status and network code, never message text
       );
     }
   }
