@@ -1,4 +1,5 @@
 #!/usr/bin/env node
+import { errorTag } from '@buiry/core';
 import { PgDb } from '@buiry/api';
 
 /**
@@ -16,7 +17,8 @@ export async function runMigrations(env: Record<string, string | undefined> = pr
     console.log(applied.length ? `[buiry] applied ${applied.join(', ')}` : '[buiry] database is up to date');
     return 0;
   } catch (e) {
-    console.error(`[buiry] migration failed: ${(e as Error).message}`);
+    // Sweep A9: class and code only (a connection error names the database user, host and port).
+    console.error(`[buiry] migration failed: ${JSON.stringify(errorTag(e))}`);
     return 1;
   } finally {
     await db.close();
