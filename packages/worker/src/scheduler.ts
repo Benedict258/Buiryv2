@@ -22,8 +22,31 @@ export function jobFailureLine(name: string, error: string | undefined): string 
   return `[buiry] job ${name} failed: ${error ?? '{}'}`;
 }
 
+/**
+ * One structured line per job run (Phase 9 E2): name, outcome, duration and, on failure, the error class and code
+ * from describeJobError. Alongside, not instead of, the failure line above.
+ */
+export function jobRunLine(r: { name: string; ok: boolean; ms: number; error?: string }): string {
+  let error: unknown;
+  if (!r.ok && r.error) {
+    try {
+      error = JSON.parse(r.error);
+    } catch {
+      error = { error: 'unknown' };
+    }
+  }
+  return JSON.stringify({
+    level: r.ok ? 'info' : 'error',
+    event: 'job',
+    name: r.name,
+    ok: r.ok,
+    ms: r.ms,
+    ...(error !== undefined ? { error } : {}),
+  });
+}
+
 export interface SchedulerTickReport {
-  ran: { name: string; ok: boolean; error?: string; result?: unknown }[];
+  ran: { name: string; ok: boolean; ms: number; error?: string; result?: unknown }[];
   skipped: string[];
 }
 
@@ -63,10 +86,17 @@ export class Scheduler {
         continue;
       }
       let entry: SchedulerTickReport['ran'][number];
+      const t0 = performance.now();
       try {
-        entry = { name: j.name, ok: true, result: await j.run() };
+        const result = await j.run();
+        entry = { name: j.name, ok: true, ms: Math.round(performance.now() - t0), result };
       } catch (e) {
-        entry = { name: j.name, ok: false, error: describeJobError(e) };
+        entry = {
+          name: j.name,
+          ok: false,
+          ms: Math.round(performance.now() - t0),
+          error: describeJobError(e),
+        };
       }
       const now = new Date(this.deps.now());
       // A failed run is retried after retryMs instead of a full interval. Retrying on the very next tick turned a

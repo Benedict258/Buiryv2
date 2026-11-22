@@ -96,6 +96,7 @@ export async function startDevServer(
     BUIRY_BASE_URL: `http://localhost:${o.port ?? 8787}`,
     BUIRY_ALLOWED_ORIGINS: `http://localhost:${o.port ?? 8787},http://localhost:5173`,
     BUIRY_MAILER: 'memory',
+    ...(process.env.BUIRY_REQUEST_LOG ? { BUIRY_REQUEST_LOG: process.env.BUIRY_REQUEST_LOG } : {}),
     // A second mock relayer stands in for a project's own Walrus account (Storage page, "Use your own account").
     BUIRY_BYO_ALLOW_PRIVATE: '1',
     // BUIRY_CSP=report-only lets a screenshot pass list policy violations instead of breaking screens.

@@ -38,7 +38,12 @@ export interface ReqOpts {
 }
 
 export async function makeWorld(
-  o: { realWallet?: boolean; enforcePlans?: boolean; stackOpts?: Parameters<typeof createStack>[0] } = {},
+  o: {
+    realWallet?: boolean;
+    enforcePlans?: boolean;
+    stackOpts?: Parameters<typeof createStack>[0];
+    appConfig?: Record<string, unknown>;
+  } = {},
 ): Promise<World> {
   const clock = new Clock();
   const stack = await createStack({ now: clock.now, ...(o.stackOpts ?? {}) });
@@ -60,6 +65,7 @@ export async function makeWorld(
       feedIntervalMs: 20,
       evidence: { walrusNetwork: 'mainnet', delegatePublicKey: 'aa'.repeat(32), tatumNetwork: 'mainnet' },
       webhook: { resolve: async () => ['93.184.216.34'] },
+      ...(o.appConfig ?? {}),
     },
   });
   const req: World['req'] = async (method, path, ro = {}) => {

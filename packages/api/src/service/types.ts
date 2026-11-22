@@ -43,6 +43,8 @@ export interface GatewayPort extends GatewayLike {
 }
 
 export interface ServiceDeps {
+  /** Structured operational events without content, such as queued writes per project (Phase 9 E2). */
+  eventLog?: (line: string) => void;
   db: Db;
   now: () => number;
   random: (n: number) => Uint8Array;

@@ -11,6 +11,11 @@ import type { ByoOpts } from '../service/byo-storage.js';
 import type { AgentPrincipal, ServiceDeps, UserPrincipal } from '../service/types.js';
 
 export interface AppConfig {
+  /**
+   * One JSON line per request (Phase 9 E2): route pattern, method, status, latency, error class and the project id
+   * in the path. Never the URL, query, headers, body or token. Off unless set (the server sets it).
+   */
+  requestLog?: (line: string) => void;
   /** Origins allowed to make cookie-authenticated mutations (the dashboard). */
   allowedOrigins: string[];
   cookieSecure: boolean;

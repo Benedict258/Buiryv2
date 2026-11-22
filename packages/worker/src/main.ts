@@ -7,7 +7,7 @@ import {
   startHttp,
 } from '@buiry/api';
 import { driftScan, expiryScan, isolationCanary, relayerProbe, snapshotRegen } from './index.js';
-import { Scheduler, jobFailureLine, type ScheduledJob } from './scheduler.js';
+import { Scheduler, jobFailureLine, jobRunLine, type ScheduledJob } from './scheduler.js';
 
 /**
  * Runs the API and MCP endpoint, the background jobs, or both (BUIRY_ROLE = api | worker | all, default all). On
@@ -71,11 +71,13 @@ export async function main(env: Record<string, string | undefined> = process.env
   const scheduler = new Scheduler(rt.deps, `proc-${process.pid}`, jobs);
   const timer = setInterval(
     () =>
-      void scheduler
-        .tick()
-        .then((r) =>
-          r.ran.filter((x) => !x.ok).forEach((x) => console.error(jobFailureLine(x.name, x.error))),
-        ),
+      void scheduler.tick().then((r) => {
+        for (const x of r.ran) {
+          // The failure line stays as it is: the job-failures alarm matches it.
+          if (!x.ok) console.error(jobFailureLine(x.name, x.error));
+          if (env.BUIRY_REQUEST_LOG !== 'off') console.log(jobRunLine(x));
+        }
+      }),
     1_000,
   );
   const stop = async () => {

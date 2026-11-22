@@ -13,6 +13,8 @@ ENV COREPACK_ENABLE_DOWNLOAD_PROMPT=0
 RUN corepack enable
 COPY . .
 RUN pnpm install --frozen-lockfile
+# 1 builds the preview dashboard (no billing page, plan chip or upgrade prompts; Phase 9 D6). Empty by default.
+ARG VITE_BUIRY_PREVIEW=
 RUN pnpm --filter @buiry/dashboard exec vite build \
  && pnpm --filter @buiry/worker run build:server \
  && pnpm --filter @buiry/worker deploy --prod --legacy --config.node-linker=hoisted /out \

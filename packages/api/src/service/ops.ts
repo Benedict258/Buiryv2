@@ -243,6 +243,17 @@ export async function emitDurable(
   if (!r.ok) {
     throw new BuiryError('budget_exceeded', r.message, r.retryAfterMs, { scope: r.scope });
   }
+  // Per-project write volume (Phase 9 E2): ids and the event type only, never text. Logged when the write is
+  // accepted inside the transaction, so a transaction that later rolls back can still have logged a line.
+  deps.eventLog?.(
+    JSON.stringify({
+      level: 'info',
+      event: 'write_queued',
+      project: a.project.id,
+      evt: a.evt,
+      actor: a.p.kind === 'agent' ? 'agent' : 'user',
+    }),
+  );
   return { eventId, jobId: r.jobId };
 }
 

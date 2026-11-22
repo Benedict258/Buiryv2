@@ -141,7 +141,41 @@ export function createApp(o: CreateAppOptions): BuiryApp {
     c.header('x-content-type-options', 'nosniff');
     c.header('cache-control', 'no-store');
     c.header('referrer-policy', 'no-referrer');
+    const t0 = performance.now();
     await next();
+    const log = ctx.config.requestLog;
+    if (log) {
+      const status = c.res.status;
+      // The matched route pattern, never the concrete path; the project id is an id, not content.
+      const route = c.req.matchedRoutes.filter((r) => r.method !== 'ALL').at(-1)?.path ?? 'unmatched';
+      const project = /^\/v1\/projects\/(prj_[0-9A-Z]{26})(?:\/|$)/.exec(c.req.path)?.[1];
+      const err = c.error;
+      const error =
+        status < 400
+          ? undefined
+          : err instanceof BuiryError
+            ? err.code
+            : err
+              ? /^[A-Za-z0-9_]{1,64}$/.test(err.name)
+                ? err.name
+                : 'Error'
+              : status === 404
+                ? 'not_found'
+                : `http_${status}`;
+      log(
+        JSON.stringify({
+          level: status >= 500 ? 'error' : 'info',
+          event: 'request',
+          requestId: rid,
+          method: c.req.method,
+          route,
+          status,
+          ms: Math.round(performance.now() - t0),
+          ...(project ? { project } : {}),
+          ...(error ? { error } : {}),
+        }),
+      );
+    }
   });
   const ipOf = (c: Parameters<Handler>[0]) => clientAddress(c, ctx.config.trustedProxyHops);
   // Only the endpoints that take no credentials are limited per address; signed-in calls such as /auth/me are not.

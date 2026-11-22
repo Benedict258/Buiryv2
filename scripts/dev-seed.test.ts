@@ -6,6 +6,7 @@ import { startDevServer } from './dev-server.js';
 
 describe('dashboard dev seed', () => {
   it('is on testnet and labelled sample data', async () => {
+    process.env.BUIRY_REQUEST_LOG = 'off'; // keep request lines out of the test output
     const dev = await startDevServer({ port: 0, log: () => undefined });
     try {
       const get = async (path: string) =>

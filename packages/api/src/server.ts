@@ -106,6 +106,8 @@ export async function buildRuntime(env: Env = process.env): Promise<Runtime> {
   const previous = env.BUIRY_SECRET_KEY_PREVIOUS ?? '';
   if (previous.length >= 32 && previous !== deps.secretKey) deps.previousSecretKey = previous;
   if (env.BUIRY_RENEWAL === 'on') deps.renewalEnabled = true;
+  // Structured operational events without content, such as queued writes per project (Phase 9 E2).
+  if (env.BUIRY_REQUEST_LOG !== 'off') deps.eventLog = (l) => console.log(l);
   if (env.BUIRY_PACK_MAX_ITEMS) deps.packMaxItems = Number(env.BUIRY_PACK_MAX_ITEMS);
   // Agent tokens expire after BUIRY_AGENT_TOKEN_MAX_DAYS (default 90; 0 = no expiry). Rotation revokes at once.
   const maxDays = Number(env.BUIRY_AGENT_TOKEN_MAX_DAYS ?? 90);
@@ -202,6 +204,8 @@ export function buildApp(rt: Runtime): BuiryApp {
       mailer: mailerFromEnv(rt.env),
     },
     config: {
+      // Structured request lines (Phase 9 E2); BUIRY_REQUEST_LOG=off turns them off.
+      ...(rt.env.BUIRY_REQUEST_LOG !== 'off' ? { requestLog: (l: string) => console.log(l) } : {}),
       trustedProxyHops: Number(rt.env.BUIRY_TRUSTED_PROXY_HOPS ?? 0),
       ...(rt.env.BUIRY_SSE_MAX_PER_USER ? { sseMaxPerUser: Number(rt.env.BUIRY_SSE_MAX_PER_USER) } : {}),
       ...(rt.env.BUIRY_SSE_MAX_PER_PROJECT
