@@ -72,3 +72,10 @@ Walrus storage is paid for a fixed period (testnet about 5 days, Mainnet about 2
   3. Revoke the old token: `DELETE /v1/api-tokens/<id>`.
   4. Never give a token with `confirm` to an agent tool: it would confirm as a person (`docs/SECURITY_REVIEW.md`, M8).
 - The dashboard's API token page does not yet offer the `confirm` scope or show expiry (`docs/design/02`); until it does, use the API call above.
+
+## Preview mode (bring your own storage)
+
+- `BUIRY_PREVIEW=1` with `BUIRY_MANAGED=off`. The server refuses to start in preview mode if `BUIRY_MANAGED` is not `off`, or if `BUIRY_MANAGED_MULTI_TENANT=1` or `BUIRY_MANAGED_WORKSPACE_ID` is set, in every environment.
+- Whenever the deployment has no shared storage account (preview or not), a project without its own account refuses writes up front: 403, "this deployment has no shared Walrus account, ...". Nothing is queued. The dashboard shows a banner pointing to the Storage page.
+- **Writes queued before this rule** for such projects are not deleted. At startup the server logs one warning with their count and project ids ("[buiry] N queued writes in M projects cannot be stored: ..."). They are stored once each project connects its own account. To see them: `strandedWrites` in `packages/api/src/service/byo-storage.ts`.
+- Testers follow `docs/TESTER_ONBOARDING.md`.
