@@ -106,27 +106,27 @@ There is no route for the marketing site, a 500 page, the internal admin console
 | Copy commands across pages                     | `npx buiry ...` appears in Overview, Memory, Projects, Agents, Settings and Onboarding. The owner chose `npx @buiry/cli` (decision 16); the dashboard still shows the old command. | Blocked: packages are unpublished, and the npm name `buiry` is not a release name (section 13). |
 | Inline styles                                  | 187 `style={{...}}` attributes across the pages (count from `grep`).                                                                                                               | Spacing and layout drift outside the tokens.                                                    |
 
-### Controls whose effect changed in Phase 6.1 (dashboard not changed)
+### Controls whose effect changed in Phase 6.1 (dashboard fixed in Phase 9 D4)
 
-| Control                                          | Where                                                                                                                                                                      | Effect now                                                                                                                                                                                           |
-| ------------------------------------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| "Auto-promotion" setting (thresholds, on or off) | Project Settings (`apps/dashboard/src/pages/Settings.tsx:296`, label "Auto-promote memories that agents repeatedly report helpful", and the two threshold fields below it) | Reports never confirm (M8, BD44). The thresholds only mark a report "ready for a person to confirm".                                                                                                 |
-| `confirm` permission when connecting an agent    | Agents (`apps/dashboard/src/pages/Agents.tsx:32`, shown again at `:132` and in the drawer at `:490`)                                                                       | No longer lets an agent confirm (supersedes BD11). Still offered as "Confirm: confirm other agents' memories (never its own)".                                                                       |
-| API token scopes and expiry                      | API tokens (`apps/dashboard/src/pages/WorkspacePages.tsx:796`, table at `:718`, create at `:772`)                                                                          | The scope list offers read, write and admin, not the new `confirm` scope (Phase 7.4). The table has no expiry column. Creation sends no expiry, so every new token silently gets the 90-day default. |
+| Control                     | Where                              | Phase 9 change                                                                                                                                                                             |
+| --------------------------- | ---------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| "Auto-promotion" setting    | Project Settings, Memory rules     | Relabelled "Mark a memory ready for a person to confirm when agents repeatedly report it helpful", with "Agents raise confidence up to 0.7. Only a person confirms." (`controls.test.tsx`) |
+| Agent `confirm` permission  | Agents: create form, table, drawer | Shown as "Contest: flag a memory as contested for a person to review. Agents never confirm; only a person confirms"; chips and the drawer say "contest". The stored value stays `confirm`  |
+| API token scopes and expiry | API tokens                         | "Can confirm memories" scope, off by default, with a warning once chosen; an Expires column ("No expiry (older token)" for old ones); create sends `expiresInDays`, 90 by default          |
 
 ### Accessibility: tested versus assumed
 
-| Aspect                              | Status                                                                                                       |
-| ----------------------------------- | ------------------------------------------------------------------------------------------------------------ |
-| Colour contrast                     | Computed now for every token pair (section 6). Not checked in a browser tool.                                |
-| Status not by colour alone          | Built: each status chip has an icon and a label (screenshots). Not tested with users.                        |
-| Focus outline                       | A `:focus-visible` rule exists (`app.css:59`). Focus order not tested.                                       |
-| Keyboard operation                  | Radio cards and the command palette have key handlers. No full keyboard pass was run. UNVERIFIED.            |
-| Screen readers                      | 107 `aria-*` attributes in the code. Never tested with a screen reader. UNVERIFIED.                          |
-| Reduced motion                      | `@media (prefers-reduced-motion: reduce)` disables animation and transitions in CSS. Not tested on a device. |
-| Automated audit (axe or Lighthouse) | Not run.                                                                                                     |
-| Skip link, landmarks                | No skip link found.                                                                                          |
-| Language                            | `<html lang="en">` (`apps/dashboard/index.html`).                                                            |
+| Aspect                              | Status                                                                                                                                                                                                |
+| ----------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Colour contrast                     | Computed by `scripts/dashboard-contrast.test.ts` for every pair the dashboard uses (Phase 9 D1); one known exception, the light input border on the page background (2.81:1). Not checked with users. |
+| Status not by colour alone          | Built: each status chip has an icon and a label (screenshots). Not tested with users.                                                                                                                 |
+| Focus outline                       | 2px ring in the focus colour, 2px offset; checked in Chrome on every Tab stop of Overview and Memory, both themes (`scripts/dashboard-a11y.ts`).                                                      |
+| Keyboard operation                  | 30 Tab stops per page on Overview and Memory reach only real controls (Phase 9 D8). Dialogs, drawers and the command palette by keyboard: not run.                                                    |
+| Screen readers                      | 107 `aria-*` attributes in the code. Never tested with a screen reader. UNVERIFIED.                                                                                                                   |
+| Reduced motion                      | With reduced motion emulated in Chrome, no element on the Memory page has a transition or animation (Phase 9 D8). Not tested on a device setting.                                                     |
+| Automated audit (axe or Lighthouse) | Not run (no third-party tool added). 200% zoom checked: no page wider than the window at 640x400 CSS pixels (Phase 9 D8).                                                                             |
+| Skip link, landmarks                | Skip link added (Phase 9 D8): first Tab stop, moves focus into `<main>`. Landmarks: `aside` sidebar, `main`.                                                                                          |
+| Language                            | `<html lang="en">` (`apps/dashboard/index.html`).                                                                                                                                                     |
 
 ## 6. The design system as it exists
 
