@@ -187,3 +187,21 @@ Legend: **done** (implemented and tested), **mocked** (tested only against a moc
 - Not run or blocked: L-W1 signed calls, L-W2, L-D1 (delegate private key), L-A1 (OAuth apps), Cursor.
 - Chain transport is stated plainly as gRPC only: `buiry doctor`, the Verification screen and the degraded banner say that with gRPC down a check is `unknown`, never a pass (tests: CLI doctor wording, and no reuse of an expired cached pass during an outage). Checked in Chrome against the dev server.
 - Public showcase: a 404 now shows only "Nothing is shared here" (no raw error line, no Retry); other failures keep the Retry.
+
+## Phase 9 (2026-11-22): done, mocked, needs a live check
+
+- **Done (mocks and PGlite):**
+  - Status-first ranking above a 0.2 relevance cutoff; agents cannot demote a person-confirmed memory.
+  - Content-free relayer warning (A11) and migration log (A9).
+  - Preview mode: no shared account; writes refused up front without an own account; `BUIRY_PREVIEW=1`.
+  - Tester onboarding; the dashboard pass (D1 to D8).
+  - Structured request, write and job logs; the Render deployment plan.
+- **Mocked:**
+  - Every Walrus and Tatum call in these tests.
+  - The dashboard screenshots: seeded sample data on testnet, local mocks.
+- **Needs a live check (owner):**
+  - L-TOK1, the token migration, on the first deployed database.
+  - L-PROOF1, the handoff proof, including A30 relayer recall scores.
+  - L-BYO2, two own accounts isolated.
+  - A deployment on Render (`docs/DEPLOY_RENDER.md` section 8).
+  - Cursor and Codex tester runs (`docs/LIVE_PROOF.md` section 4).
