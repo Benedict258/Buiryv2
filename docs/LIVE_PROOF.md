@@ -64,6 +64,16 @@ Assumption A30 is the 0.2 relevance cutoff (Phase 9 A2). It assumes relayer scor
 
 The step runs with or without a chain gateway, but it can only record numbers with one. Without a gateway there is no Seal session, and the relayer returns no recall results (A23, seen live on mainnet and testnet). The step then saves `sealSession: false` and the degraded flag, and C8 reads "not recordable: no chain gateway". **So A30 cannot be checked without a chain gateway.** The gateway's one Sui read builds the Seal session (`buildWalrusAdapter`), and chain reads go only through the Tatum gateway (confinement). Until these numbers have been seen and compared, **no claim is made that ranking or the cutoff behaves correctly on the live relayer**.
 
+## Write etiquette for every live run (Phase 10)
+
+The relayer's guidance is to keep polling a job, not to resubmit before it fails, and to retry after a few minutes. Live writes follow it (`scripts/live/etiquette.ts`, tested):
+
+- **One account at a time.** The next account writes only after the previous write is stored, dead, or past its 65-minute deadline.
+- **Health before each write.** If `/health` does not report writes `ok`, the run is **skipped**. A skipped run is recorded, but counts as neither a pass nor a fail.
+- **Retries** are the drain's own: at least 10 minutes, doubling, at most 3 in any hour.
+- **Records.** Every write logs its relayer job id, the UTC time, and each status with the seconds elapsed. Each run records the commit hash it used.
+- **Handoff proof.** `prepare` refuses to start while writes are not `ok`; sessions write through the server, whose drain pauses while degraded.
+
 ## 2. F2: two own accounts stay isolated (L-BYO2)
 
 **Script:** `scripts/live/byo-isolation.ts`, run as `pnpm tsx scripts/with-env.ts testnet -- pnpm tsx scripts/live/byo-isolation.ts`.

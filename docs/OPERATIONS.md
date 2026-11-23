@@ -79,3 +79,18 @@ Walrus storage is paid for a fixed period (testnet about 5 days, Mainnet about 2
 - Whenever the deployment has no shared storage account (preview or not), a project without its own account refuses writes up front: 403, "this deployment has no shared Walrus account, ...". Nothing is queued. The dashboard shows a banner pointing to the Storage page.
 - **Writes queued before this rule** for such projects are not deleted. At startup the server logs one warning with their count and project ids ("[buiry] N queued writes in M projects cannot be stored: ..."). They are stored once each project connects its own account. To see them: `strandedWrites` in `packages/api/src/service/byo-storage.ts`.
 - Testers follow `docs/TESTER_ONBOARDING.md`.
+
+## Writes while the relayer struggles (Phase 10)
+
+**Retry policy.** The relayer's own guidance for a failed write is "keep polling a job; do not resubmit unless the job reaches failed; retry after a few minutes". The write drain follows it (`packages/storage/src/write-worker.ts`):
+
+- **Wait after a failed attempt.** At least 10 minutes, doubling per attempt, capped at 2 hours, with up to 25% added jitter (`relayerBackoffMs`). Attempts land at about 0, 10, 30 and 70 minutes, so no hour holds more than three. A relayer `retry-after` longer than that is honoured.
+- **Degraded pause.** While the relayer's `/health` reports writes `degraded` or `paused`, nothing new is submitted. Jobs already submitted are still polled to the end.
+- **Give-up.** Unchanged: after 6 attempts the job is `dead`, the memory's write state becomes `failed`, and a `failed_write` flag shows in Alerts and briefings. A memory is marked `stored` only when the relayer reports its job done.
+- **Recorded reason.** A failed relayer job records a fixed reason, never the relayer's text:
+  - "job_failed: the storage relayer was reachable and reported a temporary capacity limit";
+  - or "... reported the write job as failed".
+
+**Notice in preview.** Every minute the worker probes each project's own relayer (`ownRelayerProbe`). While writes are degraded, paused or the relayer is unreachable, that project gets a `relayer` flag, which shows in Alerts and in briefings. The flag is resolved when writes are `ok`. The shared-account probe no longer flags projects that have their own account.
+
+**Tracing a failed write with Walrus support.** Each write job logs `event: write_job` lines with the relayer job id and every status change (submitted, pending, running, failed, retry_scheduled, stored, dead), the attempt and a UTC time. They carry no text and no namespace. Give support the relayer job ids and times.
