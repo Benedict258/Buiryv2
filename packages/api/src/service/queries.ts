@@ -271,7 +271,7 @@ export async function briefingTx(
   const extraFlags: { memoryId?: string; kind: string; detail: string }[] = [];
   const flagItems: FlagItem[] = [];
   const open = await tx.query<{ memory_id: string | null; kind: string; detail: string }>(
-    `select memory_id, kind, detail from flags where project_id = $1 and state <> 'resolved' and kind in ('expiring','failed_write','relayer','verification') order by severity, last_seen desc limit 20`,
+    `select memory_id, kind, detail from flags where project_id = $1 and state <> 'resolved' and kind in ('expiring','failed_write','relayer','verification','write_failures') order by severity, last_seen desc limit 20`,
     [projectId],
   );
   for (const f of open.rows) {

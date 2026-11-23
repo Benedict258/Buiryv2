@@ -502,6 +502,12 @@ const AGENT_TOKEN_EXPIRY = `
 alter table agent_tokens add column expires_at timestamptz;
 `;
 
+/** Phase 10 F5: a project notice after consecutive failed writes, independent of relayer health. */
+const FLAG_WRITE_FAILURES = `
+alter table flags drop constraint if exists flags_kind_check;
+alter table flags add constraint flags_kind_check check (kind in ('stale','contested','expiring','failed_write','possible_conflict','needs_review','injection','relayer','verification','write_failures'));
+`;
+
 export const MIGRATIONS: Migration[] = [
   { id: '001_init', sql: INIT },
   { id: '002_write_jobs', sql: WRITE_JOBS_DDL },
@@ -512,6 +518,7 @@ export const MIGRATIONS: Migration[] = [
   { id: '007_renewal', sql: RENEWAL },
   { id: '008_recent_idx', sql: RECENT_IDX },
   { id: '009_agent_token_expiry', sql: AGENT_TOKEN_EXPIRY },
+  { id: '010_flag_write_failures', sql: FLAG_WRITE_FAILURES },
 ];
 
 export async function migrate(

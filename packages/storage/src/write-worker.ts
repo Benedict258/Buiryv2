@@ -57,6 +57,8 @@ export interface WorkerOptions {
   log?: (line: string) => void;
   onStored?: (job: WriteJob, blobId: string) => void | Promise<void>;
   onDead?: (job: WriteJob, error: string) => void | Promise<void>;
+  /** Every failed attempt, retried or not, with its fixed reason (Phase 10 F5). */
+  onAttemptFailed?: (job: WriteJob, reason: string) => void | Promise<void>;
 }
 
 export interface TickReport {
@@ -143,6 +145,7 @@ export class WriteWorker {
     const err = e instanceof RelayerError ? e : new RelayerError('unknown', 'unexpected error');
     const now = this.w.now();
     const text = reason ?? writeErrorText(err);
+    await this.notifyFailed(job, text);
     if (!err.retryable) return this.dead(job, text, report);
     if (job.attempts >= this.o.maxAttempts) return this.dead(job, `retries exhausted: ${text}`, report);
     const wait = Math.max(
@@ -155,6 +158,15 @@ export class WriteWorker {
       retryInSec: Math.round(wait / 1000),
     });
     report.retried++;
+  }
+
+  /** The F5 hook. A failure in it (a notice that could not be written) never changes how the write is handled. */
+  private async notifyFailed(job: WriteJob, reason: string): Promise<void> {
+    try {
+      await this.w.onAttemptFailed?.(job, reason);
+    } catch {
+      this.logJob(job, 'notice_error', job.relayerJobId);
+    }
   }
 
   private async dead(job: WriteJob, error: string, report: TickReport): Promise<void> {
@@ -222,7 +234,10 @@ export class WriteWorker {
           this.logJob(job, 'failed', job.relayerJobId, { reason });
           if (st.retryable)
             await this.fail(job, new RelayerError('unavailable', 'relayer job failed'), report, reason);
-          else await this.dead(job, reason, report);
+          else {
+            await this.notifyFailed(job, reason);
+            await this.dead(job, reason, report);
+          }
         } else {
           this.logJob(job, st.state, job.relayerJobId);
           await this.w.queue.schedulePoll(job.id, now + this.o.pollIntervalMs, now);
