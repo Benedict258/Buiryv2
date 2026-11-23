@@ -16,6 +16,7 @@
  *   PROOF_DELEGATE_KEY) and, when configured, the chain gateway (the chain package's settings, see .env.example).
  * Prints ids, statuses and numbers only: never memory text, keys or tokens.
  */
+import { execFileSync } from 'node:child_process';
 import { randomBytes } from 'node:crypto';
 import { existsSync, mkdirSync, readdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
@@ -30,6 +31,7 @@ import {
   type ProofMemory,
   type ProofRun,
 } from './proof-criteria.js';
+import { healthAllowsWrite } from './etiquette.js';
 
 const ROOT = '.buiry-local/proof';
 const env = process.env as Record<string, string | undefined>;
@@ -48,6 +50,10 @@ interface Meta {
   tokens: Record<(typeof PROOF_TYPES)[number], string>;
   taskB: string;
   queries: string[];
+  /** The Buiry commit the run used. */
+  commit: string;
+  /** Relayer health read before the run started (F4). */
+  relayerHealthAtStart: string;
 }
 
 function need(...names: string[]) {
@@ -72,9 +78,35 @@ async function api<T>(method: string, path: string, body?: unknown): Promise<T> 
   return j.data as T;
 }
 
+/** The relayer's unsigned /health, as the write etiquette needs it (F4). No credentials involved. */
+async function relayerHealth(): Promise<{ reachable: boolean; writeState: 'ok' | 'degraded' | 'paused' }> {
+  const url = env.PROOF_RELAYER_URL;
+  if (!url) return { reachable: false, writeState: 'paused' };
+  const j = (await fetch(url.replace(/\/$/, '') + '/health', { signal: AbortSignal.timeout(20_000) })
+    .then((x) => x.json())
+    .catch(() => null)) as { writes?: string } | null;
+  if (!j) return { reachable: false, writeState: 'paused' };
+  const w = j.writes === 'degraded' || j.writes === 'paused' ? j.writes : 'ok';
+  return { reachable: true, writeState: w };
+}
+
 async function prepare(r: string) {
   need(...LIVE_REQUIRED_ENV.prepare);
   if (existsSync(dir(r))) throw new Error(`${dir(r)} exists; every run gets a new id and is kept`);
+  // F4: do not start a run into a known failure. Sessions write through the server, whose drain also pauses (F1).
+  const h = await relayerHealth();
+  const healthText = h.reachable ? h.writeState : 'unreachable';
+  if (!healthAllowsWrite(h))
+    throw new Error(
+      `not started: the relayer reports writes ${healthText} at ${new Date().toISOString()}; try later`,
+    );
+  const commit = (() => {
+    try {
+      return execFileSync('git', ['rev-parse', '--short', 'HEAD'], { encoding: 'utf8' }).trim();
+    } catch {
+      return 'unknown';
+    }
+  })();
   mkdirSync(dir(r), { recursive: true });
   const tok = (t: string) => `PROOF-${t.toUpperCase()}-${randomBytes(3).toString('hex').toUpperCase()}`;
   const meta: Meta = {
@@ -84,6 +116,8 @@ async function prepare(r: string) {
     tokens: { decision: tok('dec'), constraint: tok('con'), failure: tok('fail') },
     taskB: 'Change how user sessions are stored and add the expiry handling',
     queries: ['session storage', 'session expiry', 'migration failure'],
+    commit,
+    relayerHealthAtStart: healthText,
   };
   save(r, 'meta.json', meta);
   save(

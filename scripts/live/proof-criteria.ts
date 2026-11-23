@@ -67,7 +67,7 @@ export interface Criterion {
  * configured through the chain package's own settings, never named here (Tatum confinement).
  */
 export const LIVE_REQUIRED_ENV = {
-  prepare: ['BUIRY_PROOF_PROJECT'],
+  prepare: ['BUIRY_PROOF_PROJECT', 'PROOF_RELAYER_URL'],
   collect: ['BUIRY_API_URL', 'BUIRY_PROOF_TOKEN'],
   verifyChain: ['BUIRY_API_URL', 'BUIRY_PROOF_TOKEN'],
   scores: ['PROOF_RELAYER_URL', 'PROOF_ACCOUNT_ID', 'PROOF_DELEGATE_KEY'],
