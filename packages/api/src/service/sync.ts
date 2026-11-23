@@ -75,6 +75,8 @@ export function createDrain(
     now: deps.now,
     onStored: (j, b) => onJobStored(deps, j, b),
     onDead: (j, e) => onJobDead(deps, j, e),
+    // Relayer job ids and status changes, content-free, into the structured event log (Phase 10).
+    ...(deps.eventLog ? { log: deps.eventLog } : {}),
     ...o,
   });
 }
