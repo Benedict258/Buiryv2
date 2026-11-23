@@ -79,6 +79,7 @@ export const LIVE_REQUIRED_ENV = {
     'BYO_B_ACCOUNT_ID',
     'BYO_B_DELEGATE_KEY',
   ],
+  canary: ['BYO_A_RELAYER_URL', 'BYO_A_ACCOUNT_ID', 'BYO_A_DELEGATE_KEY'],
 } as const;
 
 const isAgent = (m: ProofMemory, tool: string) => m.agent.startsWith(tool);
