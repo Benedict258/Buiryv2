@@ -94,3 +94,7 @@ Walrus storage is paid for a fixed period (testnet about 5 days, Mainnet about 2
 **Notice in preview.** Every minute the worker probes each project's own relayer (`ownRelayerProbe`). While writes are degraded, paused or the relayer is unreachable, that project gets a `relayer` flag, which shows in Alerts and in briefings. The flag is resolved when writes are `ok`. The shared-account probe no longer flags projects that have their own account.
 
 **Tracing a failed write with Walrus support.** Each write job logs `event: write_job` lines with the relayer job id and every status change (submitted, pending, running, failed, retry_scheduled, stored, dead), the attempt and a UTC time. They carry no text and no namespace. Give support the relayer job ids and times.
+
+**Notice after failed writes (Phase 10 F5).** After 2 consecutive failed write attempts for a project, it gets a `write_failures` notice in Alerts and briefings. The notice does not depend on the relayer's `/health`, which reported `ok` for hours on 2026-11-23 while every write failed. It is cleared by the next stored write. The text is fixed, with no relayer text. The count is kept in memory per drain, so a restart starts counting again; an open notice stays until a write is stored. Migration `010_flag_write_failures` adds the flag kind.
+
+**Health is not enough.** Treat `/health` reporting writes `ok` as necessary, not sufficient. Use the write canary (`docs/LIVE_PROOF.md`) to confirm that writes are actually stored.

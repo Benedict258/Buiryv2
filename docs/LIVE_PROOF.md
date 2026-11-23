@@ -74,6 +74,21 @@ The relayer's guidance is to keep polling a job, not to resubmit before it fails
 - **Records.** Every write logs its relayer job id, the UTC time, and each status with the seconds elapsed. Each run records the commit hash it used.
 - **Handoff proof.** `prepare` refuses to start while writes are not `ok`; sessions write through the server, whose drain pauses while degraded.
 
+**Relayer health is not a reliable signal.** On 2026-11-23 the testnet relayer's `/health` reported `writes: ok` from 01:07 to 05:03 UTC, while every one of 13 writes failed with a capacity limit. "Writes ok" is therefore necessary before a live run, never sufficient. Readiness is shown by a canary, not by `/health`.
+
+**Isolation runs (F6).** Each account gets exactly one attempt per run: the drain is set to `maxAttempts: 1`, so a failed attempt is final and nothing retries in the background into the next account's phase. The run waits for that attempt's terminal state (up to 20 minutes). I1 is still scored at the fixed 4 minutes (`storedWithin`).
+
+## Canary: is the relayer storing and returning writes?
+
+`scripts/live/canary.ts`, run as `pnpm tsx scripts/with-env.ts testnet -- pnpm tsx scripts/live/canary.ts`.
+
+- **One write, one attempt.** It writes one memory on account A, straight to the relayer, with no retry.
+- **Followed to the end.** It follows the job to `done` or `failed`, logging the job id, UTC times and each status with elapsed seconds.
+- **Recall check.** If the write is stored, it recalls the memory through the relayer, using a Seal session when a chain gateway is configured. It records whether real results came back, plus their distance and score (A30).
+- **Pacing.** At most one per hour: it refuses if the last canary started less than an hour ago. The start is recorded before the write, so an interrupted canary still uses the hour. It also refuses while `/health` does not report writes `ok`; that refusal does not use the hour.
+- **Results.** Saved to `.buiry-local/proof/canary-<run>.json`. No key, token or memory text is saved.
+- **Gate for everything else.** No isolation run, handoff setup or handoff proof starts until a canary has been **stored and recalled with real results**.
+
 ## 2. F2: two own accounts stay isolated (L-BYO2)
 
 **Script:** `scripts/live/byo-isolation.ts`, run as `pnpm tsx scripts/with-env.ts testnet -- pnpm tsx scripts/live/byo-isolation.ts`.
