@@ -6,7 +6,14 @@ import {
   rewriteRenewer,
   startHttp,
 } from '@buiry/api';
-import { driftScan, expiryScan, isolationCanary, relayerProbe, snapshotRegen } from './index.js';
+import {
+  driftScan,
+  expiryScan,
+  isolationCanary,
+  ownRelayerProbe,
+  relayerProbe,
+  snapshotRegen,
+} from './index.js';
 import { Scheduler, jobFailureLine, jobRunLine, type ScheduledJob } from './scheduler.js';
 
 /**
@@ -63,6 +70,11 @@ export async function main(env: Record<string, string | undefined> = process.env
       intervalMs: min,
       run: () => relayerProbe(rt.deps, rt.adapter!, env.WALRUS_RELAYER_URL ?? ''),
     });
+  }
+  // Each project's own relayer (preview has no shared account): a notice in Alerts and briefings while degraded (F3).
+  if (rt.deps.storage) {
+    const storage = rt.deps.storage;
+    jobs.push({ name: 'own-relayer-probe', intervalMs: min, run: () => ownRelayerProbe(rt.deps, storage) });
   }
   jobs.push({ name: 'webhooks', intervalMs: 5_000, run: () => deliverDue(rt.deps) });
   jobs.push({ name: 'drift-scan', intervalMs: 6 * 60 * min, run: () => driftScan(rt.deps) });
