@@ -197,7 +197,7 @@ pnpm monorepo, TypeScript (strict, ESM), Node 20 or newer. Source of truth: `doc
 - Verified evidence raises confidence, up to 0.9.
 - Each "helpful" report raises confidence. At most two increases count per memory per day; an agent's report weighs 0.5 and a person's 1.0.
 - Confidence decays with a half-life that depends on the memory type, applied when the memory is read.
-- Only a person can confirm a memory (BD44, Phase 6.1, M8 fixed). Agent reports raise confidence but never change status; an agent token cannot confirm through any operation (tested). An API token is a person's credential and can.
+- Only a person can confirm a memory (BD44, Phase 6.1, M8 fixed; enforced by the server; verified on mocks and PGlite, not yet in a live or tester run). Agent reports raise confidence but never change status; an agent token cannot confirm through any operation (`agent-confirm.test.ts`, on PGlite). An API token is a person's credential and confirms only with the explicit `confirm` scope, off by default (Phase 7.4).
 - Projects can override the rules (BD27).
 - Agents never see scores (BD29).
 
@@ -207,7 +207,7 @@ pnpm monorepo, TypeScript (strict, ESM), Node 20 or newer. Source of truth: `doc
 2. Every lookup is scoped, and a foreign id answers `not_found`.
 3. Postgres row-level security applies under an unprivileged role.
 
-`packages/api/test/isolation.test.ts` walks the route registry and every MCP tool.
+`packages/api/test/isolation.test.ts` walks the route registry and every MCP tool. Evidence: layers 1 and 2 are verified on mocks (PGlite); the isolation suite and row-level security also passed on real PostgreSQL 16.15 in a throwaway container (L-PG1). Storage isolation between two own Walrus accounts is verified on mocks only: the live runs (L-BYO2) have not passed.
 
 On the storage side:
 

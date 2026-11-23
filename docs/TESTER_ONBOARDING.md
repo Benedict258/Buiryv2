@@ -48,7 +48,7 @@ Keep the delegate private key to yourself. Do not paste it into chat, issues or 
 ## 6. Confirm in the dashboard
 
 1. Open the memory on the **Memory** page and press **Confirm**. This needs a project admin.
-2. Only a person confirms. An agent's "helpful" reports raise confidence up to 0.7 at most, and mark the memory "ready for a person to confirm".
+2. Only a person confirms (enforced by the server; verified on mocks and PGlite, not yet in a live or tester run). An agent's "helpful" reports raise confidence up to 0.7 at most, and mark the memory "ready for a person to confirm".
 3. Agents cannot confirm, and cannot demote a memory a person confirmed: two agents reporting it wrong raise a review flag instead (Phase 6.1, 7.3, 8 B2).
 
 ## 7. Hand off

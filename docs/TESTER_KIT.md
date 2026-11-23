@@ -34,7 +34,7 @@ Then, from your project repository:
 2. `buiry init` in the repository.
 3. `buiry connect <tool>`, where `<tool>` is `claude-code`, `opencode`, `cursor` or `codex`. This creates an **agent token** (`bry_at_...`) and writes it into the tool's config.
 
-**Tokens.** Agents must use the agent token that `buiry connect` creates. An API token (`bry_pat_...`, from the dashboard's API tokens page) acts as a person and is refused on agent connections (Phase 7.4). Never paste an API token into an agent's config. Agents never confirm memories; only a person does, in the dashboard.
+**Tokens.** Agents must use the agent token that `buiry connect` creates. An API token (`bry_pat_...`, from the dashboard's API tokens page) acts as a person and is refused on agent connections (Phase 7.4). Never paste an API token into an agent's config. Agents never confirm memories; only a person does, in the dashboard (enforced by the server; verified on mocks and PGlite, not yet in a live or tester run).
 
 ## 2. Platform steps
 

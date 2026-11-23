@@ -6,21 +6,21 @@ Severity: **critical** = remote compromise or cross-tenant data access without c
 
 ## Summary
 
-| ID  | Severity | Finding                                                                    | Status                                                               |
-| --- | -------- | -------------------------------------------------------------------------- | -------------------------------------------------------------------- |
-| H1  | high     | Malformed URL escape threw inside the raw request listener                 | Fixed in `83b58e9`, regression test                                  |
-| H2  | high     | No request body size limit (REST and MCP), unauthenticated routes included | Fixed in `83b58e9`, regression tests                                 |
-| H3  | high     | Sign-in links (bearer secrets) printed to logs when no mailer is set       | Fixed in `83b58e9` for production, regression test                   |
-| M1  | medium   | Rate limiter keys on the first `X-Forwarded-For` entry                     | Fixed (trusted proxy hops, tested)                                   |
-| M2  | medium   | Webhook destination check: DNS rebinding window, missing reserved ranges   | Fixed (pinned connection, tested)                                    |
-| M3  | medium   | No cap on concurrent SSE streams; streams outlive a revoked session        | Fixed (caps and session re-check, tested)                            |
-| M4  | medium   | Agent tokens never expire; API token expiry is optional and off by default | Fixed for new agent tokens (expiry, tested)                          |
-| M5  | medium   | Unexpected (500) errors are not logged                                     | Fixed (logged without messages, tested)                              |
-| M6  | medium   | Production can start on an in-memory database                              | Fixed (production startup check, tested)                             |
-| M7  | medium   | No item count cap on pack import (only the 2 MiB body cap from H2)         | Fixed (item, text and evidence caps, tested)                         |
-| L1  | low      | MCP sessions live in process memory with no idle expiry                    | Fixed (30-minute idle expiry, tested)                                |
-| L2  | low      | Dashboard static path check used a bare prefix match                       | Fixed in `83b58e9` (separator-aware); test added in Phase 6.2        |
-| M8  | medium   | An agent could auto-promote its own memory through a new session           | Fixed in Phase 6.1 (only a person confirms, tested); limits recorded |
+| ID  | Severity | Finding                                                                    | Status                                                                                   |
+| --- | -------- | -------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------- |
+| H1  | high     | Malformed URL escape threw inside the raw request listener                 | Fixed in `83b58e9`, regression test                                                      |
+| H2  | high     | No request body size limit (REST and MCP), unauthenticated routes included | Fixed in `83b58e9`, regression tests                                                     |
+| H3  | high     | Sign-in links (bearer secrets) printed to logs when no mailer is set       | Fixed in `83b58e9` for production, regression test                                       |
+| M1  | medium   | Rate limiter keys on the first `X-Forwarded-For` entry                     | Fixed (trusted proxy hops, tested)                                                       |
+| M2  | medium   | Webhook destination check: DNS rebinding window, missing reserved ranges   | Fixed (pinned connection, tested)                                                        |
+| M3  | medium   | No cap on concurrent SSE streams; streams outlive a revoked session        | Fixed (caps and session re-check, tested)                                                |
+| M4  | medium   | Agent tokens never expire; API token expiry is optional and off by default | Fixed for new agent tokens (expiry, tested)                                              |
+| M5  | medium   | Unexpected (500) errors are not logged                                     | Fixed (logged without messages, tested)                                                  |
+| M6  | medium   | Production can start on an in-memory database                              | Fixed (production startup check, tested)                                                 |
+| M7  | medium   | No item count cap on pack import (only the 2 MiB body cap from H2)         | Fixed (item, text and evidence caps, tested)                                             |
+| L1  | low      | MCP sessions live in process memory with no idle expiry                    | Fixed (30-minute idle expiry, tested)                                                    |
+| L2  | low      | Dashboard static path check used a bare prefix match                       | Fixed in `83b58e9` (separator-aware); test added in Phase 6.2                            |
+| M8  | medium   | An agent could auto-promote its own memory through a new session           | Fixed in Phase 6.1 (only a person confirms; tested on mocks and PGlite); limits recorded |
 
 No critical findings.
 
