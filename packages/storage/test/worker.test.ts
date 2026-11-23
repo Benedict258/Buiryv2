@@ -99,7 +99,8 @@ describe('write path', () => {
   });
 
   it('retries retryable errors with backoff, honours retry-after, and never retries auth/client errors', async () => {
-    const { svc, mkWorker, clock, mock, queue } = await rig();
+    // A 1 s backoff floor here, so the relayer's 30 s retry-after is what decides (the default floor is 10 minutes, F1).
+    const { svc, mkWorker, clock, mock, queue } = await rig({ worker: { backoffBaseMs: 1000 } });
     await svc.accept(jobInput(1));
     const w = mkWorker();
     mock.failNextWrites(1, 429, 'slow', 30);
@@ -139,7 +140,7 @@ describe('write path', () => {
   });
 
   it('handles failed relayer jobs as retryable', async () => {
-    const { svc, mkWorker, clock, mock, queue } = await rig();
+    const { svc, mkWorker, clock, mock, queue } = await rig({ worker: { backoffBaseMs: 1000 } });
     await svc.accept(jobInput(1));
     mock.failNextJobs(1);
     await drain(mkWorker(), clock, 12, 3000);
@@ -147,7 +148,7 @@ describe('write path', () => {
     expect(mock.writeItems).toBe(2); // resubmitted once
   });
 
-  it('pauses draining when the relayer reports paused, slows when degraded, and skips when unreachable', async () => {
+  it('pauses draining when the relayer reports paused or degraded (Phase 10 F1), and skips when unreachable', async () => {
     const { svc, mkWorker, clock, mock, queue } = await rig();
     for (let i = 0; i < 6; i++) await svc.accept(jobInput(i, { agent: `a${i}` }));
     const w = mkWorker();
@@ -155,10 +156,10 @@ describe('write path', () => {
     expect(await w.tick()).toMatchObject({ relayer: 'paused', skipped: 'paused', submitted: 0 });
     expect((await queue.stats(clock.now())).queued).toBe(6);
     mock.writeState = 'degraded';
-    expect(await w.tick()).toMatchObject({ relayer: 'degraded', submitted: 2 });
+    expect(await w.tick()).toMatchObject({ relayer: 'degraded', skipped: 'degraded', submitted: 0 });
     mock.writeState = 'ok';
     clock.advance(1);
-    expect((await w.tick()).submitted).toBe(4);
+    expect((await w.tick()).submitted).toBe(6);
     await mock.close();
     open.pop();
     expect(await w.tick()).toMatchObject({ relayer: 'unreachable', skipped: 'unreachable' });

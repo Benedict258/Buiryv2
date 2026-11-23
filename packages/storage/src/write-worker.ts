@@ -18,6 +18,18 @@ const WRITE_ERROR_TEXT: Record<string, string> = {
   unavailable: 'the storage relayer was unreachable or unavailable',
   unknown: 'unexpected error while storing',
 };
+/**
+ * A failed relayer job, in Buiry's own words (Phase 10 F2). The relayer answered, so "unreachable" would be wrong. The
+ * relayer's error text is only matched against a fixed pattern, never stored or logged (A1, A3).
+ */
+export const JOB_FAILED_CAPACITY =
+  'job_failed: the storage relayer was reachable and reported a temporary capacity limit';
+export const JOB_FAILED =
+  'job_failed: the storage relayer was reachable and reported the write job as failed';
+export function jobFailedReason(relayerError: string | undefined): string {
+  return /capacity/i.test(relayerError ?? '') ? JOB_FAILED_CAPACITY : JOB_FAILED;
+}
+
 export function writeErrorText(e: RelayerError): string {
   const text = WRITE_ERROR_TEXT[e.kind] ?? WRITE_ERROR_TEXT.unknown;
   return `${e.kind}: ${text}${e.status ? ` (HTTP ${e.status})` : ''}`;
@@ -39,8 +51,10 @@ export interface WorkerOptions {
   maxAttempts?: number;
   backoffBaseMs?: number;
   backoffCapMs?: number;
-  /** Max items per tick while the relayer reports `degraded`. */
+  /** Unused since Phase 10: writes pause entirely while the relayer reports `degraded` (F1). */
   degradedBatch?: number;
+  /** Content-free structured log of each job's relayer job id and status changes (Phase 10). */
+  log?: (line: string) => void;
   onStored?: (job: WriteJob, blobId: string) => void | Promise<void>;
   onDead?: (job: WriteJob, error: string) => void | Promise<void>;
 }
@@ -52,7 +66,17 @@ export interface TickReport {
   retried: number;
   dead: number;
   reconciled: number;
-  skipped?: 'paused' | 'unreachable' | 'budget';
+  skipped?: 'paused' | 'degraded' | 'unreachable' | 'budget';
+}
+
+/**
+ * Retry wait after a failed write (Phase 10 F1): never below the floor, doubling per attempt, capped, with up to 25%
+ * upward jitter. The relayer's own guidance is to retry after a few minutes. With the default 10-minute floor, attempts
+ * land at about 0, 10, 30 and 70 minutes, so no hour holds more than three.
+ */
+export function relayerBackoffMs(attempt: number, base: number, cap: number, rand: number): number {
+  const ceil = Math.min(cap, base * 2 ** Math.max(0, attempt - 1));
+  return Math.floor(ceil * (1 + 0.25 * rand));
 }
 
 /** Full-jitter exponential backoff. */
@@ -65,10 +89,7 @@ export class WriteWorker {
   private readonly limiter: PointsLimiter;
   private readonly limits: RelayerLimits;
   private readonly o: Required<
-    Pick<
-      WorkerOptions,
-      'leaseMs' | 'pollIntervalMs' | 'maxAttempts' | 'backoffBaseMs' | 'backoffCapMs' | 'degradedBatch'
-    >
+    Pick<WorkerOptions, 'leaseMs' | 'pollIntervalMs' | 'maxAttempts' | 'backoffBaseMs' | 'backoffCapMs'>
   >;
   lastRelayerState: WriteState | 'unreachable' = 'ok';
 
@@ -79,38 +100,73 @@ export class WriteWorker {
       leaseMs: w.leaseMs ?? 60_000,
       pollIntervalMs: w.pollIntervalMs ?? 2_000,
       maxAttempts: w.maxAttempts ?? 6,
-      backoffBaseMs: w.backoffBaseMs ?? 2_000,
-      backoffCapMs: w.backoffCapMs ?? 5 * 60_000,
-      degradedBatch: w.degradedBatch ?? 2,
+      backoffBaseMs: w.backoffBaseMs ?? 10 * 60_000,
+      backoffCapMs: w.backoffCapMs ?? 120 * 60_000,
     };
+  }
+
+  private readonly lastLogged = new Map<string, string>();
+
+  /** One content-free line: ids, status and attempt only; never text, namespace or relayer error text. */
+  private logJob(
+    job: WriteJob,
+    status: string,
+    relayerJob: string | null,
+    extra: Record<string, unknown> = {},
+  ): void {
+    if (!this.w.log) return;
+    const key = `${status}:${relayerJob ?? ''}:${job.attempts}`;
+    if (this.lastLogged.get(job.id) === key) return;
+    this.lastLogged.set(job.id, key);
+    this.w.log(
+      JSON.stringify({
+        level:
+          status === 'dead' ? 'error' : status === 'failed' || status === 'retry_scheduled' ? 'warn' : 'info',
+        event: 'write_job',
+        at: new Date(this.w.now()).toISOString(),
+        job: job.id,
+        memory: job.memoryId,
+        project: job.projectId,
+        relayerJob,
+        status,
+        attempt: job.attempts,
+        ...extra,
+      }),
+    );
   }
 
   private rand(): number {
     return (this.w.random ?? Math.random)();
   }
 
-  private async fail(job: WriteJob, e: unknown, report: TickReport): Promise<void> {
+  private async fail(job: WriteJob, e: unknown, report: TickReport, reason?: string): Promise<void> {
     const err = e instanceof RelayerError ? e : new RelayerError('unknown', 'unexpected error');
     const now = this.w.now();
-    if (!err.retryable) return this.dead(job, writeErrorText(err), report);
-    if (job.attempts >= this.o.maxAttempts)
-      return this.dead(job, `retries exhausted: ${writeErrorText(err)}`, report);
+    const text = reason ?? writeErrorText(err);
+    if (!err.retryable) return this.dead(job, text, report);
+    if (job.attempts >= this.o.maxAttempts) return this.dead(job, `retries exhausted: ${text}`, report);
     const wait = Math.max(
       err.retryAfterMs ?? 0,
-      backoffMs(job.attempts, this.o.backoffBaseMs, this.o.backoffCapMs, this.rand()),
+      relayerBackoffMs(job.attempts, this.o.backoffBaseMs, this.o.backoffCapMs, this.rand()),
     );
-    await this.w.queue.scheduleRetry(job.id, writeErrorText(err), now + wait, now);
+    await this.w.queue.scheduleRetry(job.id, text, now + wait, now);
+    this.logJob(job, 'retry_scheduled', job.relayerJobId, {
+      reason: text,
+      retryInSec: Math.round(wait / 1000),
+    });
     report.retried++;
   }
 
   private async dead(job: WriteJob, error: string, report: TickReport): Promise<void> {
     await this.w.queue.markDead(job.id, error, this.w.now());
+    this.logJob(job, 'dead', job.relayerJobId, { reason: error });
     report.dead++;
     await this.w.onDead?.(job, error);
   }
 
   private async stored(job: WriteJob, blobId: string, report: TickReport): Promise<void> {
     await this.w.queue.markStored(job.id, blobId, this.w.now());
+    this.logJob(job, 'stored', job.relayerJobId);
     report.stored++;
     await this.w.onStored?.(job, blobId);
   }
@@ -139,7 +195,12 @@ export class WriteWorker {
       report.skipped = 'paused';
       return report;
     }
-    await this.submitPhase(report, health.writeState === 'degraded');
+    // F1: no new submissions while the relayer reports writes degraded; jobs already submitted keep being polled.
+    if (health.writeState === 'degraded') {
+      report.skipped = 'degraded';
+      return report;
+    }
+    await this.submitPhase(report);
     return report;
   }
 
@@ -157,10 +218,15 @@ export class WriteWorker {
         const now = this.w.now();
         if (st.state === 'done') await this.stored(job, st.blobId, report);
         else if (st.state === 'failed') {
+          const reason = jobFailedReason(st.error);
+          this.logJob(job, 'failed', job.relayerJobId, { reason });
           if (st.retryable)
-            await this.fail(job, new RelayerError('unavailable', 'relayer job failed'), report);
-          else await this.dead(job, 'job_failed: the relayer reported the write as failed', report);
-        } else await this.w.queue.schedulePoll(job.id, now + this.o.pollIntervalMs, now);
+            await this.fail(job, new RelayerError('unavailable', 'relayer job failed'), report, reason);
+          else await this.dead(job, reason, report);
+        } else {
+          this.logJob(job, st.state, job.relayerJobId);
+          await this.w.queue.schedulePoll(job.id, now + this.o.pollIntervalMs, now);
+        }
       } catch (e) {
         if (e instanceof RelayerError && e.kind === 'not_found') {
           // The relayer lost the job: resubmit through the normal retry path.
@@ -194,11 +260,10 @@ export class WriteWorker {
     await this.w.queue.scheduleRetry(job.id, 'reconciled after crash: not found on relayer', now, now);
   }
 
-  private async submitPhase(report: TickReport, degraded: boolean): Promise<void> {
+  private async submitPhase(report: TickReport): Promise<void> {
     const now = this.w.now();
     const avail = this.limiter.available(now);
-    let maxItems = Math.min(MAX_BULK, Math.floor(avail / this.limits.bulkPointsPerItem));
-    if (degraded) maxItems = Math.min(maxItems, this.o.degradedBatch);
+    const maxItems = Math.min(MAX_BULK, Math.floor(avail / this.limits.bulkPointsPerItem));
     const lease = await this.w.queue.leaseSubmittable(
       now,
       this.w.workerId,
@@ -248,8 +313,10 @@ export class WriteWorker {
       for (const j of batch) await this.fail(j, e, report);
       return;
     }
-    for (const [i, j] of batch.entries())
+    for (const [i, j] of batch.entries()) {
       await this.w.queue.markSubmitted(j.id, jobIds[i]!, pollAt, this.w.now());
+      this.logJob(j, 'submitted', jobIds[i]!);
+    }
     report.submitted += batch.length;
   }
 }

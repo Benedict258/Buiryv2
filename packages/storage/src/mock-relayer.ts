@@ -90,6 +90,7 @@ export class MockRelayer {
   rateLimitedCount = 0;
   private failures: { n: number; status: number; error: string; retryAfter?: number }[] = [];
   private failJobs = 0;
+  private failJobError = 'storage node error';
   private hits: { at: number; weight: number; key: string }[] = [];
   private seq = 0;
   private readonly nonces = new Set<string>();
@@ -135,9 +136,10 @@ export class MockRelayer {
     this.failures = [];
   }
 
-  /** Make the next n jobs end in a failed state. */
-  failNextJobs(n: number): void {
+  /** Make the next n jobs end in a failed state, optionally with the relayer's error text. */
+  failNextJobs(n: number, error = 'storage node error'): void {
     this.failJobs += n;
+    this.failJobError = error;
   }
 
   currentEpoch(at = this.o.now()): number {
@@ -424,7 +426,7 @@ export class MockRelayer {
     const job: Job = { id, namespace, text, agentId, polls: 0 };
     if (this.failJobs > 0) {
       this.failJobs -= 1;
-      job.failure = { error: 'storage node error', retryable: true };
+      job.failure = { error: this.failJobError, retryable: true };
     }
     this.jobs.set(id, job);
     if (idempotencyKey) this.byKey.set(idempotencyKey, id);
