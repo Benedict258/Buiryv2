@@ -89,3 +89,62 @@ describe('live write etiquette', () => {
     expect(r.accounts[1]!.startedAt).toBeGreaterThanOrEqual(65 * 60_000);
   });
 });
+
+describe('F6: isolation runs make exactly one attempt per account and score I1 at 4 minutes', () => {
+  it('I1 counts a write as stored only if it was stored within the fixed 4-minute window', async () => {
+    const { storedWithin, I1_WINDOW_MS } = await import('./etiquette.js');
+    expect(I1_WINDOW_MS).toBe(4 * 60_000);
+    const r = (final: string, startedAt: number, endedAt: number) =>
+      ({ label: 'A', memoryId: 'm', startedAt, endedAt, final, health: null }) as never;
+    expect(storedWithin(r('stored', 0, 3 * 60_000))).toBe(true);
+    expect(storedWithin(r('stored', 0, 5 * 60_000))).toBe(false);
+    expect(storedWithin(r('dead', 0, 60_000))).toBe(false);
+  });
+
+  it('the isolation drain options make one attempt and no background retry', async () => {
+    const { ISOLATION_DRAIN_OPTIONS } = await import('./etiquette.js');
+    const { MockRelayer, HttpWalrusAdapter, Ed25519Signer, InMemoryWriteQueue, WriteService, WriteWorker } =
+      await import('../../packages/storage/src/index.js');
+    let now = 1_800_000_000_000;
+    const mock = await MockRelayer.start({ now: () => now });
+    try {
+      const adapter = new HttpWalrusAdapter({
+        baseUrl: mock.url,
+        accountId: '0xa',
+        signer: new Ed25519Signer('22'.repeat(32)),
+        now: () => now,
+      });
+      const queue = new InMemoryWriteQueue();
+      const svc = new WriteService(
+        queue,
+        () => now,
+        (n: number) => new Uint8Array(n).fill(7),
+      );
+      const w = new WriteWorker({
+        queue,
+        adapter,
+        workerId: 'iso',
+        now: () => now,
+        ...ISOLATION_DRAIN_OPTIONS,
+      });
+      await svc.accept({
+        memoryId: 'mem_x',
+        namespace: 'buiry.v1.prj_x.main',
+        projectId: 'prj_x',
+        agentId: 'a',
+        header: 'h',
+        text: 'h\nbody',
+      });
+      mock.failNextJobs(100, 'temporary capacity limit');
+      let submitted = 0;
+      for (let i = 0; i < 480; i++) {
+        submitted += (await w.tick()).submitted; // two hours of ticks
+        now += 15_000;
+      }
+      expect(submitted).toBe(1);
+      expect(queue.snapshot()[0]!.state).toBe('dead');
+    } finally {
+      await mock.close();
+    }
+  });
+});

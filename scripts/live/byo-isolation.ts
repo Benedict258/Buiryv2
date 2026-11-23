@@ -32,7 +32,7 @@ import {
   type WalrusMemoryAdapter,
 } from '../../packages/storage/src/index.js';
 import { LIVE_REQUIRED_ENV, evaluateIsolation, type IsolationObservation } from './proof-criteria.js';
-import { runSequentialWrites } from './etiquette.js';
+import { ISOLATION_DRAIN_OPTIONS, TERMINAL_WAIT_MS, runSequentialWrites, storedWithin } from './etiquette.js';
 
 const env = process.env as Record<string, string | undefined>;
 const missing = LIVE_REQUIRED_ENV.isolation.filter((k) => !env[k]);
@@ -132,8 +132,9 @@ try {
   const tB = await tester('B');
   const A = tA.side;
   const B = tB.side;
-  // The drain's own retry policy applies (F1): at least 10 minutes after a failure, doubling, and paused while degraded.
-  const drains = createAccountDrains(s.deps, registry, { pollIntervalMs: 15_000 });
+  // F6: exactly one attempt per account; a failed attempt is final for the run, so nothing retries in the background
+  // into the next account's phase. (Retry behaviour is the drain's own, tested separately.)
+  const drains = createAccountDrains(s.deps, registry, ISOLATION_DRAIN_OPTIONS);
   const startedAt = new Map<string, { label: string; at: number }>();
   // Job ids and every status change, with UTC time and seconds since that account's write started. Content-free.
   s.deps.eventLog = (line) => {
@@ -195,6 +196,8 @@ try {
         return r?.write_state === 'stored' ? 'stored' : r?.write_state === 'failed' ? 'dead' : null;
       },
     },
+    // Wait for the single attempt to reach a terminal state; I1 is still scored at the fixed 4 minutes below.
+    { deadlineMs: TERMINAL_WAIT_MS, pollMs: 15_000 },
   );
   for (const a of writes.accounts) step(`account ${a.label}: ${a.final}`);
   if (writes.outcome === 'skipped_degraded') {
@@ -208,9 +211,15 @@ try {
     );
     process.exitCode = 3;
   } else {
-    const blobA = (await state(A.memoryId))?.walrus_blob_id ?? null;
-    const blobB = (await state(B.memoryId))?.walrus_blob_id ?? null;
-    step(`blobs: A ${blobA ?? 'not stored'}, B ${blobB ?? 'not stored'}`);
+    // I1 at the fixed 4-minute window (criteria unchanged): a blob counts only if it was stored within 4 minutes.
+    const within = (label: 'A' | 'B') => storedWithin(writes.accounts.find((a) => a.label === label)!);
+    const storedA = (await state(A.memoryId))?.walrus_blob_id ?? null;
+    const storedB = (await state(B.memoryId))?.walrus_blob_id ?? null;
+    const blobA = within('A') ? storedA : null;
+    const blobB = within('B') ? storedB : null;
+    step(
+      `blobs: A ${storedA ?? 'not stored'}${storedA && !blobA ? ' (stored after the 4-minute window: not counted for I1)' : ''}, B ${storedB ?? 'not stored'}${storedB && !blobB ? ' (stored after the 4-minute window: not counted for I1)' : ''}`,
+    );
 
     const tokenRefused = {
       aReadsB: await refused(() => A.agent.backend.getMemory(B.memoryId), B.marker),

@@ -100,3 +100,22 @@ export async function runSequentialWrites(
   }
   return { outcome: skipped ? 'skipped_degraded' : 'completed', accounts: results };
 }
+
+/** I1's fixed window (criteria written before run 1): a write counts as stored only if it was stored within 4 minutes. */
+export const I1_WINDOW_MS = 4 * 60_000;
+
+export function storedWithin(r: AccountResult, windowMs = I1_WINDOW_MS): boolean {
+  return (
+    r.final === 'stored' && r.startedAt !== null && r.endedAt !== null && r.endedAt - r.startedAt <= windowMs
+  );
+}
+
+/**
+ * Drain options for an isolation run (Phase 10 F6): exactly one attempt per account. A failed attempt is final for
+ * the run (the job goes dead), so nothing retries in the background into the next account's phase. Retry behaviour
+ * is tested separately by the drain's own tests.
+ */
+export const ISOLATION_DRAIN_OPTIONS = { maxAttempts: 1, pollIntervalMs: 15_000 } as const;
+
+/** How long a run waits for one attempt to reach a terminal state (the relayer fails or finishes a job in minutes). */
+export const TERMINAL_WAIT_MS = 20 * 60_000;
