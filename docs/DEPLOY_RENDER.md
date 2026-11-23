@@ -31,16 +31,16 @@ Render's documentation on these service types:
 
 ## 3. Environment variables (names only)
 
-Set them in the Render dashboard or an environment group. "Environment groups are collections of environment variables and/or secret files that you can link to any number of different services." (https://render.com/docs/configure-environment-variables)
+Set them in the Render dashboard or an environment group. **Secret** marks a value that grants access; never paste one into chat, issues, reports or commits (`docs/LIVE_ENV.md`). "Environment groups are collections of environment variables and/or secret files that you can link to any number of different services." (https://render.com/docs/configure-environment-variables)
 
 **Both services, required:**
 
 - `NODE_ENV=production`
-- `DATABASE_URL`
-- `BUIRY_SECRET_KEY`
+- `DATABASE_URL` (**secret**: it contains the password)
+- `BUIRY_SECRET_KEY` (**secret**)
 - `BUIRY_BASE_URL` (https)
 - `BUIRY_ALLOWED_ORIGINS`
-- `BUIRY_MAILER=smtp`, plus `SMTP_HOST`, `SMTP_PORT`, `SMTP_SECURE`, `SMTP_REQUIRE_TLS`, `SMTP_USER`, `SMTP_PASSWORD`, `SMTP_FROM`
+- `BUIRY_MAILER=smtp`, plus `SMTP_HOST`, `SMTP_PORT`, `SMTP_SECURE`, `SMTP_REQUIRE_TLS`, `SMTP_USER`, `SMTP_PASSWORD` (**secret**), `SMTP_FROM`
 - `BUIRY_ROLE` (`api` or `worker`)
 
 **Preview configuration (Phase 9 C1):**
@@ -52,7 +52,7 @@ Set them in the Render dashboard or an environment group. "Environment groups ar
 
 **Chain verification (optional):**
 
-- `TATUM_API_KEY`, `TATUM_NETWORK=testnet`, `TATUM_GRPC_ENDPOINT`, `TATUM_FREE_RPS`.
+- `TATUM_API_KEY` (**secret**), `TATUM_NETWORK=testnet`, `TATUM_GRPC_ENDPOINT`, `TATUM_FREE_RPS`.
 - Without a key every chain check returns `unknown`, never a pass.
 
 **Optional:**
@@ -63,7 +63,7 @@ Set them in the Render dashboard or an environment group. "Environment groups ar
 - `BUIRY_SSE_MAX_PER_USER`, `BUIRY_SSE_MAX_PER_PROJECT`
 - `BUIRY_PACK_MAX_ITEMS`, `BUIRY_BYO_ADAPTER_CACHE`
 - `BUIRY_REQUEST_LOG` (`off` silences request, write and job lines)
-- `GITHUB_CLIENT_ID`, `GITHUB_CLIENT_SECRET`, `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET` (each pair together)
+- `GITHUB_CLIENT_ID`, `GITHUB_CLIENT_SECRET` (**secret**), `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET` (**secret**) (each pair together)
 
 **Image build:**
 

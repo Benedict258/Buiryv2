@@ -98,4 +98,4 @@ Account 1 can be the same account for the proof and for tester A. In the handoff
 
 Leave these **unset** in preview: `BUIRY_MANAGED_WORKSPACE_ID`, `BUIRY_MANAGED_MULTI_TENANT`, and the shared-account `WALRUS_RELAYER_URL`, `WALRUS_ACCOUNT_ID` and `WALRUS_DELEGATE_KEY`. Preview refuses to start with the first two.
 
-The server's other required names (`BUIRY_BASE_URL`, `BUIRY_ALLOWED_ORIGINS`, `BUIRY_MAILER` with `SMTP_*`, `BUIRY_ROLE`) are in `docs/DEPLOY_RENDER.md` section 3. `SMTP_PASSWORD` is **secret**.
+The server's other required names (`BUIRY_BASE_URL`, `BUIRY_ALLOWED_ORIGINS`, `BUIRY_MAILER` with `SMTP_*`, `BUIRY_ROLE`) are in `docs/DEPLOY_RENDER.md` section 3. Of those, `SMTP_PASSWORD` is **secret**, and so are the optional `GITHUB_CLIENT_SECRET` and `GOOGLE_CLIENT_SECRET`.

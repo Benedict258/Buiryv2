@@ -29,7 +29,7 @@ Two layers:
 
 1. **Choose the dump.** The newest one, or a named `buiry-<timestamp>.dump`. Note its key generation in the `.json` file.
 2. **Create an empty database.** Use a new RDS instance or a scratch database; never the damaged live one.
-3. **Run `restore.sh`** with `RESTORE_DATABASE_URL` and `BACKUP_S3_URI` (the backup image: `docker run ... buiry-backup restore.sh`). It:
+3. **Run `restore.sh`** with `RESTORE_DATABASE_URL` (**secret**: it contains the password) and `BACKUP_S3_URI` (the backup image: `docker run ... buiry-backup restore.sh`). It:
    - verifies the checksum, restores, and prints row counts;
    - refuses to restore over the live database unless `ALLOW_RESTORE_OVER_LIVE=yes`.
 4. **Run the migration task** (`node dist-server/migrate.js`) against the restored database. The dump may predate later migrations.
@@ -71,7 +71,7 @@ Walrus storage is paid for a fixed period (testnet about 5 days, Mainnet about 2
   2. Put it where the old one was used, and check one confirm works.
   3. Revoke the old token: `DELETE /v1/api-tokens/<id>`.
   4. Never give a token with `confirm` to an agent tool: it would confirm as a person (`docs/SECURITY_REVIEW.md`, M8).
-- The dashboard's API token page does not yet offer the `confirm` scope or show expiry (`docs/design/02`); until it does, use the API call above.
+- The dashboard's API tokens page offers the `confirm` scope as "Can confirm memories" (off unless chosen), sets the expiry in days, and shows each token's expiry (`apps/dashboard/src/pages/WorkspacePages.tsx`). The API call above does the same.
 
 ## Preview mode (bring your own storage)
 
