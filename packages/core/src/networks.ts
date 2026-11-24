@@ -96,3 +96,104 @@ export function walrusEpochMs(network?: string): number {
     ? WALRUS_EPOCH_MS.testnet
     : WALRUS_EPOCH_MS.mainnet;
 }
+
+/**
+ * The hosted Walrus Memory relayers and the network each serves (Phase 12, BD48). relayer.memory.walrus.xyz
+ * ("Production (Mainnet)") and relayer.dev.memwal.ai ("Staging (Testnet)") are listed on
+ * https://docs.wal.app/walrus-memory/relayer/public-relayer; relayer-staging.memory.walrus.xyz comes from the owner's
+ * brief and is not on Walrus's pages (UNVERIFIED, A31). Any other host is refused unless WALRUS_RELAYER_NETWORK names
+ * the network it serves.
+ */
+export const HOSTED_RELAYER_HOSTS: Readonly<Record<string, 'mainnet' | 'testnet'>> = {
+  'relayer.memory.walrus.xyz': 'mainnet',
+  'relayer.dev.memwal.ai': 'testnet',
+  'relayer-staging.memory.walrus.xyz': 'testnet',
+};
+
+/** The opt-in without which mainnet is refused everywhere. */
+export const ALLOW_MAINNET_VAR = 'BUIRY_ALLOW_MAINNET';
+/** Names the network served by a relayer host Buiry does not recognise (self-hosted, local, mock). */
+export const RELAYER_NETWORK_VAR = 'WALRUS_RELAYER_NETWORK';
+
+function relayerHost(url: string): string | undefined {
+  try {
+    return new URL(url).hostname.toLowerCase();
+  } catch {
+    return undefined;
+  }
+}
+
+/** The network a hosted relayer URL serves, or undefined for any other host or an unparseable URL. */
+export function relayerHostNetwork(url: string): 'mainnet' | 'testnet' | undefined {
+  const host = relayerHost(url);
+  return host ? HOSTED_RELAYER_HOSTS[host] : undefined;
+}
+
+export interface NetworkEnvOptions {
+  /** True when something live is configured or the deployment is production or preview: a network must be named. */
+  requireNetwork: boolean;
+  /** The chain package's own "configured" check (the key is never read outside packages/chain). */
+  gatewayConfigured: boolean;
+}
+
+export interface NetworkEnvCheck {
+  /** The agreed network; set only when there are no problems. */
+  network?: SuiNetworkName;
+  /** One sentence per problem, naming variables and relayer hosts only. Empty when the settings may be used. */
+  problems: string[];
+}
+
+/**
+ * Phase 12 B: the deployment's network comes from explicit settings only, never a default. WALRUS_NETWORK,
+ * TATUM_NETWORK, DEMO_NETWORK, WALRUS_RELAYER_NETWORK and the host of every `*_RELAYER_URL` must agree; an
+ * unrecognised relayer host needs WALRUS_RELAYER_NETWORK; mainnet needs BUIRY_ALLOW_MAINNET=1. Pure.
+ */
+export function checkNetworkEnv(
+  env: Record<string, string | undefined>,
+  o: NetworkEnvOptions,
+): NetworkEnvCheck {
+  const problems: string[] = [];
+  const val = (k: string) => env[k]?.trim() || undefined;
+  const named: { label: string; net: SuiNetworkName }[] = [];
+  const add = (label: string, raw: string) => {
+    const net = normalizeSuiNetwork(raw);
+    if (net) named.push({ label, net });
+    else problems.push(`${label}=${raw} is not a Sui network (mainnet, testnet or devnet)`);
+  };
+  for (const k of ['WALRUS_NETWORK', 'TATUM_NETWORK', 'DEMO_NETWORK', RELAYER_NETWORK_VAR]) {
+    const v = val(k);
+    if (v) add(k, v);
+  }
+  const relayers = Object.keys(env)
+    .filter((k) => /_RELAYER_URL$/.test(k) && val(k))
+    .sort((a, b) => (a === 'WALRUS_RELAYER_URL' ? -1 : b === 'WALRUS_RELAYER_URL' ? 1 : a.localeCompare(b)));
+  for (const k of relayers) {
+    const host = relayerHost(val(k)!);
+    if (!host) {
+      problems.push(`${k} is not a URL`);
+      continue;
+    }
+    const hosted = HOSTED_RELAYER_HOSTS[host];
+    if (hosted) named.push({ label: `${k} host ${host}`, net: hosted });
+    else if (!val(RELAYER_NETWORK_VAR))
+      problems.push(
+        `${k} host ${host} is not a hosted Walrus Memory relayer (relayer.memory.walrus.xyz serves mainnet; relayer.dev.memwal.ai and relayer-staging.memory.walrus.xyz serve testnet); set ${RELAYER_NETWORK_VAR} to the network it serves`,
+      );
+  }
+  if (relayers.length && !val('WALRUS_NETWORK'))
+    problems.push('WALRUS_NETWORK is not set: a relayer URL is configured, so its network must be named');
+  if (o.gatewayConfigured && !val('TATUM_NETWORK'))
+    problems.push('TATUM_NETWORK is not set: the chain gateway is configured, so its network must be named');
+
+  const distinct = [...new Set(named.map((n) => n.net))];
+  if (distinct.length > 1)
+    problems.push(`networks disagree: ${named.map((n) => `${n.label}=${n.net}`).join(', ')}`);
+  if (o.requireNetwork && named.length === 0)
+    problems.push(
+      'no network is set: set WALRUS_NETWORK (and TATUM_NETWORK) to testnet or mainnet; Buiry never picks one by default',
+    );
+  const network = distinct.length === 1 ? distinct[0] : undefined;
+  if (network === 'mainnet' && val(ALLOW_MAINNET_VAR) !== '1')
+    problems.push(`mainnet is refused without ${ALLOW_MAINNET_VAR}=1 (an explicit opt-in)`);
+  return { ...(network && problems.length === 0 ? { network } : {}), problems };
+}
