@@ -1,4 +1,5 @@
-import { tatumConfigProblems } from '@buiry/chain';
+import { isGatewayConfigured, tatumConfigProblems } from '@buiry/chain';
+import { checkNetworkEnv } from '@buiry/core';
 import { Ed25519Signer } from '@buiry/storage';
 
 type Env = Record<string, string | undefined>;
@@ -20,6 +21,20 @@ export function previewProblems(env: Env): string[] {
   if (env.BUIRY_MANAGED_WORKSPACE_ID?.trim())
     p.push('BUIRY_MANAGED_WORKSPACE_ID must not be set in preview mode: there is no shared account');
   return p;
+}
+
+/**
+ * Phase 12 B: network settings every server checks before building anything. A network must be named whenever a
+ * relayer URL or the chain gateway is configured, or the server runs in production or preview mode; the relayer host,
+ * WALRUS_NETWORK and TATUM_NETWORK must agree; mainnet needs BUIRY_ALLOW_MAINNET=1. Messages name variables and
+ * relayer hosts only.
+ */
+export function runtimeNetworkProblems(env: Env): string[] {
+  const gatewayConfigured = isGatewayConfigured(env); // the chain package's check; the key stays in packages/chain
+  const relayer = Object.keys(env).some((k) => /_RELAYER_URL$/.test(k) && !!env[k]?.trim());
+  const requireNetwork =
+    env.NODE_ENV === 'production' || env.BUIRY_PREVIEW === '1' || gatewayConfigured || relayer;
+  return checkNetworkEnv(env, { requireNetwork, gatewayConfigured }).problems;
 }
 
 /**

@@ -83,6 +83,8 @@ describe('production startup check', () => {
   it('builds no managed account when BUIRY_MANAGED=off, even with WALRUS_* set', async () => {
     const rt = await buildRuntime({
       BUIRY_MANAGED: 'off',
+      WALRUS_NETWORK: 'testnet',
+      WALRUS_RELAYER_NETWORK: 'testnet', // an unrecognised (made-up) relayer host must name its network (Phase 12)
       WALRUS_RELAYER_URL: 'https://relayer.example.com',
       WALRUS_ACCOUNT_ID: '0xabc',
       WALRUS_DELEGATE_KEY: '66'.repeat(32),

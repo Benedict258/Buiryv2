@@ -80,6 +80,8 @@ export interface ServiceDeps {
   storage?: StorageRegistry;
   /** Networks resolved at startup; `sui` is the deployment's Sui network when known. */
   networks?: RuntimeNetworks;
+  /** BUIRY_ALLOW_MAINNET=1 (Phase 12): without it, mainnet is refused, including own storage accounts. */
+  allowMainnet?: boolean;
 }
 
 export const WRITE_PERMS: Permission[] = ['read', 'write'];

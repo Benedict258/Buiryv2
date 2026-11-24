@@ -8,7 +8,7 @@ import { createGatewayIfConfigured } from '@buiry/chain';
 import { Ed25519Signer, HttpWalrusAdapter, type WalrusMemoryAdapter } from '@buiry/storage';
 import { BuiryError } from '@buiry/core';
 import { MemoryMailer, type Mailer } from './auth/auth-service.js';
-import { previewProblems, productionProblems } from './config-check.js';
+import { previewProblems, productionProblems, runtimeNetworkProblems } from './config-check.js';
 import { cspModeFromEnv, requestIsHttps, securityHeaders } from './http/security-headers.js';
 import { chooseEncoding, compressedFile, isCompressible } from './http/static-compression.js';
 import { SmtpMailer, smtpConfigFromEnv } from './auth/smtp.js';
@@ -72,6 +72,11 @@ export async function buildRuntime(env: Env = process.env): Promise<Runtime> {
         ['[buiry] refusing to start in production:', ...problems.map((x) => ` - ${x}`)].join('\n'),
       );
   }
+  // Phase 12 B: explicit network, relayer host agreement, mainnet opt-in. Checked before any database, adapter or
+  // gateway exists, so a refused configuration never opens a connection.
+  const netProblems = runtimeNetworkProblems(env);
+  if (netProblems.length)
+    throw new Error(`[buiry] refusing to start, network mismatch: ${netProblems.join('; ')}`);
   let db: Db;
   if (env.DATABASE_URL) {
     const pg = PgDb.fromUrl(env.DATABASE_URL);
@@ -106,6 +111,7 @@ export async function buildRuntime(env: Env = process.env): Promise<Runtime> {
   const previous = env.BUIRY_SECRET_KEY_PREVIOUS ?? '';
   if (previous.length >= 32 && previous !== deps.secretKey) deps.previousSecretKey = previous;
   if (env.BUIRY_RENEWAL === 'on') deps.renewalEnabled = true;
+  if (env.BUIRY_ALLOW_MAINNET === '1') deps.allowMainnet = true; // own storage accounts on mainnet need it too
   // Structured operational events without content, such as queued writes per project (Phase 9 E2).
   if (env.BUIRY_REQUEST_LOG !== 'off') deps.eventLog = (l) => console.log(l);
   if (env.BUIRY_PACK_MAX_ITEMS) deps.packMaxItems = Number(env.BUIRY_PACK_MAX_ITEMS);

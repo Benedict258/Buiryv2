@@ -1,5 +1,5 @@
 import { createCipheriv, createDecipheriv, createHash, randomBytes } from 'node:crypto';
-import { BuiryError } from '@buiry/core';
+import { BuiryError, relayerHostNetwork } from '@buiry/core';
 import {
   RelayerError,
   type TickReport,
@@ -273,6 +273,19 @@ export async function getProjectStorage(
 
 /** Validates without saving: the shape, the URL (no private addresses), the network and, if configured, a live probe. */
 export async function validateByo(deps: ServiceDeps, i: ByoInput, o: ByoOpts): Promise<string> {
+  // Phase 12 B: network rules first, before any lookup or probe. Mainnet needs the deployment's opt-in; a hosted
+  // relayer's host must match the stated network. Other hosts (self-hosted relayers) are checked by the probe.
+  if (i.network === 'mainnet' && !deps.allowMainnet)
+    throw new BuiryError(
+      'invalid_input',
+      'this deployment does not accept mainnet accounts: mainnet needs BUIRY_ALLOW_MAINNET=1 on the server',
+    );
+  const hosted = relayerHostNetwork(i.relayerUrl);
+  if (hosted && hosted !== i.network)
+    throw new BuiryError(
+      'invalid_input',
+      `the relayer ${new URL(i.relayerUrl).hostname} serves ${hosted}, not ${i.network}`,
+    );
   if (!ACCOUNT_ID.test(i.accountId))
     throw new BuiryError('invalid_input', 'accountId must be a 0x-prefixed Sui id');
   let publicKey: string;

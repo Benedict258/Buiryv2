@@ -76,14 +76,16 @@ describe('startup network consistency (B4)', () => {
     expect(warnings[0]).toContain('UND_ERR_CONNECT_TIMEOUT');
   });
 
-  it('treats an unset TATUM_NETWORK as mainnet when a gateway is configured (the gateway default)', async () => {
+  it('never reads an unset TATUM_NETWORK as mainnet (Phase 12: the gateway refuses to build without it)', async () => {
     const s = await stack();
     const r = await checkRuntimeNetworks({
       env: { WALRUS_NETWORK: 'testnet' },
       db: s.deps.db,
       gatewayConfigured: true,
     });
-    expect(r.mismatches[0]).toContain('TATUM_NETWORK=mainnet');
+    expect(r.mismatches).toEqual([]);
+    expect(r.networks.tatum).toBeUndefined();
+    expect(r.network).toBe('testnet');
   });
 
   it('names an existing project that declares another Sui network', async () => {

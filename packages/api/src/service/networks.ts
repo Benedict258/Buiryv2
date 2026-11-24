@@ -25,8 +25,8 @@ export async function checkRuntimeNetworks(o: {
   warn?: (msg: string) => void;
 }): Promise<NetworkCheck & { networks: RuntimeNetworks }> {
   const env = o.env;
-  // createGatewayFromEnv defaults TATUM_NETWORK to mainnet when a gateway is configured.
-  const tatum = env.TATUM_NETWORK || (o.gatewayConfigured ? 'mainnet' : undefined);
+  // Phase 12: no default. The gateway refuses to build without TATUM_NETWORK, so this is only ever the stated value.
+  const tatum = env.TATUM_NETWORK || undefined;
   let relayer: string | undefined;
   if (o.relayerConfig) {
     try {
