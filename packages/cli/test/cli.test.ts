@@ -684,3 +684,14 @@ describe('doctor', () => {
     expect(down.text()).toContain('API unreachable');
   });
 });
+
+describe('chain evidence names its network (Phase 12)', () => {
+  it('refuses tx, obj and pkg evidence when no network is known, and never assumes mainnet', () => {
+    for (const spec of ['tx=Dg1', 'obj=0xab@7', 'pkg=0xcd'])
+      expect(() => parseEvidence(spec, undefined)).toThrow(/needs a network/);
+    expect(parseEvidence('file=a.ts@abc,url=https://x.test', undefined)).toHaveLength(2);
+    expect(parseEvidence('tx=Dg1', 'sui:testnet')).toEqual([
+      { kind: 'tx', digest: 'Dg1', network: 'sui:testnet' },
+    ]);
+  });
+});

@@ -36,9 +36,14 @@ async function ensureCanary(deps: ServiceDeps) {
   );
   const ids: Record<string, string> = Object.fromEntries(projects.rows.map((r) => [r.name, r.id]));
   for (const name of ['canary-a', 'canary-b']) {
+    // The deployment's own network when known; never a default (Phase 12).
     if (!ids[name])
       ids[name] = (
-        await createProject(deps, { workspaceId, name, networks: [`sui:${deps.networks?.sui ?? 'mainnet'}`] })
+        await createProject(deps, {
+          workspaceId,
+          name,
+          networks: deps.networks?.sui ? [`sui:${deps.networks.sui}`] : [],
+        })
       ).id;
   }
   return { workspaceId, a: ids['canary-a']!, b: ids['canary-b']! };

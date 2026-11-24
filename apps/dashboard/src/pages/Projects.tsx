@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import { Plus } from 'lucide-react';
 import { api } from '../lib/api';
@@ -226,7 +226,16 @@ function NewProject({
 }) {
   const [name, setName] = useState('');
   const [desc, setDesc] = useState('');
-  const [nets, setNets] = useState<string[]>(['sui:mainnet']);
+  const [nets, setNets] = useState<string[]>([]);
+  // Start from the deployment's own network, never a default (Phase 12), as onboarding does.
+  const netsTouched = useRef(false);
+  useEffect(() => {
+    api<{ network?: string }>('/v1/healthz')
+      .then((h) => {
+        if (h.network && !netsTouched.current) setNets([`sui:${h.network}`]);
+      })
+      .catch(() => {});
+  }, []);
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
   return (
@@ -290,7 +299,10 @@ function NewProject({
             <input
               type="checkbox"
               checked={nets.includes(n)}
-              onChange={(e) => setNets(e.target.checked ? [...nets, n] : nets.filter((x) => x !== n))}
+              onChange={(e) => {
+                netsTouched.current = true;
+                setNets(e.target.checked ? [...nets, n] : nets.filter((x) => x !== n));
+              }}
             />
             {n}
           </label>

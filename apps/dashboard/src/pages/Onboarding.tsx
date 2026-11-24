@@ -66,8 +66,8 @@ export function Onboarding() {
   const [kind, setKind] = useState<'personal' | 'team'>('personal');
   const [pname, setPname] = useState('');
   const [desc, setDesc] = useState('');
-  const [nets, setNets] = useState<string[]>(['sui:mainnet']);
-  // Start from the deployment's own network: a testnet server refuses projects that declare sui:mainnet.
+  const [nets, setNets] = useState<string[]>([]);
+  // Start from the deployment's own network, never a default: a server refuses projects on another network.
   const netsTouched = useRef(false);
   useEffect(() => {
     api<{ network?: string }>('/v1/healthz')

@@ -353,8 +353,16 @@ const briefing: Cmd = async (a, rt) => {
 };
 
 /** Evidence flag syntax: tx=<digest>,obj=<id>@<ver>,pkg=<id>,file=<path>@<commit>,url=<href>,test=<name>:<pass|fail>; network via --network. */
-export function parseEvidence(spec: string | undefined, network: string): Evidence[] {
+export function parseEvidence(spec: string | undefined, network: string | undefined): Evidence[] {
   if (!spec) return [];
+  // Chain evidence names its network; Buiry never guesses one (Phase 12).
+  const chain = () => {
+    if (!network)
+      throw new UsageError(
+        'chain evidence (tx, obj, pkg) needs a network: pass --network sui:testnet or sui:mainnet, or declare one with buiry init --network',
+      );
+    return network;
+  };
   return spec
     .split(',')
     .filter(Boolean)
@@ -365,13 +373,13 @@ export function parseEvidence(spec: string | undefined, network: string): Eviden
       if (i < 1 || !v) throw new UsageError(`bad evidence "${part}" (use kind=value)`);
       switch (k) {
         case 'tx':
-          return { kind: 'tx', digest: v, network };
+          return { kind: 'tx', digest: v, network: chain() };
         case 'obj': {
           const [id, ver] = v.split('@');
-          return { kind: 'object', id: id!, ...(ver ? { version: ver } : {}), network };
+          return { kind: 'object', id: id!, ...(ver ? { version: ver } : {}), network: chain() };
         }
         case 'pkg':
-          return { kind: 'package', id: v, network };
+          return { kind: 'package', id: v, network: chain() };
         case 'file': {
           const [path, commit] = v.split('@');
           return { kind: 'file', path: path!, ...(commit ? { commit } : {}) };
@@ -399,7 +407,7 @@ const remember: Cmd = async (a, rt) => {
       `usage: buiry remember "<text>" --type <${MEMORY_TYPES.join('|')}> [--evidence tx=...,file=path@sha] [--branch b] [--confirm]`,
     );
   const p = project(rt);
-  const network = str(a.flags, 'network') ?? p.networks.find((n) => n.startsWith('sui:')) ?? 'sui:mainnet';
+  const network = str(a.flags, 'network') ?? p.networks.find((n) => n.startsWith('sui:'));
   const r = await client(rt).post(`/v1/projects/${p.projectId}/memories`, {
     text,
     type,

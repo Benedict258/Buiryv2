@@ -58,11 +58,19 @@ export function VerificationPage() {
     }
   };
   const connectivity = async () => {
+    // The project's own Sui network; never a default (Phase 12).
+    const network = q.data?.networks.find((n) => n.startsWith('sui:'));
+    if (!network) {
+      setTest(
+        'This project declares no Sui network, so there is nothing to test against. Add one in Settings.',
+      );
+      return;
+    }
     setTest('Running…');
     try {
       const r = await api<VerifyOut>(`/v1/projects/${projectId}/verifications`, {
         method: 'POST',
-        body: { evidence: { kind: 'object', id: '0x6', network: q.data?.networks[0] ?? 'sui:mainnet' } },
+        body: { evidence: { kind: 'object', id: '0x6', network } },
       });
       setTest(`${r.results[0]?.result}: ${r.results[0]?.detail}`);
       q.reload();
