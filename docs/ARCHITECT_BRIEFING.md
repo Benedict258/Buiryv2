@@ -44,6 +44,8 @@ Buiry is a shared project memory for AI coding agents.
 - backup and restore scripts;
 - onboarding under the single-tenant guard.
 
+**Mainnet live: UNVERIFIED** for the current code: no canary has stored and recalled on mainnet (Phase 12). Every live result names its network.
+
 **Verified live on testnet** (`LOCAL_CHECKS.md` "Live results"; each line names its network):
 
 - Walrus Memory on testnet:

@@ -80,7 +80,10 @@ The relayer's guidance is to keep polling a job, not to resubmit before it fails
 
 ## Canary: is the relayer storing and returning writes?
 
-`scripts/live/canary.ts`, run as `pnpm tsx scripts/with-env.ts testnet -- pnpm tsx scripts/live/canary.ts`.
+`scripts/live/canary.ts`, run as `pnpm tsx scripts/with-env.ts testnet -- pnpm tsx scripts/live/canary.ts`, or on mainnet, only on the owner's go, as `BUIRY_ALLOW_MAINNET=1 pnpm tsx scripts/with-env.ts mainnet -- pnpm tsx scripts/live/canary.ts`.
+
+- **Network first (Phase 12).** It refuses unless the network is named and the relayer host, `WALRUS_NETWORK` and `TATUM_NETWORK` agree; on mainnet it also needs `BUIRY_ALLOW_MAINNET=1`. It refuses without a chain gateway, since a recall then cannot return real results. Its first output line names the network and relayer host, and the saved result is labelled with it.
+- **Evidence.** Every live result is labelled with its network. Mainnet live: UNVERIFIED until a mainnet canary stores and recalls. The three testnet canaries of 2026-11-23 and 2026-11-24 all failed with a capacity limit.
 
 - **One write, one attempt.** It writes one memory on account A, straight to the relayer, with no retry.
 - **Followed to the end.** It follows the job to `done` or `failed`, logging the job id, UTC times and each status with elapsed seconds.

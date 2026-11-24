@@ -4,7 +4,9 @@ Each entry: command, expected result, what to paste back.
 
 ## Live results
 
-Network of each result: every Walrus row below ran against the Mainnet relayer (`relayer.memory.walrus.xyz`, `/config` network `mainnet`), even though `.env` said `WALRUS_NETWORK=testnet` (A27). Testnet rows say so.
+Network of each result: every Walrus row below ran against the Mainnet relayer (`relayer.memory.walrus.xyz`, `/config` network `mainnet`), even though `.env` said `WALRUS_NETWORK=testnet` (A27). Testnet rows say so. Every future live result must name its network.
+
+**Mainnet live: UNVERIFIED** for the current code: no canary has stored and recalled on mainnet. The Mainnet rows below ran before Phase 10 and are not a canary of this code.
 
 Run on 2026-10-28 from a Windows machine with network access. Secrets come from a gitignored `.env` and are never printed. A check is listed as verified only if it ran against the real service.
 

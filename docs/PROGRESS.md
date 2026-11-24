@@ -205,3 +205,11 @@ Legend: **done** (implemented and tested), **mocked** (tested only against a moc
   - L-BYO2, two own accounts isolated.
   - A deployment on Render (`docs/DEPLOY_RENDER.md` section 8).
   - Cursor and Codex tester runs (`docs/LIVE_PROOF.md` section 4).
+
+## Phase 12 (2026-11-24): mainnet readiness, code and docs only
+
+Nothing ran live. Mainnet live: UNVERIFIED until a canary stores and recalls on mainnet.
+
+- **Done (tested on mocks):** the network is always explicit (`checkNetworkEnv`, `packages/core/src/networks.ts`). The relayer host, `WALRUS_NETWORK` and `TATUM_NETWORK` must agree; an unrecognised host needs `WALRUS_RELAYER_NETWORK`; mainnet needs `BUIRY_ALLOW_MAINNET=1` in the server, preview mode, own storage accounts, `scripts/with-env.ts` and every live script. The Tatum gateway refuses an unset `TATUM_NETWORK` and uses `https://sui-mainnet-grpc.gateway.tatum.io` on mainnet when no endpoint is set. Mainnet fallbacks removed from the worker canary, the CLI's evidence network, the dashboard's project forms and the latency script. `.env.mainnet` is git-ignored, compared by the secret guard, and refused by the pre-commit hook if staged.
+- **Live scripts:** the canary runs on either network (mainnet only with the opt-in), refuses without a chain gateway, and prints its network first. The isolation run, the handoff proof and the own-account check run the guard and stay testnet only.
+- **Needs a live check:** a mainnet canary (owner's go), then everything else on mainnet.

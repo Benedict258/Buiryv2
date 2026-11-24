@@ -80,6 +80,8 @@ At `b480535` (2026-11-18): typecheck (root and dashboard), ESLint, Prettier and 
 
 ### Verified live (every line cites its record; the network is named)
 
+**Mainnet live: UNVERIFIED** for the current code: no canary has stored and recalled on mainnet (Phase 12). Every live result names its network. The Mainnet rows below ran before Phase 10.
+
 | Result                                                                                                        | Network                           | Record                                      |
 | ------------------------------------------------------------------------------------------------------------- | --------------------------------- | ------------------------------------------- |
 | Relayer unsigned endpoints (`/health`, `/version`, `/config`)                                                 | Mainnet relayer, testnet relayer  | LOCAL_CHECKS L-W1 (unsigned), L-W0T         |

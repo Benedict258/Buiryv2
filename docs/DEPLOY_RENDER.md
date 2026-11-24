@@ -2,6 +2,8 @@
 
 Read-only plan for the tester preview (bring your own storage, BD36). **Nothing has been deployed.** Statements about Buiry come from the code and are tested on mocks and PGlite. Statements about Render quote Render's documentation (read 2026-11-22, URLs given). Anything about Render that those pages do not state is marked **UNVERIFIED**. "Must check on Render" at the end lists what the owner confirms before the first tester.
 
+**Network.** The preview runs on the network `WALRUS_NETWORK` names, testnet or mainnet. Nothing defaults to one. A mainnet preview also needs `BUIRY_ALLOW_MAINNET=1`. Neither has been deployed on Render; mainnet live use is UNVERIFIED.
+
 ## 1. Services
 
 One image (`Dockerfile`) runs every role. The roles come from `BUIRY_ROLE` (`packages/worker/src/main.ts`).
@@ -47,17 +49,22 @@ Set them in the Render dashboard or an environment group. **Secret** marks a val
 
 - `BUIRY_PREVIEW=1` and `BUIRY_MANAGED=off`.
 - Leave unset: `WALRUS_RELAYER_URL`, `WALRUS_ACCOUNT_ID`, `WALRUS_DELEGATE_KEY`, `BUIRY_MANAGED_WORKSPACE_ID` and `BUIRY_MANAGED_MULTI_TENANT`. Preview refuses to start with a managed workspace or multi-tenancy, in any environment.
-- **Projects without their own account:** each tester connects their own testnet Walrus account. Until a project does, its writes are refused with a clear message.
-- `WALRUS_NETWORK=testnet` names the network for the startup consistency check.
+- **Projects without their own account:** each tester connects their own Walrus account on the server's network. Until a project does, its writes are refused with a clear message.
+- `WALRUS_NETWORK` (`testnet` or `mainnet`) is required in preview. The server refuses to start without it, or when it disagrees with `TATUM_NETWORK` or a relayer host.
+- `BUIRY_ALLOW_MAINNET=1` only for a mainnet preview. Without it a mainnet server refuses to start, and testers' mainnet accounts are refused. Never set it on a testnet service.
+- `WALRUS_RELAYER_NETWORK` only if some relayer host is not one Buiry recognises (`docs/LIVE_ENV.md`, Networks).
 
 **Chain verification (optional):**
 
-- `TATUM_API_KEY` (**secret**), `TATUM_NETWORK=testnet`, `TATUM_GRPC_ENDPOINT`, `TATUM_FREE_RPS`.
+- `TATUM_API_KEY` (**secret**), `TATUM_NETWORK` (the same network as `WALRUS_NETWORK`; required with the key), `TATUM_GRPC_ENDPOINT` (required on testnet; on mainnet unset means `https://sui-mainnet-grpc.gateway.tatum.io`), `TATUM_FREE_RPS`.
 - Without a key every chain check returns `unknown`, never a pass.
+- **A key per network.** Tatum issues separate mainnet and testnet keys ("Use the key that matches the network you call", https://docs.tatum.io/reference/authentication). Use the mainnet key on a mainnet service.
+- **Free-plan limits.** Tatum's pages disagree: https://docs.tatum.io/docs/plans-limits and https://tatum.io/pricing say 3 requests per second, the authentication page says 5; credits are given as 100,000 (pricing: "lifetime") and as 1,000,000 (read 2026-11-24). Check the owner's Tatum dashboard. One server-side key is shared by every tester, so a low requests-per-second limit can throttle chain checks when many testers work at once; throttled checks return `unknown`.
+- **Later fallback, not built:** a direct Sui RPC connection instead of Tatum.
 
 **Optional:**
 
-- `BUIRY_RENEWAL=on` (off by default; testnet blobs last about 5 days)
+- `BUIRY_RENEWAL=on` (off by default; testnet blobs last about 5 days; for mainnet see `docs/OPERATIONS.md`, Storage lifetime)
 - `BUIRY_AGENT_TOKEN_MAX_DAYS` (default 90)
 - `BUIRY_TRUSTED_PROXY_HOPS`
 - `BUIRY_SSE_MAX_PER_USER`, `BUIRY_SSE_MAX_PER_PROJECT`
@@ -90,7 +97,7 @@ Set them in the Render dashboard or an environment group. **Secret** marks a val
    Until it runs, finding M4 stays partly fixed (`docs/SECURITY_REVIEW.md`).
 
 3. **Startup log.** It must show no "refusing to start", and no "queued writes ... cannot be stored" line. On a new database there is nothing queued.
-4. **Owner's own check.** The owner connects their own testnet account and writes one memory end to end (`docs/TESTER_ONBOARDING.md`), before inviting anyone.
+4. **Owner's own check.** The owner connects their own account on the server's network and writes one memory end to end (`docs/TESTER_ONBOARDING.md`), before inviting anyone. On mainnet this comes after a mainnet canary has stored and recalled (`docs/LIVE_PROOF.md`).
 
 ## 5. Logs
 
@@ -168,4 +175,4 @@ Set them in the Render dashboard or an environment group. **Secret** marks a val
 5. Whether environment variables reach `docker build` as build arguments, for `VITE_BUIRY_PREVIEW=1`. If not, build the image elsewhere or set the argument in a Render build setting.
 6. Whether Render sets `PORT` for Docker web services, and how many proxy hops sit in front (for `BUIRY_TRUSTED_PROXY_HOPS`).
 7. Log retention and who can read service logs.
-8. Outbound access from Render to the testnet relayer and, if used, Tatum.
+8. Outbound access from Render to the relayer of the chosen network and, if used, Tatum.

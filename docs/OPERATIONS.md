@@ -58,7 +58,9 @@ Two layers:
 
 ## Storage lifetime and renewal
 
-Walrus storage is paid for a fixed period (testnet about 5 days, Mainnet about 210 days as observed; see ASSUMPTIONS). The expiry scan reads each memory's expiry and raises a warning inside the margin. With `BUIRY_RENEWAL=on` it also queues a rewrite of each expiring memory: the same text is stored again as a new blob, the memory switches to it once stored, and the old blob stays until it lapses. Renewal costs the same as a new write on the account that stores the project (managed or the project's own).
+Walrus storage is paid for a fixed period (testnet about 5 days, Mainnet about 210 days as observed; see ASSUMPTIONS). Walrus's network reference gives an epoch of two weeks on mainnet and one day on testnet, and at most 53 epochs of storage bought in advance (https://docs.wal.app/docs/network-reference, read 2026-11-24). How many epochs the Memory relayer buys per memory is not documented: UNVERIFIED (the 210 days came from one mainnet write on 2026-10-28, A2; A33). The expiry scan reads each memory's expiry and raises a warning inside the margin. With `BUIRY_RENEWAL=on` it also queues a rewrite of each expiring memory: the same text is stored again as a new blob, the memory switches to it once stored, and the old blob stays until it lapses. Renewal costs the same as a new write on the account that stores the project (managed or the project's own).
+
+**Restore.** Walrus's docs describe a restore feature that rebuilds the relayer's index from the stored blobs ("Rebuild your index from Walrus if it's ever lost", https://docs.wal.app/walrus-memory/). Buiry has not built or tested a use of it, and it would not bring back Buiry's own statuses or evidence (above).
 
 ## API tokens: expiry and the confirm scope
 
@@ -80,6 +82,14 @@ Walrus storage is paid for a fixed period (testnet about 5 days, Mainnet about 2
 - **Writes queued before this rule** for such projects are not deleted. At startup the server logs one warning with their count and project ids ("[buiry] N queued writes in M projects cannot be stored: ..."). They are stored once each project connects its own account. To see them: `strandedWrites` in `packages/api/src/service/byo-storage.ts`.
 - Testers follow `docs/TESTER_ONBOARDING.md`.
 
+## Networks (Phase 12)
+
+- **Explicit, never defaulted.** The server refuses to start in production, in preview, or with a relayer URL or the Tatum key set, unless `WALRUS_NETWORK` (and with the key, `TATUM_NETWORK`) names the network. The Tatum gateway refuses an unset `TATUM_NETWORK`.
+- **Consistent.** Every relayer host, `WALRUS_NETWORK` and `TATUM_NETWORK` must agree. `relayer.memory.walrus.xyz` is mainnet; `relayer.dev.memwal.ai` and `relayer-staging.memory.walrus.xyz` are testnet. Any other host needs `WALRUS_RELAYER_NETWORK`. At startup, once the shared account's adapter exists, the server also compares the relayer's own `/config` network.
+- **Mainnet opt-in.** Without `BUIRY_ALLOW_MAINNET=1` a mainnet server refuses to start, in preview too, and a project's own mainnet account is refused when it is connected. A hosted relayer whose host names another network than the one entered is refused before any lookup.
+- **Startup line.** A refusal reads "[buiry] refusing to start, network mismatch: ..." and names variables and relayer hosts only.
+- **Live evidence names its network.** **Mainnet live: UNVERIFIED** for the current code: no canary has stored and recalled on mainnet. (The earlier L-W1 and L-W2 results in `LOCAL_CHECKS.md` ran against the mainnet relayer before Phase 10; they are not a canary of this code.)
+
 ## Writes while the relayer struggles (Phase 10)
 
 **Retry policy.** The relayer's own guidance for a failed write is "keep polling a job; do not resubmit unless the job reaches failed; retry after a few minutes". The write drain follows it (`packages/storage/src/write-worker.ts`):
@@ -95,6 +105,6 @@ Walrus storage is paid for a fixed period (testnet about 5 days, Mainnet about 2
 
 **Tracing a failed write with Walrus support.** Each write job logs `event: write_job` lines with the relayer job id and every status change (submitted, pending, running, failed, retry_scheduled, stored, dead), the attempt and a UTC time. They carry no text and no namespace. Give support the relayer job ids and times.
 
-**Notice after failed writes (Phase 10 F5).** After 2 consecutive failed write attempts for a project, it gets a `write_failures` notice in Alerts and briefings. The notice does not depend on the relayer's `/health`, which reported `ok` for hours on 2026-11-23 while every write failed. It is cleared by the next stored write. The text is fixed, with no relayer text. The count is kept in memory per drain, so a restart starts counting again; an open notice stays until a write is stored. Migration `010_flag_write_failures` adds the flag kind.
+**Notice after failed writes (Phase 10 F5).** After 2 consecutive failed write attempts for a project, it gets a `write_failures` notice in Alerts and briefings. The notice does not depend on the relayer's `/health`, which on the testnet relayer reported `ok` for hours on 2026-11-23 while every write failed. It is cleared by the next stored write. The text is fixed, with no relayer text. The count is kept in memory per drain, so a restart starts counting again; an open notice stays until a write is stored. Migration `010_flag_write_failures` adds the flag kind.
 
 **Health is not enough.** Treat `/health` reporting writes `ok` as necessary, not sufficient. Use the write canary (`docs/LIVE_PROOF.md`) to confirm that writes are actually stored.
