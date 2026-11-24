@@ -33,6 +33,7 @@ import {
 } from '../../packages/storage/src/index.js';
 import { LIVE_REQUIRED_ENV, evaluateIsolation, type IsolationObservation } from './proof-criteria.js';
 import { ISOLATION_DRAIN_OPTIONS, TERMINAL_WAIT_MS, runSequentialWrites, storedWithin } from './etiquette.js';
+import { requireLiveTestnet } from '../lib/live-guard.js';
 
 const env = process.env as Record<string, string | undefined>;
 const missing = LIVE_REQUIRED_ENV.isolation.filter((k) => !env[k]);
@@ -44,6 +45,8 @@ if (env.BYO_A_ACCOUNT_ID === env.BYO_B_ACCOUNT_ID) {
   console.error('refusing: the two accounts must be different accounts');
   process.exit(64);
 }
+// Phase 12: named, consistent network settings (both accounts' relayer hosts included), then testnet only, as before.
+requireLiveTestnet(env, 'byo-isolation');
 // Optional: the gateway builder's own "configured" check, as byo-live.ts uses. Without it recall is served from
 // Buiry's index (no Seal session, A23); nothing else in this check needs the chain.
 const gateway = createGatewayIfConfigured(env);

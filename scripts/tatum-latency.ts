@@ -7,7 +7,8 @@
  */
 import { connect as tlsConnect } from 'node:tls';
 import { connect as netConnect } from 'node:net';
-import { createGatewayFromEnv } from '../packages/chain/src/index.js';
+import { createGatewayFromEnv, tatumGrpcEndpoint } from '../packages/chain/src/index.js';
+import { liveNetwork } from './lib/live-guard.js';
 
 const [pkg, digest, nArg] = process.argv.slice(2);
 if (!pkg || !digest) {
@@ -16,7 +17,13 @@ if (!pkg || !digest) {
 }
 const n = Number(nArg ?? 20);
 const env = process.env as Record<string, string>;
-const network = `sui:${env.TATUM_NETWORK ?? 'mainnet'}`;
+// Phase 12: named, consistent network settings (mainnet only with BUIRY_ALLOW_MAINNET=1); never a default network.
+const guard = liveNetwork(env);
+if (!guard.ok) {
+  console.error(`[tatum-latency] refused: network settings: ${guard.problems.join('; ')}`);
+  process.exit(64);
+}
+const network = `sui:${guard.network}`;
 
 const pct = (xs: number[], p: number) => {
   const s = [...xs].sort((a, b) => a - b);
@@ -28,7 +35,7 @@ const summary = (label: string, xs: number[]) =>
   );
 
 // Connection setup on its own: TCP connect, then a full TLS handshake, against the same host.
-const hostPort = (env.TATUM_GRPC_ENDPOINT ?? '').replace(/^https?:\/\//, '').split('/')[0]!;
+const hostPort = (tatumGrpcEndpoint(env) ?? '').replace(/^https?:\/\//, '').split('/')[0]!;
 const [host, port] = [hostPort.split(':')[0]!, Number(hostPort.split(':')[1] ?? 443)];
 const tcp: number[] = [];
 const tls: number[] = [];

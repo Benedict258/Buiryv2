@@ -5,7 +5,7 @@
  */
 import { existsSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { normalizeSuiNetwork } from '../../packages/core/src/index.js';
+import { ALLOW_MAINNET_VAR, checkNetworkEnv, normalizeSuiNetwork } from '../../packages/core/src/index.js';
 
 /** Variables that decide which services and network a run talks to; the profile must own them all. */
 export const PROFILE_OWNED = /^(WALRUS_|TATUM_|DEMO_|DATABASE_URL$|BUIRY_SECRET_KEY$)/;
@@ -69,5 +69,20 @@ export function loadProfile(
     throw new Error(
       `the calling environment already sets ${inherited.sort().join(', ')}; unset them so only .env.${name} decides`,
     );
+  // Phase 12 B: the mainnet opt-in belongs to the mainnet profile only, from the file or the calling shell.
+  const optIn = env[ALLOW_MAINNET_VAR] ?? callerEnv[ALLOW_MAINNET_VAR];
+  if (optIn !== undefined && expected !== 'mainnet')
+    throw new Error(
+      `${ALLOW_MAINNET_VAR} is set with profile ${name}; it belongs to the mainnet profile only`,
+    );
+  // A network profile must name its network, and every relayer host in it must agree (a testnet file carrying a
+  // mainnet account is refused). Mainnet also needs the opt-in. The gateway's own check runs when a script builds it.
+  if (expected) {
+    const check = checkNetworkEnv(
+      { ...env, ...(optIn !== undefined ? { [ALLOW_MAINNET_VAR]: optIn } : {}) },
+      { requireNetwork: true, gatewayConfigured: false },
+    );
+    if (check.problems.length) throw new Error(`.env.${name} is inconsistent: ${check.problems.join('; ')}`);
+  }
   return { name, file, names: Object.keys(env).sort(), env };
 }

@@ -20,6 +20,7 @@ import {
   type UserPrincipal,
 } from '../packages/api/src/index.js';
 import { Ed25519Signer, HttpWalrusAdapter, type WalrusMemoryAdapter } from '../packages/storage/src/index.js';
+import { requireLiveTestnet } from './lib/live-guard.js';
 
 const env = process.env as Record<string, string | undefined>;
 const need = [
@@ -35,12 +36,8 @@ if (missing.length) {
   console.error(`missing: ${missing.join(', ')} (names only; see LOCAL_CHECKS.md L-BYO1)`);
   process.exit(64);
 }
-if (env.WALRUS_NETWORK !== 'testnet' || (env.TATUM_NETWORK ?? 'testnet') !== 'testnet') {
-  console.error(
-    'refusing: this check runs on testnet only (WALRUS_NETWORK and TATUM_NETWORK must be testnet)',
-  );
-  process.exit(64);
-}
+// Phase 12: named, consistent network settings (both relayer hosts included), then testnet only, as before.
+requireLiveTestnet(env, 'byo-live');
 if (env.WALRUS_BYO_TEST_ACCOUNT_ID === env.WALRUS_ACCOUNT_ID) {
   console.error('refusing: the BYO test account must be a different account from the managed one');
   process.exit(64);

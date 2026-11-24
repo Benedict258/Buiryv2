@@ -1,5 +1,14 @@
 /** Live smoke test for the Tatum gateway. Run from a machine with network access (LOCAL_CHECKS L-T2). */
 import { createGatewayFromEnv } from '../packages/chain/src/index.js';
+import { liveNetwork } from './lib/live-guard.js';
+
+// Phase 12: named, consistent network settings (mainnet only with BUIRY_ALLOW_MAINNET=1) before the gateway exists.
+const guard = liveNetwork(process.env);
+if (!guard.ok) {
+  console.error(`[chain-smoke] refused: network settings: ${guard.problems.join('; ')}`);
+  process.exit(64);
+}
+console.log(`[chain-smoke] network ${guard.network}`);
 
 const gw = createGatewayFromEnv(process.env, {
   sink: {

@@ -26,6 +26,7 @@ import {
   type Db,
   type Stack,
 } from '../../packages/api/src/index.js';
+import { liveNetwork } from './live-guard.js';
 
 export interface DemoClock {
   now: () => number;
@@ -140,6 +141,10 @@ export async function liveWorld(env: Record<string, string | undefined> = proces
   for (const k of ['WALRUS_RELAYER_URL', 'WALRUS_ACCOUNT_ID', 'WALRUS_DELEGATE_KEY']) {
     if (!env[k]) throw new Error(`live mode needs ${k} (see .env.example and LOCAL_CHECKS.md)`);
   }
+  // Phase 12 B: named, consistent network settings (relayer host included; the opt-in for the other network) before
+  // anything is built. The relayer's own /config is compared again below once the adapter exists.
+  const guard = liveNetwork(env);
+  if (!guard.ok) throw new Error(`live mode refused, network settings: ${guard.problems.join('; ')}`);
   let db: Db;
   if (env.DATABASE_URL) {
     const pg = PgDb.fromUrl(env.DATABASE_URL);

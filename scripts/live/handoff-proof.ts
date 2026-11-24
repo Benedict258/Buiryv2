@@ -32,6 +32,7 @@ import {
   type ProofRun,
 } from './proof-criteria.js';
 import { healthAllowsWrite } from './etiquette.js';
+import { requireLiveTestnet } from '../lib/live-guard.js';
 
 const ROOT = '.buiry-local/proof';
 const env = process.env as Record<string, string | undefined>;
@@ -347,6 +348,10 @@ function report() {
   console.log(text);
 }
 
+// Phase 12: the steps that reach a server, relayer or chain run only with named, consistent network settings, and
+// on testnet only, as before. `check` and `report` read saved files only.
+if (cmd === 'prepare' || cmd === 'collect' || cmd === 'verify-chain' || cmd === 'scores')
+  requireLiveTestnet(env, 'handoff-proof');
 try {
   if (cmd === 'prepare' && run) await prepare(run);
   else if (cmd === 'collect' && run) await collect(run);

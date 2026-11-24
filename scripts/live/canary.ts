@@ -3,7 +3,11 @@
  * then, if stored, a recall of it through the relayer (Seal session when a chain gateway is configured).
  *
  *   pnpm tsx scripts/with-env.ts testnet -- pnpm tsx scripts/live/canary.ts
+ *   BUIRY_ALLOW_MAINNET=1 pnpm tsx scripts/with-env.ts mainnet -- pnpm tsx scripts/live/canary.ts   (only on the owner's go)
  *
+ * - Refuses unless the network settings are named and consistent (relayer host, WALRUS_NETWORK, TATUM_NETWORK), the
+ *   chain gateway is configured, and, on mainnet, BUIRY_ALLOW_MAINNET=1 is set (Phase 12). Prints the network first.
+ * - Exactly one write, never retried, on any network.
  * - At most one per hour: refuses if the last canary started less than an hour ago (`.buiry-local/proof/canary-last.json`,
  *   written before the write so a crash still counts).
  * - Refuses while the relayer's /health does not report writes ok. Necessary, not sufficient: on 2026-11-23 health said
@@ -15,10 +19,9 @@
 import { execFileSync } from 'node:child_process';
 import { randomBytes } from 'node:crypto';
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
-import { createGatewayIfConfigured } from '../../packages/chain/src/index.js';
+import { createGatewayIfConfigured, isGatewayConfigured } from '../../packages/chain/src/index.js';
 import { buildWalrusAdapter } from '../../packages/api/src/index.js';
-import { LIVE_REQUIRED_ENV } from './proof-criteria.js';
-import { canaryAllowed } from './canary-lib.js';
+import { canaryAllowed, canaryPreflight } from './canary-lib.js';
 import { healthAllowsWrite } from './etiquette.js';
 
 const env = process.env as Record<string, string | undefined>;
@@ -27,11 +30,14 @@ const LAST = `${DIR}/canary-last.json`;
 const utc = () => new Date().toISOString().slice(0, 19) + 'Z';
 const say = (s: string) => console.log(`[canary] ${s}`);
 
-const missing = LIVE_REQUIRED_ENV.canary.filter((k) => !env[k]);
-if (missing.length) {
-  console.error(`missing: ${missing.join(', ')} (names only; see docs/LIVE_PROOF.md)`);
-  process.exit(64);
+// Phase 12 C: account settings, network settings (named, consistent, mainnet only with BUIRY_ALLOW_MAINNET=1) and the
+// chain gateway, before the pacing check and before any adapter exists. The network is the first line printed.
+const pre = canaryPreflight(env, { gatewayConfigured: isGatewayConfigured(env) });
+if (!pre.ok) {
+  console.error(`[canary] ${pre.message}`);
+  process.exit(pre.exitCode);
 }
+say(`${utc()} ${pre.firstLine}`);
 mkdirSync(DIR, { recursive: true });
 const last = existsSync(LAST)
   ? ((JSON.parse(readFileSync(LAST, 'utf8')) as { at?: string }).at ?? 'unreadable')
@@ -61,10 +67,10 @@ const commit = (() => {
   }
 })();
 const run = randomBytes(3).toString('hex');
-const result: Record<string, unknown> = { run, commit, account: 'A' };
+const result: Record<string, unknown> = { run, commit, account: 'A', network: pre.network };
 try {
   const conf = await adapter.relayerConfig();
-  if (conf.network !== 'testnet') throw new Error(`the relayer serves ${conf.network}, not testnet`);
+  if (conf.network !== pre.network) throw new Error(`the relayer serves ${conf.network}, not ${pre.network}`);
   const h = await adapter.health().catch(() => ({ reachable: false, writeState: 'paused' as const }));
   result.healthBefore = h.reachable ? h.writeState : 'unreachable';
   say(`${utc()} commit ${commit}; relayer health before: ${result.healthBefore as string}`);
