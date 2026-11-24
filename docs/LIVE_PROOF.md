@@ -1,6 +1,6 @@
 # Live proof protocols (F1 handoff, F2 isolation)
 
-**Status: written, not run.** Every result so far is from mocks and PGlite. Nothing in this file is a live result. Both checks need the owner's accounts, funds and setup (section 3). Neither needs a chain gateway (a Tatum key) to run: only the chain-verification step uses one, and without it that step reports `unknown`.
+**Status: run on testnet and failed; nothing stored.** F2 isolation runs 1 to 3 (2026-11-23) and write canaries 1 to 3 (2026-11-23 and 2026-11-24) ran on testnet and failed on the relayer's capacity limit (run 1's error text was not captured; runs 2 and 3 and all three canaries recorded the capacity limit). Nothing was stored, so there is no live recall or isolation result. F1 (handoff proof) has not run; it needs stored writes. Mainnet not yet run. Every passing result so far is from mocks and PGlite. Both checks need the owner's accounts, funds and setup (section 3). Neither needs a chain gateway (a Tatum key) to run: only the chain-verification step uses one, and without it that step reports `unknown`.
 
 The pass and fail criteria below are fixed **before** any run. They are encoded in `scripts/live/proof-criteria.ts` and tested on made-up data in `proof-criteria.test.ts`. Changing a criterion after a run counts as a new protocol, and earlier runs are reported under the old one.
 
