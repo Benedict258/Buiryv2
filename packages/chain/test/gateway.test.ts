@@ -244,7 +244,7 @@ describe('gateway built from env (createGatewayFromEnv)', () => {
   it('is gRPC only when TATUM_JSONRPC_URL is unset: a gRPC outage never reaches JSON-RPC', async () => {
     const m = await start();
     const g = createGatewayFromEnv(
-      { TATUM_API_KEY: KEY, TATUM_GRPC_ENDPOINT: `http://${m.grpcEndpoint}` },
+      { TATUM_API_KEY: KEY, TATUM_NETWORK: 'mainnet', TATUM_GRPC_ENDPOINT: `http://${m.grpcEndpoint}` },
       fast,
     );
     expect((await g.getObject(ids.OBJ_REG)).prov.transport).toBe('grpc');
@@ -259,6 +259,7 @@ describe('gateway built from env (createGatewayFromEnv)', () => {
     const g = createGatewayFromEnv(
       {
         TATUM_API_KEY: KEY,
+        TATUM_NETWORK: 'mainnet',
         TATUM_GRPC_ENDPOINT: `http://${m.grpcEndpoint}`,
         TATUM_JSONRPC_URL: m.jsonrpcUrl,
       },
@@ -269,7 +270,9 @@ describe('gateway built from env (createGatewayFromEnv)', () => {
   });
 
   it('refuses to start without a gRPC endpoint or an API key', () => {
-    expect(() => createGatewayFromEnv({ TATUM_API_KEY: KEY })).toThrow(/TATUM_GRPC_ENDPOINT/);
+    expect(() => createGatewayFromEnv({ TATUM_API_KEY: KEY, TATUM_NETWORK: 'testnet' })).toThrow(
+      /TATUM_GRPC_ENDPOINT/,
+    );
     expect(() => createGatewayFromEnv({ TATUM_GRPC_ENDPOINT: 'h:443' })).toThrow(/TATUM_API_KEY/);
   });
 });

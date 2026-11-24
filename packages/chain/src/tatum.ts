@@ -17,6 +17,7 @@ import {
   type Transport,
   type TxInfo,
 } from './types.js';
+import { normalizeSuiNetwork } from '@buiry/core';
 import type { ChainBackend, MethodName } from './tatum/backend.js';
 import { POLICY, TtlCache, type CachePolicy } from './tatum/cache.js';
 import { CreditBudget, TokenBucket } from './tatum/limits.js';
@@ -585,17 +586,48 @@ export function suiNetwork(name: string): Network {
  */
 /** Production configuration problems for the gateway (names only); used by the server's startup check. */
 export function tatumConfigProblems(env: EnvLike): string[] {
-  return env.TATUM_NETWORK?.trim() && !env.TATUM_API_KEY?.trim()
-    ? ['TATUM_NETWORK is set but TATUM_API_KEY is not']
-    : [];
+  const net = !!env.TATUM_NETWORK?.trim();
+  if (net && !isGatewayConfigured(env)) return ['TATUM_NETWORK is set but TATUM_API_KEY is not'];
+  if (!net && isGatewayConfigured(env))
+    return ['TATUM_API_KEY is set but TATUM_NETWORK is not (Buiry never defaults the network)'];
+  return [];
+}
+
+/**
+ * Tatum's Sui mainnet gRPC endpoint (Phase 12 brief; Tatum's Sui RPC page, https://docs.tatum.io/reference/rpc-sui).
+ * Used on mainnet only, and only when TATUM_GRPC_ENDPOINT is unset. No endpoint is assumed for other networks.
+ */
+export const TATUM_MAINNET_GRPC_ENDPOINT = 'https://sui-mainnet-grpc.gateway.tatum.io';
+
+/** Whether a chain gateway is configured. Looks only at whether the key is present, never at its value. */
+export function isGatewayConfigured(env: EnvLike): boolean {
+  return !!env.TATUM_API_KEY?.trim();
+}
+
+/** The gRPC endpoint to use: TATUM_GRPC_ENDPOINT when set; on mainnet otherwise the documented one; else none. */
+export function tatumGrpcEndpoint(env: EnvLike): string | undefined {
+  const set = env.TATUM_GRPC_ENDPOINT?.trim();
+  if (set) return set;
+  return normalizeSuiNetwork(env.TATUM_NETWORK ?? '') === 'mainnet' ? TATUM_MAINNET_GRPC_ENDPOINT : undefined;
 }
 
 export function createGatewayFromEnv(env: EnvLike, extra: Partial<GatewayOptions> = {}): TatumGateway {
   const apiKey = env.TATUM_API_KEY;
   if (!apiKey) throw new ChainError('config', 'TATUM_API_KEY is not set');
-  const network = suiNetwork(env.TATUM_NETWORK ?? 'mainnet');
+  // Phase 12 B1: never a default network. An unset or unknown TATUM_NETWORK refuses to build the gateway.
+  const rawNetwork = env.TATUM_NETWORK?.trim();
+  if (!rawNetwork)
+    throw new ChainError('config', 'TATUM_NETWORK is not set (testnet or mainnet; Buiry never defaults it)');
+  const named = normalizeSuiNetwork(rawNetwork);
+  if (!named)
+    throw new ChainError(
+      'config',
+      `TATUM_NETWORK=${rawNetwork} is not a Sui network (mainnet, testnet or devnet)`,
+    );
+  const network = suiNetwork(named);
   const list: ChainBackend[] = [];
-  if (env.TATUM_GRPC_ENDPOINT) list.push(new GrpcBackend({ endpoint: env.TATUM_GRPC_ENDPOINT, apiKey }));
+  const endpoint = tatumGrpcEndpoint(env);
+  if (endpoint) list.push(new GrpcBackend({ endpoint, apiKey }));
   if (env.TATUM_JSONRPC_URL) list.push(new JsonRpcBackend({ url: env.TATUM_JSONRPC_URL, apiKey }));
   if (list.length === 0) throw new ChainError('config', 'TATUM_GRPC_ENDPOINT is not set');
   return new TatumGateway({
@@ -611,5 +643,5 @@ export function createGatewayIfConfigured(
   env: EnvLike,
   extra: Partial<GatewayOptions> = {},
 ): TatumGateway | undefined {
-  return env.TATUM_API_KEY ? createGatewayFromEnv(env, extra) : undefined;
+  return isGatewayConfigured(env) ? createGatewayFromEnv(env, extra) : undefined;
 }
