@@ -4,6 +4,8 @@ dist-server
 coverage
 .env
 .env.*
+# Mainnet values live only here (Phase 12). Also covered by .env.* above; named so it is never missed.
+.env.mainnet
 !.env.example
 *.log
 .DS_Store

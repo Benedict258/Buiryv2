@@ -1,5 +1,14 @@
+import { execFileSync } from 'node:child_process';
+import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
-import { addedLinesByFile, findLeaks, isSecretName, secretNeedles } from './lib/secret-guard.js';
+import {
+  addedLinesByFile,
+  findLeaks,
+  isLocalEnvFile,
+  isSecretName,
+  secretNeedles,
+  stagedEnvFiles,
+} from './lib/secret-guard.js';
 
 // Every value below is MADE UP for the test. The guard reports variable names and places, never values.
 
@@ -60,5 +69,30 @@ describe('secret guard', () => {
     for (const v of Object.values(env).filter((v) => v.length >= 8 && !v.startsWith('https')))
       expect(out).not.toContain(v);
     expect(out).not.toContain('pw-made-up-1234');
+  });
+});
+
+// Phase 12 B6: mainnet values live in .env.mainnet, which is git-ignored, compared by the guard, and refused by the
+// pre-commit hook if it is ever staged.
+describe('.env.mainnet', () => {
+  it('is a local env file the guard compares against, like .env and .env.testnet', () => {
+    for (const f of ['.env', '.env.testnet', '.env.mainnet']) expect(isLocalEnvFile(f), f).toBe(true);
+    for (const f of ['.env.example', '.env.production.example', 'env.mainnet', '.env.mainnet.bak/x'])
+      expect(isLocalEnvFile(f), f).toBe(false);
+  });
+
+  it('is refused when staged, wherever it sits', () => {
+    expect(stagedEnvFiles(['docs/a.md', '.env.mainnet', 'sub/.env.mainnet', '.env.example', '.env'])).toEqual(
+      ['.env.mainnet', 'sub/.env.mainnet', '.env'],
+    );
+  });
+
+  it('is git-ignored by its own rule', () => {
+    const root = fileURLToPath(new URL('..', import.meta.url));
+    const out = execFileSync('git', ['check-ignore', '-v', '--no-index', '.env.mainnet'], {
+      cwd: root,
+      encoding: 'utf8',
+    });
+    expect(out).toMatch(/^\.gitignore:\d+:\.env\.mainnet\t\.env\.mainnet/);
   });
 });

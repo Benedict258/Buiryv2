@@ -77,3 +77,16 @@ export function addedLinesByFile(diff: string): { source: string; text: string }
   }
   return [...out].map(([source, lines]) => ({ source: `staged ${source}`, text: lines.join('\n') }));
 }
+
+/** The committed examples; every other `.env` or `.env.<name>` (such as `.env.testnet`, `.env.mainnet`) is local. */
+export const ENV_EXAMPLES = new Set(['.env.example', '.env.production.example']);
+
+/** A local env file by its base name: `.env` or `.env.<name>`, except the committed examples. */
+export function isLocalEnvFile(name: string): boolean {
+  return /^\.env(\.[A-Za-z0-9_-]+)?$/.test(name) && !ENV_EXAMPLES.has(name);
+}
+
+/** Staged paths that are local env files, anywhere in the tree. The pre-commit hook refuses the commit for these. */
+export function stagedEnvFiles(paths: string[]): string[] {
+  return paths.filter((p) => isLocalEnvFile(p.split('/').pop() ?? ''));
+}

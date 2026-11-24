@@ -17,7 +17,7 @@ import { existsSync, readdirSync, readFileSync, statSync } from 'node:fs';
 import { join, relative, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { parseEnvText } from './lib/env-profile.js';
-import { addedLinesByFile, findLeaks } from './lib/secret-guard.js';
+import { addedLinesByFile, findLeaks, isLocalEnvFile, stagedEnvFiles } from './lib/secret-guard.js';
 
 const root = fileURLToPath(new URL('..', import.meta.url));
 const args = process.argv.slice(2);
@@ -34,11 +34,22 @@ const msgFile = flag('--commit-msg');
 const staged = args.includes('--staged');
 const paths = args.filter((a) => a !== '--staged');
 
-const EXAMPLES = new Set(['.env.example', '.env.production.example']);
+// A staged local env file (.env, .env.testnet, .env.mainnet, ...) is refused outright, before anything else and even
+// when there is no local env file to compare against (Phase 12 B6). Names only.
+if (staged) {
+  const envStaged = stagedEnvFiles(
+    execFileSync('git', ['diff', '--cached', '--name-only', '--no-renames'], { cwd: root, encoding: 'utf8' })
+      .split('\n')
+      .filter(Boolean),
+  );
+  for (const f of envStaged)
+    console.error(`[secret-guard] ${f} is a local env file and must never be committed`);
+  if (envStaged.length) process.exit(1);
+}
 const files = envFiles.length
   ? envFiles
   : readdirSync(root)
-      .filter((f) => /^\.env(\.[A-Za-z0-9_-]+)?$/.test(f) && !EXAMPLES.has(f))
+      .filter(isLocalEnvFile)
       .map((f) => join(root, f));
 if (!files.length) {
   console.log('[secret-guard] no local env file to compare against; nothing to check');
