@@ -19,6 +19,7 @@ const BOOLEAN = new Set([
   'no-pointer',
   'project-scope',
   'include-proposed',
+  'no-evidence',
 ]);
 
 /** Minimal parser: `cmd [positionals] --flag value --bool`. Flags may also be `--flag=value`. */

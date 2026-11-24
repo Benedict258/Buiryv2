@@ -105,6 +105,14 @@ describe('argument parsing', () => {
     expect(parseArgs(['x', '-y', '-h']).flags).toEqual({ yes: true, help: true });
   });
 
+  it('treats --no-evidence as a boolean, so it never swallows the next argument (Phase 12b)', () => {
+    expect(parseArgs(['export', '--no-evidence', 'extra', '--out', 'pack.json'])).toEqual({
+      command: 'export',
+      positionals: ['extra'],
+      flags: { 'no-evidence': true, out: 'pack.json' },
+    });
+  });
+
   it('parses evidence specs', () => {
     expect(
       parseEvidence(
