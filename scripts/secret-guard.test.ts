@@ -51,6 +51,21 @@ describe('secret guard', () => {
     ]);
   });
 
+  it('treats the restore target database URL as secret, whole and by its password part (Phase 12b)', () => {
+    // RESTORE_DATABASE_URL holds the restore target's password (docs/OPERATIONS.md); no suffix rule covers it.
+    const restore = {
+      RESTORE_DATABASE_URL: 'postgres://buiry:pw-restore-made-up-5678@scratch.example.test/db',
+    };
+    expect(isSecretName('RESTORE_DATABASE_URL')).toBe(true);
+    expect(secretNeedles(restore).map((n) => n.name)).toEqual([
+      'RESTORE_DATABASE_URL',
+      'RESTORE_DATABASE_URL (password part)',
+    ]);
+    expect(
+      findLeaks(restore, [{ source: 'drill.md', text: 'restore used pw-restore-made-up-5678 today' }]),
+    ).toEqual([{ name: 'RESTORE_DATABASE_URL (password part)', source: 'drill.md' }]);
+  });
+
   it('checks only added lines of a staged diff', () => {
     const diff = [
       '+++ b/docs/notes.md',

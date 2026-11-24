@@ -6,6 +6,7 @@
 /** Variables whose values are secret. Anything ending in KEY, TOKEN, SECRET or PASSWORD counts too. */
 export const SECRET_NAMES = new Set([
   'DATABASE_URL',
+  'RESTORE_DATABASE_URL',
   'BUIRY_SECRET_KEY',
   'BUIRY_SECRET_KEY_PREVIOUS',
   'WALRUS_DELEGATE_KEY',
