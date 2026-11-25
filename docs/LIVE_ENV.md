@@ -23,7 +23,7 @@ The guard loads secret values from every local `.env` or `.env.<name>` file in m
 
 ## Networks (Phase 12)
 
-Each procedure says which network it uses. Today every live script except the canary runs on **testnet only** and refuses mainnet. The canary runs on either, and on mainnet only with `BUIRY_ALLOW_MAINNET=1` and the owner's go.
+Each procedure says which network it uses. Every live script names its network in its first output line. The canary, the isolation run (L-BYO2), the own-account check (L-BYO1), the handoff proof and the recall calibration run on testnet, or on mainnet only with `BUIRY_ALLOW_MAINNET=1`, the mainnet profile and the owner's go for each run (Phase 14).
 
 |                                   | Testnet                                                                                                                                                                                 | Mainnet                                                                            |
 | --------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------- |
@@ -69,29 +69,23 @@ The in-process L-BYO2 script does not use these: it builds its own in-memory sta
 
 ### 3. Walrus Memory account 1 (`.env.testnet`, or `.env.mainnet` for mainnet)
 
-| Name                 | What                                                                       | Secret                    |
-| -------------------- | -------------------------------------------------------------------------- | ------------------------- |
-| `PROOF_RELAYER_URL`  | Relayer address for the handoff proof's `scores` step (testnet only today) | no                        |
-| `PROOF_ACCOUNT_ID`   | Account object id (`0x...`)                                                | no: an on-chain object id |
-| `PROOF_DELEGATE_KEY` | Delegate private key for that account                                      | **yes**                   |
-| `BYO_A_RELAYER_URL`  | Tester A's relayer, for L-BYO2                                             | no                        |
-| `BYO_A_ACCOUNT_ID`   | Tester A's account object id                                               | no                        |
-| `BYO_A_DELEGATE_KEY` | Tester A's delegate private key                                            | **yes**                   |
+| Name                 | What                                                                                      | Secret  |
+| -------------------- | ----------------------------------------------------------------------------------------- | ------- |
+| `BYO_A_RELAYER_URL`  | Tester A's relayer, for L-BYO2, L-BYO1, the handoff proof, the canary and the calibration | no      |
+| `BYO_A_ACCOUNT_ID`   | Tester A's account object id                                                              | no      |
+| `BYO_A_DELEGATE_KEY` | Tester A's delegate private key                                                           | **yes** |
 
-Account 1 can be the same account for the proof and for tester A. In the handoff proof, the tester also enters this account in the dashboard (Storage page). That copy is sealed by the server and never shown again.
+Since Phase 14 the handoff proof uses tester A's account (`BYO_A_*`); the older `PROOF_*` names are no longer read (on testnet they held the same account). In the handoff proof, the tester also enters this account in the dashboard (Storage page). That copy is sealed by the server and never shown again.
 
-### 4. Walrus Memory account 2 (`.env.testnet`; the isolation run is testnet only today)
+### 4. Walrus Memory account 2 (`.env.testnet`, or `.env.mainnet` for mainnet)
 
-| Name                 | What                                                                                     | Secret  |
-| -------------------- | ---------------------------------------------------------------------------------------- | ------- |
-| `BYO_B_RELAYER_URL`  | Tester B's relayer, for L-BYO2                                                           | no      |
-| `BYO_B_ACCOUNT_ID`   | Tester B's account object id; must differ from A's (the script refuses the same account) | no      |
-| `BYO_B_DELEGATE_KEY` | Tester B's delegate private key                                                          | **yes** |
+| Name                 | What                                                                                                                      | Secret  |
+| -------------------- | ------------------------------------------------------------------------------------------------------------------------- | ------- |
+| `BYO_B_RELAYER_URL`  | Tester B's relayer, for L-BYO2                                                                                            | no      |
+| `BYO_B_ACCOUNT_ID`   | Tester B's account object id; must differ from A's (the scripts refuse the same account id, delegate key or owner wallet) | no      |
+| `BYO_B_DELEGATE_KEY` | Tester B's delegate private key                                                                                           | **yes** |
 
-**L-BYO1** (`scripts/byo-live.ts`) checks the older split between a shared account and one own account, so it uses different names:
-
-- account 1, the shared one: `WALRUS_RELAYER_URL`, `WALRUS_ACCOUNT_ID`, `WALRUS_DELEGATE_KEY` (**secret**), and `WALRUS_NETWORK=testnet` (L-BYO1 is testnet only);
-- account 2: `WALRUS_BYO_TEST_RELAYER_URL`, `WALRUS_BYO_TEST_ACCOUNT_ID`, `WALRUS_BYO_TEST_DELEGATE_KEY` (**secret**).
+**L-BYO1** (`scripts/byo-live.ts`) checks the split between a managed account and one own account. Since Phase 14 it uses the same two accounts: `BYO_A_*` is the project's own account and `BYO_B_*` plays the managed account. The older `WALRUS_BYO_TEST_*` names are no longer read.
 
 **L-BYO1 still exits without a Tatum gateway.** Preview has no shared account, so for preview use L-BYO2, which needs no gateway.
 

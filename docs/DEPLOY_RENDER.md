@@ -83,7 +83,7 @@ Set them in the Render dashboard or an environment group. **Secret** marks a val
 
 - `BUIRY_BYO_ALLOW_PRIVATE`: refused.
 - `BUIRY_MAILER=console`: refused. The console mailer prints sign-in links, which carry a token.
-- `WALRUS_BYO_TEST_*` and other test-only names in `.env.example`.
+- The live-check account names (`BYO_A_*`, `BYO_B_*`) and other test-only names in `.env.example`.
 
 ## 4. Before the first tester
 

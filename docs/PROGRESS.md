@@ -221,3 +221,14 @@ Mainnet: one partial live result: the mainnet canary of 2026-11-25 (one run) com
 - **Done (tested on mocks):** the secret guard compares each env file on its own; recall results record the field names the relayer returned; the canary saves the blob id, each result's field names and raw distance, and judges by the new pass criteria (BD49): PASS = the write job completes and returns a blob id; a recall returns that memory; its raw distance is recorded. A relayer score is not required: the relayer returns one only when `scoring_weights` is sent, and Buiry does not send it (A30).
 - **Unchanged by choice:** ranking and the 0.2 lexical relevance cutoff (A30). UNVERIFIED: lexical filtering may drop memories that match by meaning; calibration needs raw distances from several recalls.
 - **Needs a live check:** a mainnet canary that passes the new criteria (owner's go).
+
+## Phase 14 (2026-11-25): mainnet isolation and calibration scripts, code and mocks only
+
+Nothing ran live. Mainnet isolation, the mainnet own-account check, the mainnet handoff proof and the calibration have not been run.
+
+- **Done (tested on mocks):**
+  - The isolation run, own-account check and handoff proof run on testnet or on mainnet with the canary's guards (BD50).
+  - Two-account scripts refuse the same account id, key or owner wallet.
+  - Handoff C1 and C7 judge the run's network.
+  - New read-only `recall-calibrate.ts` (recalls only, at most 12, distances only).
+- **Needs a live check:** each of these on mainnet, each on its own go from the owner.

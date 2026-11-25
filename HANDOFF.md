@@ -141,7 +141,7 @@ The bugs found only by live runs are listed in `Development.md`.
 
 1. **Rotate the keys that were pasted into chat**: the Tatum API key now (new key in the Tatum dashboard, update `.env.testnet` and `.env`, revoke the old one). Rotate the Walrus delegates later, following `docs/KEY_CUSTODY.md`.
 2. **Local Postgres checks**: L-BAK1 (dump and restore round trip) and L-KEY1 (secret key rotation on Postgres). Exact commands are in `LOCAL_CHECKS.md`; they need Docker or Postgres 16 tools.
-3. **Second testnet Walrus account** for L-BYO1: put `WALRUS_BYO_TEST_RELAYER_URL`, `WALRUS_BYO_TEST_ACCOUNT_ID` and `WALRUS_BYO_TEST_DELEGATE_KEY` in `.env.testnet`, then run `scripts/byo-live.ts`.
+3. **Two Walrus accounts** for L-BYO1 and L-BYO2: `BYO_A_*` and `BYO_B_*` in `.env.testnet`, or in `.env.mainnet` for mainnet (Phase 14), then run `scripts/byo-live.ts`. On mainnet only with `BUIRY_ALLOW_MAINNET=1` and the owner's go.
 4. **SMTP account** for one live sign-in email (L-M1).
 5. **Container images** (L-AWS1): `docker build` of `Dockerfile` and `Dockerfile.backup`, a run against Postgres, then pin both by digest.
 6. **AWS choices and plan** (L-AWS2): region, domain, RDS instance class, backup retention and the backup bucket's account or region. Check prices on AWS. Run `terraform plan` and review it.

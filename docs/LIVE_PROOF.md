@@ -8,8 +8,8 @@ The pass and fail criteria below are fixed **before** any run. They are encoded 
 
 **Setup:**
 
-- The preview server (`docs/DEPLOY_RENDER.md`) on testnet, using the real testnet relayer.
-- One project connected to the tester's own testnet Walrus account.
+- The preview server (`docs/DEPLOY_RENDER.md`) on the run's network, using that network's relayer.
+- One project connected to the tester's own Walrus account on that network (tester A, `BYO_A_*`).
 - A git repository containing `src/session.ts`.
 - Claude Code and OpenCode both connected (`buiry connect claude-code`, `buiry connect opencode`).
 - A person signed in to the dashboard.
@@ -53,6 +53,8 @@ C5 shows that session B used the items, not that it reasoned well with them. The
 - `collected.json` (memory ids, blob ids, events);
 - `chain.json`, `scores.json` and `result.json`.
 
+**On mainnet (Phase 14).** Not run on mainnet. The driver runs on testnet, or on mainnet as `BUIRY_ALLOW_MAINNET=1 pnpm tsx scripts/with-env.ts mainnet -- pnpm tsx scripts/live/handoff-proof.ts <step> <run>`, with `.env.mainnet` with tester A's mainnet account `BYO_A_*` ( `RELAYER_URL` = `https://relayer.memory.walrus.xyz`, `ACCOUNT_ID`, `DELEGATE_KEY`), `WALRUS_NETWORK=mainnet`, `TATUM_NETWORK=mainnet` and the mainnet Tatum key, and a preview server on mainnet. Every step that reaches a server, relayer or chain prints the network first; `prepare` saves the network with the run, and `collect`, `verify-chain` and `scores` refuse settings that name another network. C1 and C7 judge the network the run was prepared on (BD50); runs saved before Phase 14 are judged on testnet. Each live run needs its own go from the owner.
+
 ### A30: real recall scores
 
 Assumption A30 is the 0.2 relevance cutoff (Phase 9 A2). It assumes relayer scores and Buiry's relevance share a 0 to 1 scale, and that is **unverified** against the real relayer. What the code says:
@@ -95,12 +97,12 @@ The relayer's guidance is to keep polling a job, not to resubmit before it fails
 
 ## 2. F2: two own accounts stay isolated (L-BYO2)
 
-**Script:** `scripts/live/byo-isolation.ts`, run as `pnpm tsx scripts/with-env.ts testnet -- pnpm tsx scripts/live/byo-isolation.ts`.
+**Script:** `scripts/live/byo-isolation.ts`, run as `pnpm tsx scripts/with-env.ts testnet -- pnpm tsx scripts/live/byo-isolation.ts`, or on mainnet as `BUIRY_ALLOW_MAINNET=1 pnpm tsx scripts/with-env.ts mainnet -- pnpm tsx scripts/live/byo-isolation.ts`.
 
 **Setup.** Preview shape, with no shared account:
 
 - two workspaces (two testers), one project each;
-- each project connected to its own testnet account;
+- each project connected to its own account on the run's network;
 - each agent writes one memory carrying a run marker.
 
 No chain gateway is needed. Writes, signed listing (I4) and token checks (I2) never touch the chain. Without a gateway, I3 runs against Buiry's own recall, which is served from its index (no Seal session, A23). That still checks scoped lookups; the relayer-side recall path is not exercised. The script prints and saves which path was used (`recallPath`).
@@ -114,14 +116,46 @@ No chain gateway is needed. Writes, signed listing (I4) and token checks (I2) ne
 | I3  | Scoped lookups: recall with one side's token never returns the other side's marker         |
 | I4  | Storage: each blob is listed in its own Walrus account and not in the other                |
 
-The script also records a control: each side finds its own memory. The control does not decide the result, but if it fails, recall itself is not working and I3 proves nothing; report it. Output is saved to `.buiry-local/proof/byo-isolation-<run>.json`. Run it at least 3 times and report each run.
+The script also records a control: each side finds its own memory. The control does not decide the result, but if it fails, recall itself is not working and I3 proves nothing; report it. Output is saved to `.buiry-local/proof/byo-isolation-<run>.json`, labelled with its network. Run it at least 3 times and report each run.
+
+**Mainnet isolation procedure (Phase 14).** Not run on mainnet; no isolation run has passed on any network.
+
+1. **Accounts.** `.env.mainnet` with two mainnet accounts: `BYO_A_*` and `BYO_B_*` (each `RELAYER_URL` = `https://relayer.memory.walrus.xyz`, `ACCOUNT_ID`, `DELEGATE_KEY`), `WALRUS_NETWORK=mainnet`, `TATUM_NETWORK=mainnet` and the mainnet Tatum key. The two accounts must be different accounts with different owners.
+2. **Guards before anything connects.** The script refuses:
+   - a missing `BYO_A_*` or `BYO_B_*` name, the same account id twice, or the same delegate key twice (names only in every message);
+   - settings whose network is unnamed or inconsistent, mainnet without `BUIRY_ALLOW_MAINNET=1`, or any network other than testnet or mainnet.
+
+   Its first output line names the network and relayer host.
+
+3. **Guards before the first write.** For each account it reads the relayer's `/config` and refuses a network other than the one checked. It reads both owner wallets (read-only `POST /api/stats`) and refuses if they are the same.
+4. **Unchanged.** The write etiquette, pacing, one attempt per account, the I1 to I4 criteria and the control.
+5. **A go per run.** Each live run needs its own go from the owner, after a mainnet canary has passed (BD49).
+
+**Own-account check (L-BYO1, `scripts/byo-live.ts`).** It uses the same two accounts and guards: `BYO_A_*` is the project's own account, and `BYO_B_*` plays the managed account. On mainnet: `BUIRY_ALLOW_MAINNET=1 pnpm tsx scripts/with-env.ts mainnet -- pnpm tsx scripts/byo-live.ts`. It needs the chain gateway and writes two memories. Not run on mainnet. Each live run needs its own go from the owner.
+
+## Recall calibration (read-only, Phase 14)
+
+**Script:** `scripts/live/recall-calibrate.ts <canaryRun>`, run as `pnpm tsx scripts/with-env.ts testnet -- pnpm tsx scripts/live/recall-calibrate.ts <canaryRun>`, or on mainnet as `BUIRY_ALLOW_MAINNET=1 pnpm tsx scripts/with-env.ts mainnet -- pnpm tsx scripts/live/recall-calibrate.ts <canaryRun>`. `<canaryRun>` is a stored canary (`.buiry-local/proof/canary-<run>.json`, final `done`) on the same network.
+
+- **Recalls only, never writes.** It reads account A's canary namespace (`buiry.canary.<run>`).
+- **Guards.** The canary's preflight runs first: `BYO_A_*`, a named and consistent network, mainnet only with the opt-in, and the chain gateway for the Seal session. Then the network line, and the relayer's `/config` compared with it.
+- **Queries.** 10 fixed queries, at most 12, in five labelled categories:
+  - exact: the canary text, at the submit second and the second before, since the canary saves only its submit time;
+  - a close paraphrase;
+  - the same topic in different words;
+  - a related but different topic;
+  - an unrelated topic.
+- **Pacing.** One recall per query, no retry (the adapter's read retry is off), at least 2 seconds apart. It stops on the first error.
+- **Saved.** `.buiry-local/proof/calibrate-<canaryRun>-<id>.json`: the network, commit and canary run, then per query only the category label, query id, number of results and raw distances. Never query text or memory text.
+- **Status.** Not run. Each live run needs its own go from the owner. Its distances are the input A30 needs before the 0.2 relevance cutoff can be judged.
 
 ## 3. What the owner must provide (F3)
 
 1. **The Walrus Memory setup link** for creating testnet accounts, and confirmation that it is testnet. How to create, fund and add a delegate key is not recorded in this repository (`docs/TESTER_ONBOARDING.md`, step 1).
 2. **Two funded testnet Walrus Memory accounts**, each with a delegate key:
-   - F1 uses one of them, as the tester's own account.
-   - F2 uses both: `BYO_A_*` and `BYO_B_*` (names in `scripts/live/byo-isolation.ts`).
+   - F1 uses tester A's, `BYO_A_*`, as the tester's own account.
+   - F2 and L-BYO1 use both: `BYO_A_*` and `BYO_B_*`.
+   - For mainnet the same names go in `.env.mainnet`, with mainnet accounts (two different owners).
 3. **Fresh blobs.** The earlier testnet blobs lapsed around 2026-11-21; testnet storage lasts about 5 days (A28). Every live run writes new memories, so nothing older is relied on. Runs more than about 5 days apart cannot re-read earlier blobs unless `BUIRY_RENEWAL=on`.
 4. **A chain gateway (a testnet Tatum key) is optional.** Without one:
    - F2 and every F1 step still run;
