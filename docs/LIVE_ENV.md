@@ -46,7 +46,7 @@ Walrus sources: https://docs.wal.app/walrus-memory/relayer/public-relayer and ht
 
 **New accounts and keys for mainnet.** Mainnet needs new wallets, a new Walrus Memory account and new delegate keys; testnet accounts and keys do not carry over. Tatum issues separate keys per network: "Every account starts with two keys: one for **mainnet** and one for **testnet**" and "Use the key that matches the network you call" (https://docs.tatum.io/reference/authentication, read 2026-11-24). Keys live only in the git-ignored `.env.testnet` and `.env.mainnet`, never in `.env.example`, chat, issues or reports.
 
-**Evidence.** Every live result names its network. **Mainnet live: UNVERIFIED** for the current code: no canary has stored and recalled on mainnet. (The earlier L-W1 and L-W2 results in `LOCAL_CHECKS.md` ran against the mainnet relayer before Phase 10; they are not a canary of this code.)
+**Evidence.** Every live result names its network. **Mainnet:** one partial live result: the mainnet canary of 2026-11-25 (one run) completed its write in 29 seconds and a recall returned the memory, but the blob id and score were not captured, so it is not a pass of the criteria. Mainnet storage is otherwise UNVERIFIED (`LOCAL_CHECKS.md` L-CAN1). (The earlier L-W1 and L-W2 results in `LOCAL_CHECKS.md` ran against the mainnet relayer before Phase 10; they are not a canary of this code.)
 
 ## Template
 

@@ -97,7 +97,7 @@ Set them in the Render dashboard or an environment group. **Secret** marks a val
    Until it runs, finding M4 stays partly fixed (`docs/SECURITY_REVIEW.md`).
 
 3. **Startup log.** It must show no "refusing to start", and no "queued writes ... cannot be stored" line. On a new database there is nothing queued.
-4. **Owner's own check.** The owner connects their own account on the server's network and writes one memory end to end (`docs/TESTER_ONBOARDING.md`), before inviting anyone. On mainnet this comes after a mainnet canary has stored and recalled (`docs/LIVE_PROOF.md`).
+4. **Owner's own check.** The owner connects their own account on the server's network and writes one memory end to end (`docs/TESTER_ONBOARDING.md`), before inviting anyone. On mainnet this comes after a mainnet canary has passed (`docs/LIVE_PROOF.md`, pass criteria).
 
 ## 5. Logs
 

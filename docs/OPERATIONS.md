@@ -88,7 +88,7 @@ Walrus storage is paid for a fixed period (testnet about 5 days, Mainnet about 2
 - **Consistent.** Every relayer host, `WALRUS_NETWORK` and `TATUM_NETWORK` must agree. `relayer.memory.walrus.xyz` is mainnet; `relayer.dev.memwal.ai` and `relayer-staging.memory.walrus.xyz` are testnet. Any other host needs `WALRUS_RELAYER_NETWORK`. At startup, once the shared account's adapter exists, the server also compares the relayer's own `/config` network.
 - **Mainnet opt-in.** Without `BUIRY_ALLOW_MAINNET=1` a mainnet server refuses to start, in preview too, and a project's own mainnet account is refused when it is connected. A hosted relayer whose host names another network than the one entered is refused before any lookup.
 - **Startup line.** A refusal reads "[buiry] refusing to start, network mismatch: ..." and names variables and relayer hosts only.
-- **Live evidence names its network.** **Mainnet live: UNVERIFIED** for the current code: no canary has stored and recalled on mainnet. (The earlier L-W1 and L-W2 results in `LOCAL_CHECKS.md` ran against the mainnet relayer before Phase 10; they are not a canary of this code.)
+- **Live evidence names its network.** **Mainnet:** one partial live result: the mainnet canary of 2026-11-25 (one run) completed its write in 29 seconds and a recall returned the memory, but the blob id and score were not captured, so it is not a pass of the criteria. Mainnet storage is otherwise UNVERIFIED (`LOCAL_CHECKS.md` L-CAN1). (The earlier L-W1 and L-W2 results in `LOCAL_CHECKS.md` ran against the mainnet relayer before Phase 10; they are not a canary of this code.)
 
 ## Writes while the relayer struggles (Phase 10)
 

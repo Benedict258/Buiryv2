@@ -213,3 +213,11 @@ Nothing ran live. Mainnet live: UNVERIFIED until a canary stores and recalls on 
 - **Done (tested on mocks):** the network is always explicit (`checkNetworkEnv`, `packages/core/src/networks.ts`). The relayer host, `WALRUS_NETWORK` and `TATUM_NETWORK` must agree; an unrecognised host needs `WALRUS_RELAYER_NETWORK`; mainnet needs `BUIRY_ALLOW_MAINNET=1` in the server, preview mode, own storage accounts, `scripts/with-env.ts` and every live script. The Tatum gateway refuses an unset `TATUM_NETWORK` and uses `https://sui-mainnet-grpc.gateway.tatum.io` on mainnet when no endpoint is set. Mainnet fallbacks removed from the worker canary, the CLI's evidence network, the dashboard's project forms and the latency script. `.env.mainnet` is git-ignored, compared by the secret guard, and refused by the pre-commit hook if staged.
 - **Live scripts:** the canary runs on either network (mainnet only with the opt-in), refuses without a chain gateway, and prints its network first. The isolation run, the handoff proof and the own-account check run the guard and stay testnet only.
 - **Needs a live check:** a mainnet canary (owner's go), then everything else on mainnet.
+
+## Phase 13 (2026-11-25): after the mainnet canary
+
+Mainnet: one partial live result: the mainnet canary of 2026-11-25 (one run) completed its write in 29 seconds and a recall returned the memory, but the blob id and score were not captured, so it is not a pass of the criteria. Mainnet storage is otherwise UNVERIFIED. Nothing else ran live in Phase 13.
+
+- **Done (tested on mocks):** the secret guard compares each env file on its own; recall results record the field names the relayer returned; the canary saves the blob id, each result's field names and raw distance, and judges by the new pass criteria (BD49): PASS = the write job completes and returns a blob id; a recall returns that memory; its raw distance is recorded. A relayer score is not required: the relayer returns one only when `scoring_weights` is sent, and Buiry does not send it (A30).
+- **Unchanged by choice:** ranking and the 0.2 lexical relevance cutoff (A30). UNVERIFIED: lexical filtering may drop memories that match by meaning; calibration needs raw distances from several recalls.
+- **Needs a live check:** a mainnet canary that passes the new criteria (owner's go).

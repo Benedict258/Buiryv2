@@ -80,7 +80,7 @@ At `b480535` (2026-11-18): typecheck (root and dashboard), ESLint, Prettier and 
 
 ### Verified live (every line cites its record; the network is named)
 
-**Mainnet live: UNVERIFIED** for the current code: no canary has stored and recalled on mainnet (Phase 12). Every live result names its network. The Mainnet rows below ran before Phase 10.
+**Mainnet:** one partial live result: the mainnet canary of 2026-11-25 (one run) completed its write in 29 seconds and a recall returned the memory, but the blob id and score were not captured, so it is not a pass of the criteria. Mainnet storage is otherwise UNVERIFIED (`LOCAL_CHECKS.md` L-CAN1) (Phase 12). Every live result names its network. The Mainnet rows below ran before Phase 10.
 
 | Result                                                                                                        | Network                           | Record                                      |
 | ------------------------------------------------------------------------------------------------------------- | --------------------------------- | ------------------------------------------- |
