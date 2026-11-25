@@ -26,6 +26,11 @@ export interface ProofRun {
   startedAt: string;
   /** Unique tokens session A was asked to put in each memory, so session B's use can be found in its transcript. */
   tokens: Record<ProofType, string>;
+  /**
+   * The network the run was prepared on (Phase 14). Absent in runs saved before Phase 14, which ran on testnet and are
+   * judged on testnet.
+   */
+  network?: 'testnet' | 'mainnet';
   project: { id: string; networks: string[] };
   /** Network the relayer reports on GET /config, read during collect. */
   relayerNetwork: string | null;
@@ -67,10 +72,10 @@ export interface Criterion {
  * configured through the chain package's own settings, never named here (Tatum confinement).
  */
 export const LIVE_REQUIRED_ENV = {
-  prepare: ['BUIRY_PROOF_PROJECT', 'PROOF_RELAYER_URL'],
+  prepare: ['BUIRY_PROOF_PROJECT', 'BYO_A_RELAYER_URL'],
   collect: ['BUIRY_API_URL', 'BUIRY_PROOF_TOKEN'],
   verifyChain: ['BUIRY_API_URL', 'BUIRY_PROOF_TOKEN'],
-  scores: ['PROOF_RELAYER_URL', 'PROOF_ACCOUNT_ID', 'PROOF_DELEGATE_KEY'],
+  scores: ['BYO_A_RELAYER_URL', 'BYO_A_ACCOUNT_ID', 'BYO_A_DELEGATE_KEY'],
   isolation: [
     'BYO_A_RELAYER_URL',
     'BYO_A_ACCOUNT_ID',
@@ -102,14 +107,17 @@ export function evaluateProof(run: ProofRun): Criterion[] {
   const all = PROOF_TYPES.map((t) => pm[t]);
   const found = all.filter((m): m is ProofMemory => !!m);
   const c: Criterion[] = [];
+  // Phase 14: C1 and C7 use the network the run was prepared on; a run saved without one ran on testnet.
+  const net = run.network ?? 'testnet';
+  const other = net === 'testnet' ? 'mainnet' : 'testnet';
 
   c.push({
     id: 'C1',
-    what: 'Real relayer on testnet: the project is on sui:testnet, the relayer reports testnet, and each proof memory is stored with a blob id',
+    what: `Real relayer on the run's network (${net}): the project is on sui:${net} only, the relayer reports ${net}, and each proof memory is stored with a blob id`,
     pass:
-      run.project.networks.includes('sui:testnet') &&
-      !run.project.networks.includes('sui:mainnet') &&
-      run.relayerNetwork === 'testnet' &&
+      run.project.networks.includes(`sui:${net}`) &&
+      !run.project.networks.includes(`sui:${other}`) &&
+      run.relayerNetwork === net &&
       found.length === 3 &&
       found.every((m) => m.writeState === 'stored' && !!m.blobId),
     detail: `networks ${run.project.networks.join(',')}; relayer ${run.relayerNetwork ?? 'unknown'}; stored ${found.filter((m) => m.writeState === 'stored' && m.blobId).length}/3`,
@@ -177,9 +185,8 @@ export function evaluateProof(run: ProofRun): Criterion[] {
 
   c.push({
     id: 'C7',
-    what: 'One memory verified against the chain: result pass on sui:testnet. Without a chain gateway the result is unknown: reported as unknown, never as a pass',
-    pass:
-      !!run.chain && run.chain.result === 'pass' && (run.chain.network ?? 'sui:testnet') === 'sui:testnet',
+    what: `One memory verified against the chain: result pass on sui:${net}. Without a chain gateway the result is unknown: reported as unknown, never as a pass`,
+    pass: !!run.chain && run.chain.result === 'pass' && (run.chain.network ?? `sui:${net}`) === `sui:${net}`,
     unknown: !run.chain || run.chain.result === 'unknown',
     detail: run.chain
       ? `${run.chain.memoryId}: ${run.chain.result}${run.chain.network ? ` on ${run.chain.network}` : ''}`
@@ -271,4 +278,16 @@ export function evaluateIsolation(o: IsolationObservation): Criterion[] {
       detail: `account A lists ${o.storage.aAccountBlobs.length} blobs, account B ${o.storage.bAccountBlobs.length}`,
     },
   ];
+}
+
+/**
+ * Phase 14: every step after prepare must run with settings that name the network the run was prepared on. A run saved
+ * before Phase 14 has no network and was prepared on testnet.
+ */
+export function preparedNetworkProblem(
+  prepared: 'testnet' | 'mainnet' | undefined,
+  current: 'testnet' | 'mainnet',
+): string | undefined {
+  const p = prepared ?? 'testnet';
+  return p === current ? undefined : `this run was prepared on ${p}; the settings name ${current}`;
 }

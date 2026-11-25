@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
   LIVE_REQUIRED_ENV,
+  preparedNetworkProblem,
   runOutcome,
   evaluateIsolation,
   evaluateProof,
@@ -189,5 +190,58 @@ describe('the live steps do not need a chain gateway (Phase 9 F)', () => {
   it('without a Seal session, C8 says the scores could not be recorded', () => {
     const r = { ...passing(), scores: [{ query: 'q', sealSession: false, degraded: true, rows: [] }] };
     expect(evaluateProof(r).find((c) => c.id === 'C8')!.detail).toMatch(/not recordable: no chain gateway/);
+  });
+});
+
+// Phase 14 (owner's decision): C1 and C7 check the network the run was prepared on, saved with the run. A run saved
+// before Phase 14 has no network field and is judged on testnet, exactly as before.
+describe('F1 criteria on the run network (Phase 14)', () => {
+  const mainnetRun = (): ProofRun => ({
+    ...passing(),
+    network: 'mainnet',
+    project: { id: 'prj_X', networks: ['sui:mainnet'] },
+    relayerNetwork: 'mainnet',
+    chain: { memoryId: 'mem_d', result: 'pass', network: 'sui:mainnet' },
+  });
+
+  it('a complete mainnet run passes every criterion, and a testnet run without a network field still passes', () => {
+    expect(failed(mainnetRun())).toEqual([]);
+    expect(passing().network).toBeUndefined();
+    expect(failed(passing())).toEqual([]);
+    expect(failed({ ...passing(), network: 'testnet' })).toEqual([]);
+  });
+
+  it('C1 fails a mainnet run on a testnet project, a testnet relayer, or a project on both networks', () => {
+    expect(failed({ ...mainnetRun(), project: { id: 'p', networks: ['sui:testnet'] } })).toContain('C1');
+    expect(failed({ ...mainnetRun(), relayerNetwork: 'testnet' })).toContain('C1');
+    expect(
+      failed({ ...mainnetRun(), project: { id: 'p', networks: ['sui:mainnet', 'sui:testnet'] } }),
+    ).toContain('C1');
+    expect(failed({ ...passing(), relayerNetwork: 'mainnet' })).toContain('C1');
+  });
+
+  it('C7 fails a chain check on the other network', () => {
+    expect(
+      failed({ ...mainnetRun(), chain: { memoryId: 'mem_d', result: 'pass', network: 'sui:testnet' } }),
+    ).toContain('C7');
+    expect(
+      failed({ ...passing(), chain: { memoryId: 'mem_d', result: 'pass', network: 'sui:mainnet' } }),
+    ).toContain('C7');
+  });
+
+  it('refuses a later step whose settings name another network than the run was prepared on', () => {
+    expect(preparedNetworkProblem('mainnet', 'mainnet')).toBeUndefined();
+    expect(preparedNetworkProblem(undefined, 'testnet')).toBeUndefined();
+    expect(preparedNetworkProblem(undefined, 'mainnet')).toBe(
+      'this run was prepared on testnet; the settings name mainnet',
+    );
+    expect(preparedNetworkProblem('mainnet', 'testnet')).toBe(
+      'this run was prepared on mainnet; the settings name testnet',
+    );
+  });
+
+  it('the proof account is tester A (BYO_A_*), as on testnet where it is the same account', () => {
+    expect(LIVE_REQUIRED_ENV.prepare).toEqual(['BUIRY_PROOF_PROJECT', 'BYO_A_RELAYER_URL']);
+    expect(LIVE_REQUIRED_ENV.scores).toEqual(['BYO_A_RELAYER_URL', 'BYO_A_ACCOUNT_ID', 'BYO_A_DELEGATE_KEY']);
   });
 });

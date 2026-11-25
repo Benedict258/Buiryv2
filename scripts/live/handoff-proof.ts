@@ -1,6 +1,7 @@
 /**
- * Live handoff proof (docs/LIVE_PROOF.md, F1). WRITTEN, NOT RUN: it needs the owner's preview server and a tester's
- * own testnet Walrus account. No step requires a chain gateway. Without one, the server's chain check reports
+ * Live handoff proof (docs/LIVE_PROOF.md, F1). NOT RUN on either network: it needs the owner's preview server and a
+ * tester's own Walrus account (tester A, BYO_A_*). Runs on testnet, or on mainnet with BUIRY_ALLOW_MAINNET=1 and the
+ * mainnet profile (Phase 14); the network is saved at prepare and every later step must name the same one. No step requires a chain gateway. Without one, the server's chain check reports
  * unknown (C7 unknown, never a pass) and the relayer returns no recall results (no Seal session, A23), so A30 numbers
  * cannot be recorded; every other step runs. Each step saves into .buiry-local/proof/<run>/.
  *
@@ -12,8 +13,8 @@
  *   pnpm tsx scripts/live/handoff-proof.ts report                  # every run, not the best one
  *
  * Environment (names only): LIVE_REQUIRED_ENV in proof-criteria.ts. BUIRY_PROOF_TOKEN is a person's API token with
- *   read and write, never confirm; scores uses the tester's own account (PROOF_RELAYER_URL, PROOF_ACCOUNT_ID,
- *   PROOF_DELEGATE_KEY) and, when configured, the chain gateway (the chain package's settings, see .env.example).
+ *   read and write, never confirm; scores uses the tester's own account (BYO_A_RELAYER_URL, BYO_A_ACCOUNT_ID,
+ *   BYO_A_DELEGATE_KEY) and, when configured, the chain gateway (the chain package's settings, see .env.example).
  * Prints ids, statuses and numbers only: never memory text, keys or tokens.
  */
 import { execFileSync } from 'node:child_process';
@@ -30,9 +31,17 @@ import {
   runOutcome,
   type ProofMemory,
   type ProofRun,
+  preparedNetworkProblem,
 } from './proof-criteria.js';
 import { healthAllowsWrite } from './etiquette.js';
-import { requireLiveTestnet } from '../lib/live-guard.js';
+import { relayerNetworkProblem, requireLiveNetwork } from '../lib/live-guard.js';
+
+/** Set by the network guard for the steps that reach a server, relayer or chain (Phase 14); never defaulted. */
+let checkedNetwork: 'testnet' | 'mainnet' | undefined;
+const liveNet = (): 'testnet' | 'mainnet' => {
+  if (!checkedNetwork) throw new Error('refusing: the network guard has not run for this step');
+  return checkedNetwork;
+};
 
 const ROOT = '.buiry-local/proof';
 const env = process.env as Record<string, string | undefined>;
@@ -55,6 +64,14 @@ interface Meta {
   commit: string;
   /** Relayer health read before the run started (F4). */
   relayerHealthAtStart: string;
+  /** The network the run was prepared on (Phase 14); absent in runs saved before it, which ran on testnet. */
+  network?: 'testnet' | 'mainnet';
+}
+
+/** Phase 14: a later step refuses settings that name another network than the run was prepared on. */
+function sameNetworkAsPrepared(meta: Meta) {
+  const wrong = preparedNetworkProblem(meta.network, liveNet());
+  if (wrong) throw new Error(`refusing: ${wrong}`);
 }
 
 function need(...names: string[]) {
@@ -81,7 +98,7 @@ async function api<T>(method: string, path: string, body?: unknown): Promise<T> 
 
 /** The relayer's unsigned /health, as the write etiquette needs it (F4). No credentials involved. */
 async function relayerHealth(): Promise<{ reachable: boolean; writeState: 'ok' | 'degraded' | 'paused' }> {
-  const url = env.PROOF_RELAYER_URL;
+  const url = env.BYO_A_RELAYER_URL;
   if (!url) return { reachable: false, writeState: 'paused' };
   const j = (await fetch(url.replace(/\/$/, '') + '/health', { signal: AbortSignal.timeout(20_000) })
     .then((x) => x.json())
@@ -119,6 +136,7 @@ async function prepare(r: string) {
     queries: ['session storage', 'session expiry', 'migration failure'],
     commit,
     relayerHealthAtStart: healthText,
+    network: liveNet(),
   };
   save(r, 'meta.json', meta);
   save(
@@ -167,6 +185,7 @@ A new OpenCode session in the same repository, connected to the same project. Sa
 async function collect(r: string) {
   need(...LIVE_REQUIRED_ENV.collect);
   const meta = readJson<Meta>(r, 'meta.json');
+  sameNetworkAsPrepared(meta);
   const pid = meta.projectId;
   const project = await api<{ networks: string[] }>('GET', `/v1/projects/${pid}`);
   const account = await api<{ relayerUrl?: string }>('GET', `/v1/projects/${pid}/storage/account`);
@@ -209,6 +228,7 @@ async function verifyChain(r: string, memoryId: string | undefined) {
   need(...LIVE_REQUIRED_ENV.verifyChain);
   if (!memoryId) throw new Error('usage: verify-chain <run> <memoryId>');
   const meta = readJson<Meta>(r, 'meta.json');
+  sameNetworkAsPrepared(meta);
   const raw = await api<Record<string, unknown>>('POST', `/v1/projects/${meta.projectId}/verifications`, {
     memoryId,
   });
@@ -225,6 +245,7 @@ async function verifyChain(r: string, memoryId: string | undefined) {
 async function scores(r: string) {
   need(...LIVE_REQUIRED_ENV.scores);
   const meta = readJson<Meta>(r, 'meta.json');
+  sameNetworkAsPrepared(meta);
   // The gateway builder's own "configured" check, as byo-live.ts uses. Optional: without it there is no Seal session
   // and the relayer returns no recall results (A23); the step still runs and records that.
   const gateway = createGatewayIfConfigured(env);
@@ -234,15 +255,15 @@ async function scores(r: string) {
     );
   const adapter = buildWalrusAdapter(
     {
-      relayerUrl: env.PROOF_RELAYER_URL!,
-      accountId: env.PROOF_ACCOUNT_ID!,
-      delegateKey: env.PROOF_DELEGATE_KEY!,
+      relayerUrl: env.BYO_A_RELAYER_URL!,
+      accountId: env.BYO_A_ACCOUNT_ID!,
+      delegateKey: env.BYO_A_DELEGATE_KEY!,
     },
     gateway,
   );
   const conf = await adapter.relayerConfig();
-  if (conf.network !== 'testnet')
-    throw new Error(`refusing: the relayer serves ${conf.network}, not testnet`);
+  const wrongRelayer = relayerNetworkProblem(conf.network, liveNet());
+  if (wrongRelayer) throw new Error(`refusing: ${wrongRelayer}`);
   const out: ProofRun['scores'] = [];
   for (const query of meta.queries) {
     const res = await adapter.recall({
@@ -295,6 +316,7 @@ function assemble(r: string): ProofRun {
     runId: meta.runId,
     startedAt: meta.startedAt,
     tokens: meta.tokens,
+    ...(meta.network ? { network: meta.network } : {}),
     ...c,
     transcriptA: readText(r, 'session-a.txt'),
     transcriptB: readText(r, 'session-b.txt'),
@@ -348,10 +370,11 @@ function report() {
   console.log(text);
 }
 
-// Phase 12: the steps that reach a server, relayer or chain run only with named, consistent network settings, and
-// on testnet only, as before. `check` and `report` read saved files only.
+// Phase 14: the steps that reach a server, relayer or chain run only with named, consistent network settings, on
+// testnet or on mainnet with BUIRY_ALLOW_MAINNET=1; the network line is printed first. `check` and `report` read
+// saved files only.
 if (cmd === 'prepare' || cmd === 'collect' || cmd === 'verify-chain' || cmd === 'scores')
-  requireLiveTestnet(env, 'handoff-proof');
+  checkedNetwork = requireLiveNetwork(env, 'handoff-proof', ['BYO_A_RELAYER_URL']);
 try {
   if (cmd === 'prepare' && run) await prepare(run);
   else if (cmd === 'collect' && run) await collect(run);

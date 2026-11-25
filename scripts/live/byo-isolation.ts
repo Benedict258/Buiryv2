@@ -1,16 +1,18 @@
 /**
- * L-BYO2 (docs/LIVE_PROOF.md, F2): two testers, each with their own testnet Walrus Memory account, stay isolated:
- * tokens, scoped lookups and storage. WRITTEN, NOT RUN: it needs two funded testnet accounts. No chain gateway is
+ * L-BYO2 (docs/LIVE_PROOF.md, F2): two testers, each with their own Walrus Memory account, stay isolated: tokens,
+ * scoped lookups and storage. Runs on testnet, or on mainnet with BUIRY_ALLOW_MAINNET=1 and the mainnet profile
+ * (Phase 14). Not yet passed on either network; each live run needs the owner's go. No chain gateway is
  * needed: writes, signed listing and token checks never touch the chain. With a gateway configured (the chain
  * package's settings, see .env.example) recall also goes through the relayer with a Seal session; without one, recall
  * is served from Buiry's index (A23), which still checks scoped lookups, and the output says so.
  *
  *   pnpm tsx scripts/with-env.ts testnet -- pnpm tsx scripts/live/byo-isolation.ts
+ *   BUIRY_ALLOW_MAINNET=1 pnpm tsx scripts/with-env.ts mainnet -- pnpm tsx scripts/live/byo-isolation.ts
  *
  * Preview shape: no shared account. Two workspaces (two testers), one project each, each project connected to its own
  * account. Each agent writes one memory with a run marker; then every crossing is attempted.
- * Environment (names only): LIVE_REQUIRED_ENV.isolation in proof-criteria.ts. Refuses a relayer that is not on testnet
- * and the same account twice. Prints ids and outcomes only; result saved to
+ * Environment (names only): BYO_A_* and BYO_B_* (LIVE_REQUIRED_ENV.isolation). Refuses a missing name, the same account
+ * id, the same delegate key or the same owner wallet twice, and a relayer whose /config names another network. Prints ids and outcomes only; result saved to
  * .buiry-local/proof/byo-isolation-<run>.json.
  */
 import { execFileSync } from 'node:child_process';
@@ -31,22 +33,24 @@ import {
   HttpWalrusAdapter,
   type WalrusMemoryAdapter,
 } from '../../packages/storage/src/index.js';
-import { LIVE_REQUIRED_ENV, evaluateIsolation, type IsolationObservation } from './proof-criteria.js';
+import { evaluateIsolation, type IsolationObservation } from './proof-criteria.js';
 import { ISOLATION_DRAIN_OPTIONS, TERMINAL_WAIT_MS, runSequentialWrites, storedWithin } from './etiquette.js';
-import { requireLiveTestnet } from '../lib/live-guard.js';
+import {
+  relayerNetworkProblem,
+  requireLiveNetwork,
+  sameWalletProblem,
+  twoAccountProblems,
+} from '../lib/live-guard.js';
 
 const env = process.env as Record<string, string | undefined>;
-const missing = LIVE_REQUIRED_ENV.isolation.filter((k) => !env[k]);
-if (missing.length) {
-  console.error(`missing: ${missing.join(', ')} (names only; see docs/LIVE_PROOF.md, F2)`);
+// Phase 14 A: both accounts present and different (names only), then the network guard; the network line is the first
+// output, before any adapter, gateway or connection. Mainnet needs BUIRY_ALLOW_MAINNET=1.
+const accountProblems = twoAccountProblems(env);
+if (accountProblems.length) {
+  console.error(`[byo-isolation] refused: ${accountProblems.join('; ')} (see docs/LIVE_PROOF.md, F2)`);
   process.exit(64);
 }
-if (env.BYO_A_ACCOUNT_ID === env.BYO_B_ACCOUNT_ID) {
-  console.error('refusing: the two accounts must be different accounts');
-  process.exit(64);
-}
-// Phase 12: named, consistent network settings (both accounts' relayer hosts included), then testnet only, as before.
-requireLiveTestnet(env, 'byo-isolation');
+const network = requireLiveNetwork(env, 'byo-isolation', ['BYO_A_RELAYER_URL', 'BYO_B_RELAYER_URL']);
 // Optional: the gateway builder's own "configured" check, as byo-live.ts uses. Without it recall is served from
 // Buiry's index (no Seal session, A23); nothing else in this check needs the chain.
 const gateway = createGatewayIfConfigured(env);
@@ -56,7 +60,7 @@ const registry = new StorageRegistry({
   tenancy: { multi: false },
 });
 const s = await createStack({ storage: registry, ...(gateway ? { gateway: gateway as never } : {}) });
-s.deps.networks = { sui: 'testnet' };
+s.deps.networks = { sui: network };
 const run = randomBytes(3).toString('hex');
 const step = (msg: string) => console.log(`[byo-isolation] ${msg}`);
 const probe = async (cfg: { relayerUrl: string; accountId: string; delegateKey: string }) => {
@@ -66,14 +70,42 @@ const probe = async (cfg: { relayerUrl: string; accountId: string; delegateKey: 
     signer: new Ed25519Signer(cfg.delegateKey),
   });
   const conf = await a.relayerConfig();
-  if (conf.network !== 'testnet') throw new Error(`relayer serves ${conf.network}, not testnet`);
+  const wrong = relayerNetworkProblem(conf.network, network);
+  if (wrong) throw new Error(wrong);
   await a.list({ limit: 1 });
   return conf;
 };
 
+/**
+ * Phase 14 A, before any write: each account's relayer serves the checked network, and the two accounts have different
+ * owner wallets (read-only `/config` and `POST /api/stats`). Exits 64 on a mismatch.
+ */
+async function accountsPreflight() {
+  const owners: string[] = [];
+  for (const side of ['A', 'B'] as const) {
+    const a = new HttpWalrusAdapter({
+      baseUrl: env[`BYO_${side}_RELAYER_URL`]!,
+      accountId: env[`BYO_${side}_ACCOUNT_ID`]!,
+      signer: new Ed25519Signer(env[`BYO_${side}_DELEGATE_KEY`]!),
+    });
+    const wrong = relayerNetworkProblem((await a.relayerConfig()).network, network);
+    if (wrong) {
+      console.error(`[byo-isolation] refused: account ${side}: ${wrong}; no write made`);
+      process.exit(64);
+    }
+    owners.push(await a.ownerAddress());
+  }
+  const same = sameWalletProblem(owners[0]!, owners[1]!);
+  if (same) {
+    console.error(`[byo-isolation] refused: ${same}; no write made`);
+    process.exit(64);
+  }
+  step(`accounts A and B: relayers serve ${network}; different owner wallets`);
+}
+
 async function tester(side: 'A' | 'B') {
   const ws = await s.newWorkspace(`byo-isolation-${side}-${run}`);
-  const prj = await s.newProject(ws.id, `iso-${side}-${run}`, { networks: ['sui:testnet'] });
+  const prj = await s.newProject(ws.id, `iso-${side}-${run}`, { networks: [`sui:${network}`] });
   const admin: UserPrincipal = {
     kind: 'user',
     workspaceId: ws.id,
@@ -84,7 +116,7 @@ async function tester(side: 'A' | 'B') {
   };
   const cfg = {
     relayerUrl: env[`BYO_${side}_RELAYER_URL`]!,
-    network: 'testnet' as const,
+    network,
     accountId: env[`BYO_${side}_ACCOUNT_ID`]!,
     delegateKey: env[`BYO_${side}_DELEGATE_KEY`]!,
   };
@@ -131,6 +163,7 @@ const utc = () => new Date().toISOString().slice(0, 19) + 'Z';
 
 try {
   step(`commit ${commit}`);
+  await accountsPreflight();
   const tA = await tester('A');
   const tB = await tester('B');
   const A = tA.side;
@@ -210,7 +243,7 @@ try {
     mkdirSync('.buiry-local/proof', { recursive: true });
     writeFileSync(
       `.buiry-local/proof/byo-isolation-${run}.json`,
-      JSON.stringify({ run, commit, outcome: 'skipped_degraded', writes }, null, 2),
+      JSON.stringify({ run, commit, network, outcome: 'skipped_degraded', writes }, null, 2),
     );
     process.exitCode = 3;
   } else {
@@ -276,7 +309,7 @@ try {
     mkdirSync('.buiry-local/proof', { recursive: true });
     writeFileSync(
       `.buiry-local/proof/byo-isolation-${run}.json`,
-      JSON.stringify({ run, commit, pass, recallPath, writes, obs, controls, criteria }, null, 2),
+      JSON.stringify({ run, commit, network, pass, recallPath, writes, obs, controls, criteria }, null, 2),
     );
     step(pass ? 'PASS' : 'FAIL');
     process.exitCode = pass ? 0 : 1;

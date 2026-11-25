@@ -1,13 +1,15 @@
 /**
- * Live check of bring-your-own storage on testnet (LOCAL_CHECKS L-BYO1). Two projects in one workspace: one on the
- * managed account from the profile, one connected to a second Walrus Memory account. One memory each is written and
+ * Live check of bring-your-own storage (LOCAL_CHECKS L-BYO1). Two projects in one workspace: one on the managed
+ * account, one connected to its own Walrus Memory account. Runs on testnet, or on mainnet with BUIRY_ALLOW_MAINNET=1 and
+ * the mainnet profile (Phase 14); each live run needs the owner's go. One memory each is written and
  * drained; the check passes when each blob is listed only in its own account and recall finds it there.
  *
  *   pnpm tsx scripts/with-env.ts testnet -- pnpm tsx scripts/byo-live.ts
+ *   BUIRY_ALLOW_MAINNET=1 pnpm tsx scripts/with-env.ts mainnet -- pnpm tsx scripts/byo-live.ts
  *
- * Needs, in .env.testnet, besides the usual WALRUS_* and TATUM_* names:
- *   WALRUS_BYO_TEST_RELAYER_URL, WALRUS_BYO_TEST_ACCOUNT_ID, WALRUS_BYO_TEST_DELEGATE_KEY
- * Refuses anything but testnet. Writes two small memories. Prints ids and outcomes only, never a key.
+ * Accounts (Phase 14 A): the own account is BYO_A_*, the managed role is played by BYO_B_*; both need RELAYER_URL,
+ * ACCOUNT_ID and DELEGATE_KEY, plus the chain gateway (TATUM_*) for the Seal session. Refuses a missing name, the same
+ * account, key or owner wallet twice, and a relayer whose /config names another network. Writes two small memories. Prints ids and outcomes only, never a key.
  */
 import { randomBytes } from 'node:crypto';
 import { createGatewayIfConfigured } from '../packages/chain/src/index.js';
@@ -20,39 +22,57 @@ import {
   type UserPrincipal,
 } from '../packages/api/src/index.js';
 import { Ed25519Signer, HttpWalrusAdapter, type WalrusMemoryAdapter } from '../packages/storage/src/index.js';
-import { requireLiveTestnet } from './lib/live-guard.js';
+import {
+  relayerNetworkProblem,
+  requireLiveNetwork,
+  sameWalletProblem,
+  twoAccountProblems,
+} from './lib/live-guard.js';
 
 const env = process.env as Record<string, string | undefined>;
-const need = [
-  'WALRUS_RELAYER_URL',
-  'WALRUS_ACCOUNT_ID',
-  'WALRUS_DELEGATE_KEY',
-  'WALRUS_BYO_TEST_RELAYER_URL',
-  'WALRUS_BYO_TEST_ACCOUNT_ID',
-  'WALRUS_BYO_TEST_DELEGATE_KEY',
-];
-const missing = need.filter((k) => !env[k]);
-if (missing.length) {
-  console.error(`missing: ${missing.join(', ')} (names only; see LOCAL_CHECKS.md L-BYO1)`);
+// Phase 14 A: both accounts present and different (names only), then the network guard; the network line is the first
+// output, before any adapter, gateway or connection. Mainnet needs BUIRY_ALLOW_MAINNET=1.
+const accountProblems = twoAccountProblems(env);
+if (accountProblems.length) {
+  console.error(`[byo-live] refused: ${accountProblems.join('; ')} (see LOCAL_CHECKS.md L-BYO1)`);
   process.exit(64);
 }
-// Phase 12: named, consistent network settings (both relayer hosts included), then testnet only, as before.
-requireLiveTestnet(env, 'byo-live');
-if (env.WALRUS_BYO_TEST_ACCOUNT_ID === env.WALRUS_ACCOUNT_ID) {
-  console.error('refusing: the BYO test account must be a different account from the managed one');
-  process.exit(64);
-}
+const network = requireLiveNetwork(env, 'byo-live', ['BYO_A_RELAYER_URL', 'BYO_B_RELAYER_URL']);
 
 const gateway = createGatewayIfConfigured(env);
 if (!gateway) {
   console.error('the Tatum gateway is not configured (recall needs it for the Seal session)');
   process.exit(64);
 }
+// Phase 14 A, before any write: each relayer serves the checked network, and the two owner wallets differ
+// (read-only `/config` and `POST /api/stats`).
+{
+  const owners: string[] = [];
+  for (const side of ['A', 'B'] as const) {
+    const a = new HttpWalrusAdapter({
+      baseUrl: env[`BYO_${side}_RELAYER_URL`]!,
+      accountId: env[`BYO_${side}_ACCOUNT_ID`]!,
+      signer: new Ed25519Signer(env[`BYO_${side}_DELEGATE_KEY`]!),
+    });
+    const wrong = relayerNetworkProblem((await a.relayerConfig()).network, network);
+    if (wrong) {
+      console.error(`[byo-live] refused: account ${side}: ${wrong}; no write made`);
+      process.exit(64);
+    }
+    owners.push(await a.ownerAddress());
+  }
+  const same = sameWalletProblem(owners[0]!, owners[1]!);
+  if (same) {
+    console.error(`[byo-live] refused: ${same}; no write made`);
+    process.exit(64);
+  }
+}
+// The managed role is played by account B; the project's own account is A.
 const managed = buildWalrusAdapter(
   {
-    relayerUrl: env.WALRUS_RELAYER_URL!,
-    accountId: env.WALRUS_ACCOUNT_ID!,
-    delegateKey: env.WALRUS_DELEGATE_KEY!,
+    relayerUrl: env.BYO_B_RELAYER_URL!,
+    accountId: env.BYO_B_ACCOUNT_ID!,
+    delegateKey: env.BYO_B_DELEGATE_KEY!,
   },
   gateway,
 );
@@ -62,11 +82,11 @@ const registry = new StorageRegistry({
   tenancy: { multi: false },
 });
 const s = await createStack({ adapter: managed, storage: registry, gateway: gateway as never });
-s.deps.networks = { sui: 'testnet' };
+s.deps.networks = { sui: network };
 const run = randomBytes(3).toString('hex');
 const ws = await s.newWorkspace(`byo-live-${run}`);
-const own = await s.newProject(ws.id, `byo-own-${run}`, { networks: ['sui:testnet'] });
-const shared = await s.newProject(ws.id, `byo-managed-${run}`, { networks: ['sui:testnet'] });
+const own = await s.newProject(ws.id, `byo-own-${run}`, { networks: [`sui:${network}`] });
+const shared = await s.newProject(ws.id, `byo-managed-${run}`, { networks: [`sui:${network}`] });
 const admin: UserPrincipal = {
   kind: 'user',
   workspaceId: ws.id,
@@ -86,10 +106,10 @@ try {
       admin,
       own.id,
       {
-        relayerUrl: env.WALRUS_BYO_TEST_RELAYER_URL!,
-        network: 'testnet',
-        accountId: env.WALRUS_BYO_TEST_ACCOUNT_ID!,
-        delegateKey: env.WALRUS_BYO_TEST_DELEGATE_KEY!,
+        relayerUrl: env.BYO_A_RELAYER_URL!,
+        network,
+        accountId: env.BYO_A_ACCOUNT_ID!,
+        delegateKey: env.BYO_A_DELEGATE_KEY!,
       },
       {
         probe: async (cfg) => {
@@ -99,6 +119,8 @@ try {
             signer: new Ed25519Signer(cfg.delegateKey),
           });
           const conf = await a.relayerConfig();
+          const wrong = relayerNetworkProblem(conf.network, network);
+          if (wrong) throw new Error(wrong);
           await a.list({ limit: 1 });
           return conf;
         },

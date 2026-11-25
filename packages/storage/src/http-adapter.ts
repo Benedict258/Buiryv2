@@ -371,8 +371,11 @@ export class HttpWalrusAdapter implements WalrusMemoryAdapter {
     };
   }
 
-  /** The Memory Read API is keyed by owner address, which the relayer reports from `POST /api/stats`. */
-  private async ownerAddress(): Promise<string> {
+  /**
+   * The account's owner (wallet) address, as the relayer reports it from the read-only `POST /api/stats`. The Memory
+   * Read API is keyed by it; live scripts also compare it across two accounts (Phase 14 A). Never writes.
+   */
+  async ownerAddress(): Promise<string> {
     if (this.owner) return this.owner;
     const { json: j } = await this.withReadRetry(() =>
       this.call('POST', this.paths.stats, { namespace: 'default' }),
