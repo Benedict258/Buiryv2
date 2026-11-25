@@ -16,11 +16,14 @@ export interface WalrusAccountConfig {
 export function buildWalrusAdapter(
   cfg: WalrusAccountConfig,
   gateway?: Pick<GatewayLike, 'getObject'>,
+  /** Phase 14 B: a caller may turn the default single read retry off (`readRetries: 0`). */
+  opts?: { readRetries?: number },
 ): HttpWalrusAdapter {
   const http = new HttpWalrusAdapter({
     baseUrl: cfg.relayerUrl,
     accountId: cfg.accountId,
     signer: new Ed25519Signer(cfg.delegateKey),
+    ...(opts?.readRetries !== undefined ? { readRetries: opts.readRetries } : {}),
   });
   if (gateway) {
     http.useSealSession(
