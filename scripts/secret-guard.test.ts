@@ -1,9 +1,13 @@
 import { execFileSync } from 'node:child_process';
+import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
 import {
   addedLinesByFile,
   findLeaks,
+  findLeaksPerEnvFile,
   isLocalEnvFile,
   isSecretName,
   secretNeedles,
@@ -101,6 +105,87 @@ describe('.env.mainnet', () => {
       ['.env.mainnet', 'sub/.env.mainnet', '.env'],
     );
   });
+
+  // Phase 13 A: each env file is compared on its own. Merging them by name let .env.testnet's value hide
+  // .env.mainnet's value for every shared name (BYO_A_*, WALRUS_*, TATUM_API_KEY), so mainnet secrets went unchecked.
+  const testnetEnv = {
+    BYO_A_DELEGATE_KEY: 'made-up-testnet-delegate-key-111111',
+    TATUM_NETWORK: 'testnet',
+  };
+  const mainnetEnv = {
+    BYO_A_DELEGATE_KEY: 'made-up-mainnet-delegate-key-222222',
+    TATUM_API_KEY: 'made-up-mainnet-only-tatum-key-333333',
+    TATUM_NETWORK: 'mainnet',
+  };
+  const leakText = [
+    'testnet key made-up-testnet-delegate-key-111111',
+    'mainnet key made-up-mainnet-delegate-key-222222',
+    'mainnet-only made-up-mainnet-only-tatum-key-333333',
+  ].join('\n');
+
+  it('catches both values when the same name differs between .env.testnet and .env.mainnet', () => {
+    const leaks = findLeaksPerEnvFile(
+      [
+        { file: '.env.testnet', env: testnetEnv },
+        { file: '.env.mainnet', env: mainnetEnv },
+      ],
+      [{ source: 'report.md', text: leakText }],
+    );
+    expect(leaks).toEqual([
+      { name: 'BYO_A_DELEGATE_KEY', envFile: '.env.testnet', source: 'report.md' },
+      { name: 'BYO_A_DELEGATE_KEY', envFile: '.env.mainnet', source: 'report.md' },
+      { name: 'TATUM_API_KEY', envFile: '.env.mainnet', source: 'report.md' },
+    ]);
+  });
+
+  it('the guard command catches a shared-name mainnet value and a mainnet-only value, whatever the file order', () => {
+    const dir = mkdtempSync(join(tmpdir(), 'buiry-guard-'));
+    try {
+      const write = (name: string, env: Record<string, string>) =>
+        writeFileSync(
+          join(dir, name),
+          Object.entries(env)
+            .map(([k, v]) => `${k}=${v}`)
+            .join('\n'),
+        );
+      write('.env.testnet', testnetEnv);
+      write('.env.mainnet', mainnetEnv);
+      // Only the mainnet values leak; the testnet file is listed last, as the merge used to let it win.
+      writeFileSync(
+        join(dir, 'report.md'),
+        'mainnet key made-up-mainnet-delegate-key-222222 and made-up-mainnet-only-tatum-key-333333',
+      );
+      const root = fileURLToPath(new URL('..', import.meta.url));
+      const run = () =>
+        execFileSync(
+          process.execPath,
+          [
+            join(root, 'node_modules/tsx/dist/cli.mjs'),
+            join(root, 'scripts/secret-guard.ts'),
+            '--env',
+            join(dir, '.env.mainnet'),
+            '--env',
+            join(dir, '.env.testnet'),
+            join(dir, 'report.md'),
+          ],
+          { encoding: 'utf8', stdio: 'pipe' },
+        );
+      let stderr = '';
+      let code = 0;
+      try {
+        run();
+      } catch (e) {
+        code = (e as { status: number }).status;
+        stderr = String((e as { stderr: unknown }).stderr);
+      }
+      expect(code).toBe(1);
+      expect(stderr).toContain('BYO_A_DELEGATE_KEY');
+      expect(stderr).toContain('TATUM_API_KEY');
+      expect(stderr).not.toContain('made-up-mainnet');
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  }, 60_000);
 
   it('is git-ignored by its own rule', () => {
     const root = fileURLToPath(new URL('..', import.meta.url));

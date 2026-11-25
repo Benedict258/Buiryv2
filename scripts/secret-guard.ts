@@ -14,10 +14,10 @@
  */
 import { execFileSync } from 'node:child_process';
 import { existsSync, readdirSync, readFileSync, statSync } from 'node:fs';
-import { join, relative, resolve } from 'node:path';
+import { basename, join, relative, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { parseEnvText } from './lib/env-profile.js';
-import { addedLinesByFile, findLeaks, isLocalEnvFile, stagedEnvFiles } from './lib/secret-guard.js';
+import { addedLinesByFile, findLeaksPerEnvFile, isLocalEnvFile, stagedEnvFiles } from './lib/secret-guard.js';
 
 const root = fileURLToPath(new URL('..', import.meta.url));
 const args = process.argv.slice(2);
@@ -55,8 +55,9 @@ if (!files.length) {
   console.log('[secret-guard] no local env file to compare against; nothing to check');
   process.exit(0);
 }
-const env: Record<string, string> = {};
-for (const f of files) Object.assign(env, parseEnvText(readFileSync(f, 'utf8')));
+// Phase 13 A: one entry per env file, never merged by name, so a shared name cannot hide either file's value.
+const envs = files.map((f) => ({ file: basename(f), env: parseEnvText(readFileSync(f, 'utf8')) }));
+const variableCount = envs.reduce((n, e) => n + Object.keys(e.env).length, 0);
 
 const sources: { source: string; text: string }[] = [];
 if (staged)
@@ -87,9 +88,10 @@ if (!staged && !msgFile)
     walk(resolve(root, p));
 else for (const p of paths) walk(resolve(root, p));
 
-const leaks = findLeaks(env, sources);
-for (const l of leaks) console.error(`[secret-guard] the value of ${l.name} appears in ${l.source}`);
+const leaks = findLeaksPerEnvFile(envs, sources);
+for (const l of leaks)
+  console.error(`[secret-guard] the value of ${l.name} (from ${l.envFile}) appears in ${l.source}`);
 console.log(
-  `[secret-guard] ${leaks.length ? 'LEAK' : 'clean'}: compared ${Object.keys(env).length} variables from ${files.length} env file(s) with ${sources.length} source(s)`,
+  `[secret-guard] ${leaks.length ? 'LEAK' : 'clean'}: compared ${variableCount} variables from ${files.length} env file(s), each on its own, with ${sources.length} source(s)`,
 );
 process.exit(leaks.length ? 1 : 0);

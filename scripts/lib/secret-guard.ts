@@ -64,6 +64,18 @@ export function findLeaks(env: Record<string, string>, sources: { source: string
   return leaks;
 }
 
+/**
+ * Every (variable, env file, source) where that file's value of the variable occurs in the source. Each env file is
+ * compared on its own, never merged by name: a merge let one file's value hide another's for every shared name
+ * (Phase 13 A). Names, file names and sources only.
+ */
+export function findLeaksPerEnvFile(
+  envs: { file: string; env: Record<string, string> }[],
+  sources: { source: string; text: string }[],
+): (Leak & { envFile: string })[] {
+  return envs.flatMap(({ file, env }) => findLeaks(env, sources).map((l) => ({ ...l, envFile: file })));
+}
+
 /** Added lines of a unified diff, grouped by file, as sources. Removed lines are not a leak. */
 export function addedLinesByFile(diff: string): { source: string; text: string }[] {
   const out = new Map<string, string[]>();
