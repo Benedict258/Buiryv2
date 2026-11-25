@@ -51,3 +51,56 @@ export function canaryPreflight(
   const host = new URL(env.BYO_A_RELAYER_URL!).hostname;
   return { ok: true, network: net.network, firstLine: `network ${net.network} (relayer ${host})` };
 }
+
+/** What the canary keeps from one recall: counts, field names and raw distances per result, the hit. Never text. */
+export interface CanaryRecallRecord {
+  results: number;
+  degraded: boolean;
+  found: boolean;
+  /** The canary memory's raw relayer distance; null when not found or not returned. */
+  hitDistance: number | null;
+  /** The relayer's score for the hit; null unless the relayer sent one (only with scoring_weights, which Buiry omits). */
+  hitScore: number | null;
+  perResult: { fields: string[]; distance: number | null }[];
+}
+
+/** Phase 13 C: builds the recall record from an adapter recall. Field names and numbers only, never memory text. */
+export function canaryRecallRecord(
+  r: {
+    results: { text: string; fields?: string[]; distance?: number; score?: number }[];
+    degraded?: boolean;
+  },
+  text: string,
+): CanaryRecallRecord {
+  const hit = r.results.find((x) => x.text === text);
+  return {
+    results: r.results.length,
+    degraded: !!r.degraded,
+    found: !!hit,
+    hitDistance: typeof hit?.distance === 'number' ? hit.distance : null,
+    hitScore: typeof hit?.score === 'number' ? hit.score : null,
+    perResult: r.results.map((x) => ({
+      fields: [...(x.fields ?? [])],
+      distance: typeof x.distance === 'number' ? x.distance : null,
+    })),
+  };
+}
+
+/**
+ * Phase 13 pass criteria: the write job completes with a blob id, a recall returns that memory, and its raw distance
+ * is recorded. A relayer score is not required: the relayer returns one only when scoring_weights is sent, and Buiry
+ * does not send it (A30).
+ */
+export function canaryPass(o: {
+  final: string;
+  blobId?: string;
+  recall?: Pick<CanaryRecallRecord, 'found' | 'hitDistance'>;
+}): boolean {
+  return (
+    o.final === 'done' &&
+    typeof o.blobId === 'string' &&
+    o.blobId.length > 0 &&
+    o.recall?.found === true &&
+    typeof o.recall.hitDistance === 'number'
+  );
+}

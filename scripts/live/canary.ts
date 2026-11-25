@@ -12,16 +12,24 @@
  *   written before the write so a crash still counts).
  * - Refuses while the relayer's /health does not report writes ok. Necessary, not sufficient: on 2026-11-23 health said
  *   ok for hours while every write failed, which is why this canary exists.
- * - Prints and saves job id, UTC times, each status with elapsed seconds, the final state, and for the recall: results
- *   returned, whether the canary was found, its distance and score (A30). Never a key, token or memory text.
- * Exit 0 only when the canary was stored and a recall returned it.
+ * - Prints and saves job id, UTC times, each status with elapsed seconds, the final state, the blob id from the finished
+ *   job, and for the recall: results returned, whether the canary was found, its raw distance (and a score only if the
+ *   relayer sent one), and each result's field names and raw distance (Phase 13 C). Never a key, token or memory text.
+ * Exit 0 only on PASS: the job completed with a blob id, a recall returned the canary, and its raw distance was
+ * recorded. No relayer score is required: the relayer sends one only with scoring_weights, which Buiry omits (A30).
  */
 import { execFileSync } from 'node:child_process';
 import { randomBytes } from 'node:crypto';
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { createGatewayIfConfigured, isGatewayConfigured } from '../../packages/chain/src/index.js';
 import { buildWalrusAdapter } from '../../packages/api/src/index.js';
-import { canaryAllowed, canaryPreflight } from './canary-lib.js';
+import {
+  canaryAllowed,
+  canaryPass,
+  canaryPreflight,
+  canaryRecallRecord,
+  type CanaryRecallRecord,
+} from './canary-lib.js';
 import { healthAllowsWrite } from './etiquette.js';
 
 const env = process.env as Record<string, string | undefined>;
@@ -102,6 +110,11 @@ try {
     }
     if (st.state === 'done' || st.state === 'failed') {
       final = st.state;
+      // Phase 13 C: the blob id from the finished job is part of the record and of the pass criteria.
+      if (st.state === 'done') {
+        result.blobId = st.blobId;
+        say(`${utc()} blob id ${st.blobId}`);
+      }
       if (st.state === 'failed')
         result.reason = /capacity/i.test(st.error) ? 'capacity limit reported by the relayer' : 'job failed';
       break;
@@ -124,21 +137,25 @@ try {
         say(`${utc()} recall ${i + 1}: failed (${r.error})`);
         continue;
       }
-      const hit = r.results.find((x) => x.text === text);
-      found = !!hit;
-      result.recall = {
-        attempt: i + 1,
-        results: r.results.length,
-        degraded: !!r.degraded,
-        found,
-        ...(hit ? { distance: hit.distance ?? null, score: hit.score ?? null } : {}),
-      };
+      // Phase 13 C: field names and raw distances per result, the hit's distance and score; never memory text.
+      const rec = canaryRecallRecord(r, text);
+      found = rec.found;
+      result.recall = { attempt: i + 1, ...rec };
       say(`${utc()} recall ${i + 1}: ${JSON.stringify(result.recall)}`);
     }
     result.recallFound = found;
   }
-  result.pass = final === 'done' && result.recallFound === true;
-  say(result.pass ? 'PASS: stored and recalled' : 'FAIL');
+  // Phase 13: PASS = job done with a blob id, the memory recalled, and its raw distance recorded. No score required.
+  result.pass = canaryPass({
+    final,
+    blobId: result.blobId as string | undefined,
+    recall: result.recall as CanaryRecallRecord | undefined,
+  });
+  say(
+    result.pass
+      ? 'PASS: job done with a blob id; recalled, raw distance recorded'
+      : `FAIL: ${final !== 'done' ? `job ${final}` : !result.blobId ? 'no blob id' : !result.recallFound ? 'not recalled' : 'no distance recorded'}`,
+  );
   process.exitCode = result.pass ? 0 : 1;
 } catch (e) {
   result.error = (e as { describe?: () => unknown }).describe?.() ?? { error: (e as Error).name };
