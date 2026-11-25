@@ -142,6 +142,10 @@ describe.each(targets)('WalrusMemoryAdapter contract: $name', (t) => {
     expect(r.degraded).toBeUndefined();
     expect(r.results.map((x) => x.blobId)).toContain(blobId);
     expect(r.results.find((x) => x.blobId === blobId)?.text).toBe(text);
+    // Phase 13 C: the returned field names are recorded (names only); the documented ones are always there.
+    expect(r.results.find((x) => x.blobId === blobId)?.fields).toEqual(
+      expect.arrayContaining(['blob_id', 'distance', 'text']),
+    );
     // Live, `end_epoch` and `expires_at` are null for a few minutes after the write (L-W2), so poll for them.
     const real = t.name.startsWith('REAL');
     let item: Awaited<ReturnType<typeof ctx.adapter.list>>['items'][number] | undefined;
@@ -449,7 +453,22 @@ describe('MockRelayer behaviours the adapter must handle', () => {
         text: 't',
         distance: 0.25,
         createdAt: Date.parse('2026-10-28T10:00:00Z'),
+        fields: ['blob_id', 'created_at', 'distance', 'text'],
       });
+    });
+
+    it('records every field name a recall result carries, names only, including ones Buiry does not read (Phase 13 C)', async () => {
+      const extra = (async () =>
+        new Response(
+          JSON.stringify({
+            results: [{ text: 't', blob_id: 'b1', distance: 0.4, importance: 0.7, future_field: 'x' }],
+            total: 1,
+          }),
+        )) as unknown as typeof fetch;
+      const r = await make(extra).recall({ namespace: 'ns', query: 'q' });
+      expect(r.results[0]?.fields).toEqual(['blob_id', 'distance', 'future_field', 'importance', 'text']);
+      expect(r.results[0]?.distance).toBe(0.4);
+      expect(r.results[0]?.score).toBeUndefined();
     });
 
     it('reports a degraded recall (HTTP 200, candidates dropped) instead of an empty match', async () => {

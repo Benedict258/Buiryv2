@@ -326,6 +326,8 @@ export class HttpWalrusAdapter implements WalrusMemoryAdapter {
           ...(typeof r.distance === 'number' ? { distance: r.distance } : {}),
           ...(created !== undefined ? { createdAt: created } : {}),
           ...(typeof r.agent_id === 'string' ? { agentId: r.agent_id } : {}),
+          // Phase 13 C: names only, for the record; not used for ranking or the cutoff.
+          fields: Object.keys(r).sort(),
         };
       }),
     };

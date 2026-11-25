@@ -81,6 +81,11 @@ export interface RecalledMemory {
   distance?: number;
   createdAt?: number;
   agentId?: string;
+  /**
+   * Every field name the relayer returned for this result, sorted; names only, never values. Recorded so live runs
+   * show what the relayer really sends (Phase 13 C). Not used for ranking or the relevance cutoff.
+   */
+  fields?: string[];
 }
 
 /**
