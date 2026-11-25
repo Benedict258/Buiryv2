@@ -30,6 +30,8 @@ import {
   canaryRecallRecord,
   type CanaryRecallRecord,
 } from './canary-lib.js';
+import { ScriptRefusal, errorText } from '../lib/errors.js';
+import { relayerNetworkProblem } from '../lib/live-guard.js';
 import { healthAllowsWrite } from './etiquette.js';
 
 const env = process.env as Record<string, string | undefined>;
@@ -78,7 +80,9 @@ const run = randomBytes(3).toString('hex');
 const result: Record<string, unknown> = { run, commit, account: 'A', network: pre.network };
 try {
   const conf = await adapter.relayerConfig();
-  if (conf.network !== pre.network) throw new Error(`the relayer serves ${conf.network}, not ${pre.network}`);
+  // Fails closed: any other network, or none, stops the canary before the write (Phase 14b: via relayerNetworkProblem).
+  const wrongNetwork = relayerNetworkProblem(conf.network, pre.network);
+  if (wrongNetwork) throw new ScriptRefusal(wrongNetwork);
   const h = await adapter.health().catch(() => ({ reachable: false, writeState: 'paused' as const }));
   result.healthBefore = h.reachable ? h.writeState : 'unreachable';
   say(`${utc()} commit ${commit}; relayer health before: ${result.healthBefore as string}`);
@@ -101,7 +105,9 @@ try {
     'no terminal state within 15 minutes';
   let lastState = '';
   while (Date.now() - t0 < 15 * 60_000) {
-    const st = await adapter.getJob(jobId).catch((e: Error) => ({ state: `poll error ${e.name}` }) as const);
+    const st = await adapter
+      .getJob(jobId)
+      .catch((e: unknown) => ({ state: `poll error ${errorText(e)}` }) as const);
     if (st.state !== lastState) {
       const row = { status: st.state, elapsedSec: Math.round((Date.now() - t0) / 1000), at: utc() };
       statuses.push(row);
@@ -132,7 +138,7 @@ try {
       if (i) await new Promise((r) => setTimeout(r, 30_000));
       const r = await adapter
         .recall({ namespace, query: text, limit: 5 })
-        .catch((e: Error) => ({ error: e.name }));
+        .catch((e: unknown) => ({ error: errorText(e) }));
       if ('error' in r) {
         say(`${utc()} recall ${i + 1}: failed (${r.error})`);
         continue;
@@ -158,8 +164,9 @@ try {
   );
   process.exitCode = result.pass ? 0 : 1;
 } catch (e) {
-  result.error = (e as { describe?: () => unknown }).describe?.() ?? { error: (e as Error).name };
-  say(`failed: ${JSON.stringify(result.error)}`);
+  // Phase 14b: class, kind, HTTP status and network cause code only; never the message, a URL or a value.
+  result.error = errorText(e);
+  say(`failed: ${errorText(e)}`);
   process.exitCode = 1;
 } finally {
   writeFileSync(`${DIR}/canary-${run}.json`, JSON.stringify(result, null, 2));

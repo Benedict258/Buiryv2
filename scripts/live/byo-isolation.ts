@@ -41,6 +41,7 @@ import {
   sameWalletProblem,
   twoAccountProblems,
 } from '../lib/live-guard.js';
+import { ScriptRefusal, errorText } from '../lib/errors.js';
 
 const env = process.env as Record<string, string | undefined>;
 // Phase 14 A: both accounts present and different (names only), then the network guard; the network line is the first
@@ -71,7 +72,7 @@ const probe = async (cfg: { relayerUrl: string; accountId: string; delegateKey: 
   });
   const conf = await a.relayerConfig();
   const wrong = relayerNetworkProblem(conf.network, network);
-  if (wrong) throw new Error(wrong);
+  if (wrong) throw new ScriptRefusal(wrong);
   await a.list({ limit: 1 });
   return conf;
 };
@@ -315,7 +316,8 @@ try {
     process.exitCode = pass ? 0 : 1;
   }
 } catch (e) {
-  step(`failed: ${(e as Error).message}`);
+  // Phase 14b: class, kind, HTTP status and network cause code only; a script refusal as written.
+  step(`failed: ${errorText(e)}`);
   process.exitCode = 1;
 } finally {
   gateway?.close();

@@ -5,6 +5,7 @@
  * The adapter type allows `recall` only, so nothing here can write.
  */
 import type { RecallRequest, RecallResponse } from '../../packages/storage/src/index.js';
+import { errorText } from '../lib/errors.js';
 
 export const CALIBRATION_CATEGORIES = [
   'exact',
@@ -110,10 +111,9 @@ export async function runCalibration(
         distances: r.results.map((x) => (typeof x.distance === 'number' ? x.distance : null)),
       });
     } catch (e) {
-      const err = e as { name?: string; kind?: string };
       return {
         rows,
-        stoppedOnError: { queryId: q.id, error: [err.name ?? 'Error', err.kind].filter(Boolean).join(' ') },
+        stoppedOnError: { queryId: q.id, error: errorText(e) },
       };
     }
   }

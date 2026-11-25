@@ -84,7 +84,8 @@ describe('canary script shape (Phase 12 C)', () => {
     for (const later of ['canaryAllowed(', 'buildWalrusAdapter(', 'createGatewayIfConfigured(', 'say('])
       expect(src.indexOf(later), later).toBeGreaterThan(first);
     expect(src).toMatch(/say\(`\$\{utc\(\)\} \$\{pre\.firstLine\}/);
-    expect(src).toMatch(/conf\.network !== pre\.network/);
+    // Phase 14b: the same fail-closed comparison, through relayerNetworkProblem.
+    expect(src).toMatch(/relayerNetworkProblem\(conf\.network, pre\.network\)/);
   });
 });
 

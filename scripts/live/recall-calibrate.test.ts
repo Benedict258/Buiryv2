@@ -103,7 +103,10 @@ describe('runCalibration', () => {
     const out = await runCalibration(a, { namespace: 'ns', queries: qs, sleep: noSleep });
     expect(a.recall).toHaveBeenCalledTimes(3);
     expect(out.rows).toHaveLength(2);
-    expect(out.stoppedOnError).toEqual({ queryId: qs[2]!.id, error: 'RelayerError timeout' });
+    expect(out.stoppedOnError).toEqual({
+      queryId: qs[2]!.id,
+      error: 'RelayerError class=timeout kind=timeout',
+    });
   });
 
   it('saves only category, query id, result count and raw distances: never query or memory text', async () => {

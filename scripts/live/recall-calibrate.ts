@@ -22,6 +22,7 @@ import { buildWalrusAdapter } from '../../packages/api/src/index.js';
 import { canaryPreflight } from './canary-lib.js';
 import { calibrationQueries, runCalibration } from './calibrate-lib.js';
 import { relayerNetworkProblem } from '../lib/live-guard.js';
+import { errorText } from '../lib/errors.js';
 
 const DIR = '.buiry-local/proof';
 const env = process.env as Record<string, string | undefined>;
@@ -113,6 +114,7 @@ try {
   );
   process.exitCode = out.stoppedOnError ? 1 : 0;
 } catch (e) {
-  console.error(`[calibrate] failed: ${(e as Error).name}`);
+  // Phase 14b: class, kind, HTTP status and network cause code only.
+  console.error(`[calibrate] failed: ${errorText(e)}`);
   process.exitCode = 1;
 }

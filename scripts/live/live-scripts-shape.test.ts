@@ -81,3 +81,40 @@ describe('handoff-proof', () => {
     expect(body).not.toMatch(/\.remember\(/);
   });
 });
+
+// Phase 14b B: every live script prints errors through errorText (class, kind, status, cause), never an error message,
+// and its own refusals as ScriptRefusal.
+describe.each([
+  ['canary', './canary.ts'],
+  ['recall-calibrate', './recall-calibrate.ts'],
+  ['byo-isolation', './byo-isolation.ts'],
+  ['byo-live', '../byo-live.ts'],
+  ['handoff-proof', './handoff-proof.ts'],
+])('%s error output', (_who, rel) => {
+  const body = code(read(rel));
+  it('never prints an error message, and its last-resort catch prints errorText', () => {
+    expect(body).not.toMatch(/\(e as Error\)\.(message|name)/);
+    expect(body).not.toMatch(/\be\.message|String\(e\)/);
+    expect(body).not.toMatch(/throw new Error\(/);
+    expect(body).toMatch(/\} catch \(e\) \{\s+[^\n]*errorText\(e\)/);
+  });
+});
+
+describe('canary /config check (Phase 14b)', () => {
+  const body = code(read('./canary.ts'));
+  it('still fails closed on another network, through relayerNetworkProblem', () => {
+    expect(body).toMatch(
+      /const wrongNetwork = relayerNetworkProblem\(conf\.network, pre\.network\);\s+if \(wrongNetwork\) throw new ScriptRefusal\(wrongNetwork\);/,
+    );
+    expect(body).toMatch(/errorText\(e\)/);
+  });
+});
+
+describe('handoff-proof server errors (Phase 14b)', () => {
+  const body = code(read('./handoff-proof.ts'));
+  it("prints the server's error code only when it is a plain code, with the HTTP status", () => {
+    expect(body).toContain("/^[a-z_]{1,40}$/.test(j.error.code) ? j.error.code : ''");
+    expect(body).toContain('HTTP ${res.status} ${code}');
+    expect(body).not.toContain('j.error?.code ??');
+  });
+});

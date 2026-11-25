@@ -89,12 +89,20 @@ export function sameWalletProblem(ownerA: string, ownerB: string): string | unde
     : undefined;
 }
 
-/** The relayer's `/config` network must be the one the settings named. */
+/**
+ * The relayer's `/config` network must be the one the settings named. The served value comes from the response, so it is
+ * printed only when it is a recognised network name (Phase 14b).
+ */
 export function relayerNetworkProblem(
   served: string | undefined,
   network: SuiNetworkName,
 ): string | undefined {
-  return served === network
-    ? undefined
-    : `the relayer serves ${served ?? 'an unknown network'}, not ${network}`;
+  if (served === network) return undefined;
+  const shown =
+    served === undefined
+      ? 'an unknown network'
+      : ['testnet', 'mainnet', 'devnet', 'localnet'].includes(served)
+        ? served
+        : 'an unrecognised network';
+  return `the relayer serves ${shown}, not ${network}`;
 }

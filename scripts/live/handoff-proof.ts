@@ -35,11 +35,12 @@ import {
 } from './proof-criteria.js';
 import { healthAllowsWrite } from './etiquette.js';
 import { relayerNetworkProblem, requireLiveNetwork } from '../lib/live-guard.js';
+import { ScriptRefusal, errorText } from '../lib/errors.js';
 
 /** Set by the network guard for the steps that reach a server, relayer or chain (Phase 14); never defaulted. */
 let checkedNetwork: 'testnet' | 'mainnet' | undefined;
 const liveNet = (): 'testnet' | 'mainnet' => {
-  if (!checkedNetwork) throw new Error('refusing: the network guard has not run for this step');
+  if (!checkedNetwork) throw new ScriptRefusal('refusing: the network guard has not run for this step');
   return checkedNetwork;
 };
 
@@ -71,7 +72,7 @@ interface Meta {
 /** Phase 14: a later step refuses settings that name another network than the run was prepared on. */
 function sameNetworkAsPrepared(meta: Meta) {
   const wrong = preparedNetworkProblem(meta.network, liveNet());
-  if (wrong) throw new Error(`refusing: ${wrong}`);
+  if (wrong) throw new ScriptRefusal(`refusing: ${wrong}`);
 }
 
 function need(...names: string[]) {
@@ -92,7 +93,10 @@ async function api<T>(method: string, path: string, body?: unknown): Promise<T> 
     ...(body !== undefined ? { body: JSON.stringify(body) } : {}),
   });
   const j = (await res.json().catch(() => ({}))) as { ok?: boolean; data?: T; error?: { code?: string } };
-  if (!res.ok) throw new Error(`${method} ${path.split('?')[0]}: HTTP ${res.status} ${j.error?.code ?? ''}`);
+  // The server's error code is printed only when it is a plain code (lower case and underscores).
+  const code = typeof j.error?.code === 'string' && /^[a-z_]{1,40}$/.test(j.error.code) ? j.error.code : '';
+  if (!res.ok)
+    throw new ScriptRefusal(`${method} ${path.split('?')[0]}: HTTP ${res.status} ${code}`.trimEnd());
   return j.data as T;
 }
 
@@ -110,12 +114,12 @@ async function relayerHealth(): Promise<{ reachable: boolean; writeState: 'ok' |
 
 async function prepare(r: string) {
   need(...LIVE_REQUIRED_ENV.prepare);
-  if (existsSync(dir(r))) throw new Error(`${dir(r)} exists; every run gets a new id and is kept`);
+  if (existsSync(dir(r))) throw new ScriptRefusal(`${dir(r)} exists; every run gets a new id and is kept`);
   // F4: do not start a run into a known failure. Sessions write through the server, whose drain also pauses (F1).
   const h = await relayerHealth();
   const healthText = h.reachable ? h.writeState : 'unreachable';
   if (!healthAllowsWrite(h))
-    throw new Error(
+    throw new ScriptRefusal(
       `not started: the relayer reports writes ${healthText} at ${new Date().toISOString()}; try later`,
     );
   const commit = (() => {
@@ -226,7 +230,7 @@ async function collect(r: string) {
 
 async function verifyChain(r: string, memoryId: string | undefined) {
   need(...LIVE_REQUIRED_ENV.verifyChain);
-  if (!memoryId) throw new Error('usage: verify-chain <run> <memoryId>');
+  if (!memoryId) throw new ScriptRefusal('usage: verify-chain <run> <memoryId>');
   const meta = readJson<Meta>(r, 'meta.json');
   sameNetworkAsPrepared(meta);
   const raw = await api<Record<string, unknown>>('POST', `/v1/projects/${meta.projectId}/verifications`, {
@@ -263,7 +267,7 @@ async function scores(r: string) {
   );
   const conf = await adapter.relayerConfig();
   const wrongRelayer = relayerNetworkProblem(conf.network, liveNet());
-  if (wrongRelayer) throw new Error(`refusing: ${wrongRelayer}`);
+  if (wrongRelayer) throw new ScriptRefusal(`refusing: ${wrongRelayer}`);
   const out: ProofRun['scores'] = [];
   for (const query of meta.queries) {
     const res = await adapter.recall({
@@ -387,6 +391,7 @@ try {
     process.exitCode = 2;
   }
 } catch (e) {
-  console.error(`[proof] ${(e as Error).message}`);
+  // Phase 14b: class, kind, HTTP status and network cause code only; a script refusal as written.
+  console.error(`[proof] ${errorText(e)}`);
   process.exitCode = 1;
 }
