@@ -509,3 +509,38 @@ Oracle's Always Free list includes Autonomous AI Database, not PostgreSQL.
 | Postgres settings                               | `sudo -u postgres psql -Atc "show shared_buffers; show max_connections; show listen_addresses"` |
 | Idle service memory (after the owner starts it) | `systemctl show buiry -p MemoryCurrent`                                                         |
 | Listening ports                                 | `sudo ss -ltn` (5432 on 127.0.0.1 only; 8787 only while the service runs)                       |
+
+### 10.10 Ubuntu 26.04 LTS (`resolute`)
+
+**What the VM is** (RAN ON VM, read-only: `/etc/os-release`, `uname -m`, `free -m`, `df`, `swapon`, `apt-cache policy`, 2026-11-26):
+
+| Item                  | Value                                                              |
+| --------------------- | ------------------------------------------------------------------ |
+| OS                    | Ubuntu 26.04.1 LTS, codename `resolute`, x86_64 (AMD micro)        |
+| Memory and swap       | 951 MB total; no swap                                              |
+| Ubuntu's own packages | `postgresql` 18 only (no `postgresql-16`); no `nodejs`; no `caddy` |
+| Firewall tool         | `netfilter-persistent` present, `ufw` absent: use 10.6.9           |
+
+**Postgres 16 comes from PostgreSQL's own apt repository (PGDG), not Ubuntu's archive.**
+
+- **Check method** (read-only, from the build machine): GET `https://apt.postgresql.org/pub/repos/apt/dists/resolute-pgdg/Release` (component `16`, architecture `amd64` listed) and `.../main/binary-amd64/Packages.gz` (newest `postgresql-16` is `16.16-1.pgdg26.04+1`; read 2026-11-26).
+- **Signing key.** The key is `https://apt.postgresql.org/pub/repos/apt/ACCC4CF8.asc`. Its fingerprint must equal the one published on https://www.postgresql.org/download/linux/ubuntu/: `B97B0AFCAA1A47F044F244A07FCC7D46ACCC4CF8`. On the VM:
+
+  ```sh
+  curl -fsS https://apt.postgresql.org/pub/repos/apt/ACCC4CF8.asc -o /tmp/pgdg.asc
+  gpg --show-keys --with-colons /tmp/pgdg.asc | awk -F: '/^fpr:/ {print $10; exit}'   # stop unless B97B0AFCAA1A47F044F244A07FCC7D46ACCC4CF8
+  sudo install -d -m 755 /etc/apt/keyrings
+  sudo install -m 644 /tmp/pgdg.asc /etc/apt/keyrings/pgdg.asc
+  echo "deb [signed-by=/etc/apt/keyrings/pgdg.asc] https://apt.postgresql.org/pub/repos/apt resolute-pgdg main" | sudo tee /etc/apt/sources.list.d/pgdg.list
+  sudo apt-get update && sudo apt-get install -y postgresql-16
+  ```
+
+  Then continue with 10.6 step 2: the tuned settings and `pg_hba.conf`. Never install Ubuntu's Postgres 18 beside it: Buiry is verified on 16 (L-PG1, L-BAK1), and the backup scripts need `pg_dump` of the server's major version.
+
+**Node 20** comes from nodejs.org (10.6.3); Ubuntu 26.04 does not package Node.
+
+**Caddy.**
+
+- **Install** only from its official repository (`https://dl.cloudsmith.io/public/caddy/stable/`), and only after its signing key is checked against a fingerprint Caddy publishes.
+- **The check failed to complete on 2026-11-26.** The key file's fingerprint is `65760C51EDEA2017CEA2CA15155B6D79CA56EA34` (computed). But neither https://caddyserver.com/docs/install nor https://github.com/caddyserver/dist states a fingerprint, and the Cloudsmith setup page refused automated requests (HTTP 405).
+- **So Caddy stays NOT INSTALLED** until the owner confirms the fingerprint from a source Caddy controls. Without Caddy there is no TLS, so the service must not be exposed.
