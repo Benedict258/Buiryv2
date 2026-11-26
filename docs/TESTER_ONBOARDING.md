@@ -2,7 +2,7 @@
 
 For people testing Buiry on the owner's preview server. In preview every tester stores memories in **their own Walrus Memory account** (BD36), on the network the server runs on; the server has no shared storage account (`BUIRY_PREVIEW=1`, `BUIRY_MANAGED=off`).
 
-**Which network.** The owner tells you whether the server runs on testnet or mainnet (`WALRUS_NETWORK`; `buiry doctor` prints it on its networks line, and the new-project form starts from it). Your account, your project and the server must all be on that one network; the server refuses anything else. A mainnet server runs only with `BUIRY_ALLOW_MAINNET=1`. Mainnet live use is UNVERIFIED beyond one partial result: one mainnet canary (2026-11-25) wrote and recalled a memory, but no canary has passed the criteria on mainnet yet.
+**Which network.** The owner tells you whether the server runs on testnet or mainnet (`WALRUS_NETWORK`; `buiry doctor` prints it on its networks line, and the new-project form starts from it). Your account, your project and the server must all be on that one network; the server refuses anything else. A mainnet server runs only with `BUIRY_ALLOW_MAINNET=1`. Mainnet is VERIFIED LIVE only in a narrow scope: two canaries on one account (one passed the criteria), one read-only calibration and one isolation run with two accounts (2026-11-25 and 2026-11-26; `docs/LIVE_PROOF.md`, Mainnet evidence). Everything else on mainnet is UNVERIFIED.
 
 Nothing in this guide has been run end to end by a tester yet. Steps that no record confirms are marked **UNVERIFIED**. Connecting an agent tool is in `docs/TESTER_KIT.md`; this guide covers the account, the first memory and the dashboard.
 

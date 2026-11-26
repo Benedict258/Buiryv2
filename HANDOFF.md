@@ -80,7 +80,7 @@ At `b480535` (2026-11-18): typecheck (root and dashboard), ESLint, Prettier and 
 
 ### Verified live (every line cites its record; the network is named)
 
-**Mainnet:** one partial live result: the mainnet canary of 2026-11-25 (one run) completed its write in 29 seconds and a recall returned the memory, but the blob id and score were not captured, so it is not a pass of the criteria. Mainnet storage is otherwise UNVERIFIED (`LOCAL_CHECKS.md` L-CAN1) (Phase 12). Every live result names its network. The Mainnet rows below ran before Phase 10.
+**Mainnet:** VERIFIED LIVE in a narrow scope (2026-11-25 and 2026-11-26): canaries C5 and C6 on account A (write stored, then recalled; C6 passed BD49, C5 did not save its blob id), the read-only calibration CAL2 (10 recalls on one memory) and one isolation run, `1fb288` (two accounts with different owner wallets, one memory each, I1 to I4 PASS). Not shown on mainnet: repeat isolation runs (3 required, 1 passed), more than one memory per account, load, the handoff proof, retention and cost. Everything else on mainnet is UNVERIFIED (`LOCAL_CHECKS.md` L-CAN1) (Phase 12). Every live result names its network. The Mainnet rows below ran before Phase 10.
 
 | Result                                                                                                        | Network                           | Record                                      |
 | ------------------------------------------------------------------------------------------------------------- | --------------------------------- | ------------------------------------------- |

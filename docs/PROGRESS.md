@@ -232,3 +232,17 @@ Nothing ran live. Mainnet isolation, the mainnet own-account check, the mainnet 
   - Handoff C1 and C7 judge the run's network.
   - New read-only `recall-calibrate.ts` (recalls only, at most 12, distances only).
 - **Needs a live check:** each of these on mainnet, each on its own go from the owner.
+
+## Phase 15 (2026-11-26): mainnet evidence recorded; offline recall-quality check
+
+Nothing ran live in Phase 15.
+
+- **Recorded:** `docs/LIVE_PROOF.md` Mainnet evidence and design/01 now hold the mainnet runs of 2026-11-25 and 2026-11-26, each labelled VERIFIED LIVE with its scope:
+  - canaries C5 and C6;
+  - calibration CAL2;
+  - isolation `1fb288`, which passed I1 to I4.
+
+  They also record the relayer availability events (cause UNVERIFIED) and the owner-reported cost and ownership (A35).
+
+- **Done (offline):** `scripts/recall-quality-offline.ts` compares Buiry's lexical relevance and the 0.2 cutoff with the saved calibration distances.
+- **Not shown:** repeat isolation runs (3 required, 1 passed), more than one memory per account, load, the handoff proof, retention and cost.

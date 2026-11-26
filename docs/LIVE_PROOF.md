@@ -1,6 +1,6 @@
 # Live proof protocols (F1 handoff, F2 isolation)
 
-**Status: testnet runs failed with nothing stored; one partial mainnet canary.** F2 isolation runs 1 to 3 (2026-11-23) and write canaries 1 to 3 (2026-11-23 and 2026-11-24) ran on testnet and failed on the relayer's capacity limit (run 1's error text was not captured; runs 2 and 3 and all three canaries recorded the capacity limit). Nothing was stored on testnet, so there is no testnet recall or isolation result. F1 (handoff proof) has not run; it needs stored writes. On mainnet there is one partial live result: the mainnet canary of 2026-11-25 (one run) completed its write in 29 seconds and a recall returned the memory, but the blob id and score were not captured, so it is not a pass of the criteria. Mainnet storage is otherwise UNVERIFIED. No isolation run or handoff proof has run on mainnet. Every passing result so far is from mocks and PGlite. Both checks need the owner's accounts, funds and setup (section 3). Neither needs a chain gateway (a Tatum key) to run: only the chain-verification step uses one, and without it that step reports `unknown`.
+**Status: testnet runs failed with nothing stored; on mainnet two canaries, one calibration and one isolation run passed (narrow scope, see Mainnet evidence).** F2 isolation runs 1 to 3 (2026-11-23) and write canaries 1 to 3 (2026-11-23 and 2026-11-24) ran on testnet and failed on the relayer's capacity limit (run 1's error text was not captured; runs 2 and 3 and all three canaries recorded the capacity limit). Nothing was stored on testnet, so there is no testnet recall or isolation result. F1 (handoff proof) has not run; it needs stored writes. On mainnet there is VERIFIED LIVE in a narrow scope (2026-11-25 and 2026-11-26): canaries C5 and C6 on account A (write stored, then recalled; C6 passed BD49, C5 did not save its blob id), the read-only calibration CAL2 (10 recalls on one memory) and one isolation run, `1fb288` (two accounts with different owner wallets, one memory each, I1 to I4 PASS). Not shown on mainnet: repeat isolation runs (3 required, 1 passed), more than one memory per account, load, the handoff proof, retention and cost. Everything else on mainnet is UNVERIFIED. No handoff proof has run on mainnet. Every passing result so far is from mocks and PGlite. Both checks need the owner's accounts, funds and setup (section 3). Neither needs a chain gateway (a Tatum key) to run: only the chain-verification step uses one, and without it that step reports `unknown`.
 
 The pass and fail criteria below are fixed **before** any run. They are encoded in `scripts/live/proof-criteria.ts` and tested on made-up data in `proof-criteria.test.ts`. Changing a criterion after a run counts as a new protocol, and earlier runs are reported under the old one.
 
@@ -86,14 +86,14 @@ The relayer's guidance is to keep polling a job, not to resubmit before it fails
 `scripts/live/canary.ts`, run as `pnpm tsx scripts/with-env.ts testnet -- pnpm tsx scripts/live/canary.ts`, or on mainnet, only on the owner's go, as `BUIRY_ALLOW_MAINNET=1 pnpm tsx scripts/with-env.ts mainnet -- pnpm tsx scripts/live/canary.ts`.
 
 - **Network first (Phase 12).** It refuses unless the network is named and the relayer host, `WALRUS_NETWORK` and `TATUM_NETWORK` agree; on mainnet it also needs `BUIRY_ALLOW_MAINNET=1`. It refuses without a chain gateway, since a recall then cannot return real results. Its first output line names the network and relayer host, and the saved result is labelled with it.
-- **Evidence.** Every live result is labelled with its network. Mainnet: one partial live result: the mainnet canary of 2026-11-25 (one run) completed its write in 29 seconds and a recall returned the memory, but the blob id and score were not captured, so it is not a pass of the criteria. Mainnet storage is otherwise UNVERIFIED. The three testnet canaries of 2026-11-23 and 2026-11-24 all failed with a capacity limit.
+- **Evidence.** Every live result is labelled with its network. Mainnet: VERIFIED LIVE in a narrow scope (2026-11-25 and 2026-11-26): canaries C5 and C6 on account A (write stored, then recalled; C6 passed BD49, C5 did not save its blob id), the read-only calibration CAL2 (10 recalls on one memory) and one isolation run, `1fb288` (two accounts with different owner wallets, one memory each, I1 to I4 PASS). Not shown on mainnet: repeat isolation runs (3 required, 1 passed), more than one memory per account, load, the handoff proof, retention and cost. Everything else on mainnet is UNVERIFIED. The three testnet canaries of 2026-11-23 and 2026-11-24 all failed with a capacity limit.
 
 - **One write, one attempt.** It writes one memory on account A, straight to the relayer, with no retry.
 - **Followed to the end.** It follows the job to `done` or `failed`, logging the job id, UTC times and each status with elapsed seconds.
 - **Recall check.** If the write is stored, it recalls the memory through the relayer, using a Seal session when a chain gateway is configured. It records whether the canary came back, its raw distance, each result's field names (names only) and raw distance, and a score only if the relayer sent one. Buiry does not send `scoring_weights`, so the relayer sends no score (A30).
 - **Pacing.** At most one per hour: it refuses if the last canary started less than an hour ago. The start is recorded before the write, so an interrupted canary still uses the hour. It also refuses while `/health` does not report writes `ok`; that refusal does not use the hour.
 - **Results.** Saved to `.buiry-local/proof/canary-<run>.json`, including the blob id from the finished job. No key, token or memory text is saved.
-- **Pass criteria (Phase 13, BD49).** PASS = the write job completes and returns a blob id; a recall returns that memory; its raw distance is recorded. A relayer score is not required: the relayer returns one only when `scoring_weights` is sent, and Buiry does not send it (A30). The 2026-11-25 mainnet run failed the earlier criteria only because the canary did not save the blob id (the adapter already returned it) and because the score criterion was wrong; it ran before these criteria and is recorded as a partial live result, not a pass.
+- **Pass criteria (Phase 13, BD49).** PASS = the write job completes and returns a blob id; a recall returns that memory; its raw distance is recorded. A relayer score is not required: the relayer returns one only when `scoring_weights` is sent, and Buiry does not send it (A30). The 2026-11-25 mainnet run failed the earlier criteria only because the canary did not save the blob id (the adapter already returned it) and because the score criterion was wrong; it ran before these criteria and is recorded as a partial live result, not a pass. C6 (2026-11-25, run `118193`) passed these criteria.
 - **Gate for everything else.** No isolation run, handoff setup or handoff proof starts until a canary **passes** the criteria above.
 
 ## 2. F2: two own accounts stay isolated (L-BYO2)
@@ -119,7 +119,7 @@ No chain gateway is needed. Writes, signed listing (I4) and token checks (I2) ne
 
 The script also records a control: each side finds its own memory. The control does not decide the result, but if it fails, recall itself is not working and I3 proves nothing; report it. Output is saved to `.buiry-local/proof/byo-isolation-<run>.json`, labelled with its network. Run it at least 3 times and report each run.
 
-**Mainnet isolation procedure (Phase 14).** Not run on mainnet; no isolation run has passed on any network.
+**Mainnet isolation procedure (Phase 14).** Passed once on mainnet: run `1fb288` (2026-11-26), I1 to I4 PASS. Two earlier mainnet attempts that day did not reach the criteria: the first stopped on a script defect before any write (fixed in Phase 14c), the second was skipped when the relayer became unavailable. At least 3 runs are required; 1 has passed.
 
 1. **Accounts.** `.env.mainnet` with two mainnet accounts: `BYO_A_*` and `BYO_B_*` (each `RELAYER_URL` = `https://relayer.memory.walrus.xyz`, `ACCOUNT_ID`, `DELEGATE_KEY`), `WALRUS_NETWORK=mainnet`, `TATUM_NETWORK=mainnet` and the mainnet Tatum key. The two accounts must be different accounts with different owners.
 2. **Guards before anything connects.** The script refuses:
@@ -149,7 +149,50 @@ The script also records a control: each side finds its own memory. The control d
   - an unrelated topic.
 - **Pacing.** One recall per query, no retry (the adapter's read retry is off), at least 2 seconds apart. It stops on the first error.
 - **Saved.** `.buiry-local/proof/calibrate-<canaryRun>-<id>.json`: the network, commit and canary run, then per query only the category label, query id, number of results and raw distances. Never query text or memory text.
-- **Status.** Not run. Each live run needs its own go from the owner. Its distances are the input A30 needs before the 0.2 relevance cutoff can be judged.
+- **Status.** Run on mainnet. CAL1 (2026-11-25) stopped at the `/config` read before any recall. CAL2 (2026-11-26, canary `118193`) made 10 recalls (see Mainnet evidence). Each live run needs its own go from the owner. Its distances are the input A30 needs before the 0.2 relevance cutoff can be judged.
+
+## Mainnet evidence (Phase 15)
+
+From the saved reports, ledger and proof files (`.buiry-local`, not tracked). Account and object ids are kept there, not here.
+
+| Date       | Run                                           | What ran                                                               | Result                                                                                                                                                    | Label and scope                                                                                     |
+| ---------- | --------------------------------------------- | ---------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------- |
+| 2026-11-25 | canary C5 (`ed4d03`)                          | one write on account A, then a recall                                  | job done in 29 s; the recall returned the memory; the blob id was not saved and no score came back                                                        | VERIFIED LIVE: one write stored and recalled on account A. Not a pass of BD49 (no blob id recorded) |
+| 2026-11-25 | canary C6 (`118193`)                          | one write on account A, then a recall                                  | job done in 17 s with a blob id; the first recall returned the memory with raw distance 6.6e-7; result fields `blob_id`, `created_at`, `distance`, `text` | VERIFIED LIVE, PASS (BD49): one write stored and recalled on account A                              |
+| 2026-11-26 | calibration CAL2 (`d6243d`, against `118193`) | 10 read-only recalls on one memory                                     | 10 of 10 ran, no error, no write                                                                                                                          | VERIFIED LIVE: raw distances for one memory and 10 queries (A30)                                    |
+| 2026-11-26 | isolation `1fb288`                            | two accounts with different owner wallets, one memory each (A, then B) | both stored in 19 s; I1 to I4 PASS; both controls true; recall through the relayer with a Seal session                                                    | VERIFIED LIVE, PASS: one isolation run on two accounts                                              |
+
+**CAL2 raw distances by category** (one memory, two queries each):
+
+| Category      | Distances                |
+| ------------- | ------------------------ |
+| exact         | 0.00000086 to 0.00012375 |
+| paraphrase    | 0.02485 to 0.11131       |
+| same-topic    | 0.55079 to 0.58903       |
+| related-topic | 0.69834 to 0.76758       |
+| unrelated     | 0.86956 to 0.89540       |
+
+**Not shown on mainnet:**
+
+- repeat isolation runs: 3 required, 1 passed;
+- more than one memory per account;
+- load or concurrency;
+- the handoff proof (F1) and the own-account check (L-BYO1);
+- retention and expiry of the stored blobs;
+- cost.
+
+**Relayer availability, as observed.** The cause is UNVERIFIED for every event below.
+
+- **Testnet, 2026-11-23 and 2026-11-24:** every write failed with a capacity limit reported by the relayer, across isolation runs 2 and 3 and canaries 1 to 3. Isolation run 1's error text was not captured. Meanwhile `/health` reported `writes: ok`.
+- **Mainnet, 2026-11-25 at 22:29 UTC:** the calibration's `/config` read failed (`RelayerError`; kind and status were not captured then). The rerun on 2026-11-26 read `/config` without error.
+- **Mainnet, 2026-11-26 at 10:32 UTC:** account A's write was not accepted (`unavailable`, no relayer job), and account B's health read `unreachable` 21 s later. The isolation run about two hours later (12:25 UTC) passed.
+
+**Cost and ownership (owner-reported, A35):**
+
+- **Balances:** the owner reports no change in the wallet's SUI or WAL balances after the mainnet writes.
+- **Blob object:** a Walrus Blob object appeared in the owner's wallet: 364 bytes, deletable, registered and certified at epoch 44. That suggests the wallet owns the storage object.
+- **UNVERIFIED:** which wallet holds it, its end epoch, and the renewal and deletion rights.
+- End epoch: ____ (to fill from the explorer).
 
 ## 3. What the owner must provide (F3)
 
