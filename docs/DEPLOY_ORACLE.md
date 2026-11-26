@@ -382,7 +382,7 @@ bash infra/oracle/build-artifact.sh          # writes .artifact/buiry-<commit>.t
 - `ops/` (`scripts/backup` and these templates);
 - a `MANIFEST` (commit, build Node version, file count).
 
-It refuses a dirty tree, any env file or key in the artefact, and any dev dependency.
+It refuses a dirty tree, any env file or key in the artefact, and any workspace dev tool (`typescript`, `tsx`, `vitest`) that no production package requires (`infra/oracle/check-artifact-deps.cjs`). `typescript` stays, because production packages list it as a peer and pnpm installs it with them; the Docker image ships it the same way.
 
 **On the VM:**
 

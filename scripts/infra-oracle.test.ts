@@ -21,6 +21,7 @@ describe('infra/oracle templates: placeholders only', () => {
       'buiry-backup.service',
       'buiry-backup.timer',
       'buiry.service',
+      'check-artifact-deps.cjs',
       'postgresql-1gb.conf.template',
       'swap.sh',
     ]);
@@ -140,7 +141,8 @@ describe('build-artifact.sh', () => {
   it('builds off the VM from a clean tree, with production dependencies only', () => {
     expect(b).toMatch(/git status --porcelain/);
     expect(b).toMatch(/deploy --prod --legacy --config\.node-linker=hoisted/);
-    expect(b).toMatch(/node_modules\/vitest.*node_modules\/typescript.*node_modules\/tsx/s);
+    // Dev tools are refused unless a production package requires them (scripts/artifact-deps.test.ts).
+    expect(b).toContain('node "$(dirname "$0")/check-artifact-deps.cjs" "$APP"');
   });
   it('ships the built output, the lockfile and a checksum, and refuses any env file or key', () => {
     for (const s of ['dist-server', 'proto', 'dashboard', 'cp pnpm-lock.yaml', 'sha256sum', 'MANIFEST'])

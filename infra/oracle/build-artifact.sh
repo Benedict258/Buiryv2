@@ -41,11 +41,8 @@ if find "$APP" \( -name '.env' -o -name '.env.*' -o -name '*.pem' -o -name '*.ke
   echo "[artifact] an env file or key was found in the artefact; refusing" >&2
   exit 3
 fi
-# No devDependency of the workspace may be present.
-if [ -d "$APP/node_modules/vitest" ] || [ -d "$APP/node_modules/typescript" ] || [ -d "$APP/node_modules/tsx" ]; then
-  echo "[artifact] a dev dependency was found in the artefact; refusing" >&2
-  exit 4
-fi
+# No workspace dev tool unless a production package requires it (typescript is a peer of production packages).
+node "$(dirname "$0")/check-artifact-deps.cjs" "$APP"
 
 {
   echo "commit=$COMMIT"
