@@ -29,6 +29,7 @@ import {
   twoAccountProblems,
 } from './lib/live-guard.js';
 import { ScriptRefusal, errorText } from './lib/errors.js';
+import { applyLiveNetwork } from './lib/own-account-setup.js';
 
 const env = process.env as Record<string, string | undefined>;
 // Phase 14 A: both accounts present and different (names only), then the network guard; the network line is the first
@@ -83,7 +84,8 @@ const registry = new StorageRegistry({
   tenancy: { multi: false },
 });
 const s = await createStack({ adapter: managed, storage: registry, gateway: gateway as never });
-s.deps.networks = { sui: network };
+// Phase 14c: the stack's network and mainnet opt-in from the setting the guard already checked (as server.ts does).
+applyLiveNetwork(s.deps, network, env);
 const run = randomBytes(3).toString('hex');
 const ws = await s.newWorkspace(`byo-live-${run}`);
 const own = await s.newProject(ws.id, `byo-own-${run}`, { networks: [`sui:${network}`] });

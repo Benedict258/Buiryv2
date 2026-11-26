@@ -24,9 +24,7 @@ import {
   buildWalrusAdapter,
   createAccountDrains,
   createStack,
-  setProjectStorage,
   StorageRegistry,
-  type UserPrincipal,
 } from '../../packages/api/src/index.js';
 import {
   Ed25519Signer,
@@ -42,6 +40,7 @@ import {
   twoAccountProblems,
 } from '../lib/live-guard.js';
 import { ScriptRefusal, errorText } from '../lib/errors.js';
+import { applyLiveNetwork, setUpTester } from '../lib/own-account-setup.js';
 
 const env = process.env as Record<string, string | undefined>;
 // Phase 14 A: both accounts present and different (names only), then the network guard; the network line is the first
@@ -61,7 +60,8 @@ const registry = new StorageRegistry({
   tenancy: { multi: false },
 });
 const s = await createStack({ storage: registry, ...(gateway ? { gateway: gateway as never } : {}) });
-s.deps.networks = { sui: network };
+// Phase 14c: the stack's network and mainnet opt-in from the setting the guard already checked (as server.ts does).
+applyLiveNetwork(s.deps, network, env);
 const run = randomBytes(3).toString('hex');
 const step = (msg: string) => console.log(`[byo-isolation] ${msg}`);
 const probe = async (cfg: { relayerUrl: string; accountId: string; delegateKey: string }) => {
@@ -105,23 +105,8 @@ async function accountsPreflight() {
 }
 
 async function tester(side: 'A' | 'B') {
-  const ws = await s.newWorkspace(`byo-isolation-${side}-${run}`);
-  const prj = await s.newProject(ws.id, `iso-${side}-${run}`, { networks: [`sui:${network}`] });
-  const admin: UserPrincipal = {
-    kind: 'user',
-    workspaceId: ws.id,
-    userId: `usr_iso_${side}`,
-    displayName: `tester ${side}`,
-    role: 'owner',
-    projectScope: null,
-  };
-  const cfg = {
-    relayerUrl: env[`BYO_${side}_RELAYER_URL`]!,
-    network,
-    accountId: env[`BYO_${side}_ACCOUNT_ID`]!,
-    delegateKey: env[`BYO_${side}_DELEGATE_KEY`]!,
-  };
-  const view = await s.db.tenant(ws.id, (tx) => setProjectStorage(s.deps, tx, admin, prj.id, cfg, { probe }));
+  // Phase 14c: the same setup the behaviour tests run (scripts/lib/own-account-setup.ts).
+  const { ws, prj, view } = await setUpTester(s, { side, run, network, env, probe });
   step(`tester ${side}: own account ${view.accountId}, delegate public key ${view.delegatePublicKey}`);
   const agent = await s.newAgent({
     workspaceId: ws.id,

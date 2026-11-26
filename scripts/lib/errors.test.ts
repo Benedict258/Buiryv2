@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { RelayerError } from '../../packages/storage/src/index.js';
+import { BuiryError } from '../../packages/core/src/index.js';
 import { ScriptRefusal, errorText } from './errors.js';
 import { relayerNetworkProblem } from './live-guard.js';
 
@@ -98,5 +99,27 @@ describe('relayerNetworkProblem names only a recognised network from the respons
       'the relayer serves an unrecognised network, not mainnet',
     );
     expect(relayerNetworkProblem('mainnet', 'mainnet')).toBeUndefined();
+  });
+});
+
+// Phase 14c: a BuiryError prints its plain code (the API's error code), never its message.
+describe('errorText for a BuiryError', () => {
+  it('prints the code and nothing else', () => {
+    const e = new BuiryError(
+      'invalid_input',
+      'this deployment does not accept mainnet accounts; key sk-made-up-SECRET-123 at https://relayer.example.test/?token=made-up-token-456',
+    );
+    expect(errorText(e)).toBe('BuiryError code=invalid_input');
+    expect(errorText(new BuiryError('storage_unavailable', 'x'))).toBe('BuiryError code=storage_unavailable');
+  });
+  it('prints a code that is not a plain code as unrecognised', () => {
+    const forged = Object.assign(new Error('x'), {
+      name: 'BuiryError',
+      code: 'invalid input sk-made-up-SECRET-123',
+    });
+    expect(errorText(forged)).toBe('BuiryError code=unrecognised');
+    expect(errorText(Object.assign(new Error('x'), { name: 'BuiryError' }))).toBe(
+      'BuiryError code=unrecognised',
+    );
   });
 });

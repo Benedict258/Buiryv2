@@ -118,3 +118,18 @@ describe('handoff-proof server errors (Phase 14b)', () => {
     expect(body).not.toContain('j.error?.code ??');
   });
 });
+
+// Phase 14c: both two-account scripts take the stack's network and mainnet opt-in from applyLiveNetwork (behaviour
+// tested in scripts/lib/own-account-setup.test.ts), never by setting them directly.
+describe.each([
+  ['byo-isolation', './byo-isolation.ts'],
+  ['byo-live', '../byo-live.ts'],
+])('%s stack network', (_who, rel) => {
+  const body = code(read(rel));
+  it('calls applyLiveNetwork once, after the network guard, and never sets allowMainnet or the network itself', () => {
+    expect(body.match(/applyLiveNetwork\(s\.deps, network, env\);/g)).toHaveLength(1);
+    expect(body.indexOf('applyLiveNetwork(s.deps')).toBeGreaterThan(body.indexOf('requireLiveNetwork(env'));
+    expect(body).not.toMatch(/allowMainnet\s*=/);
+    expect(body).not.toMatch(/deps\.networks\s*=/);
+  });
+});

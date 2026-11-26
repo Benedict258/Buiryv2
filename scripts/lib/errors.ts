@@ -21,6 +21,7 @@ export type ErrorClass = 'timeout' | 'network' | 'http' | 'parse' | 'invalid-res
 const KIND = /^[a-z_]{1,32}$/;
 const CAUSE = /^[A-Z][A-Z0-9_]{0,39}$/;
 const NAME = /^[A-Za-z][A-Za-z0-9_]{0,40}$/;
+const API_CODE = /^[a-z_]{1,40}$/;
 
 export function errorClass(kind: string, status: number | undefined): ErrorClass {
   if (kind === 'timeout') return 'timeout';
@@ -52,6 +53,11 @@ export function errorText(e: unknown): string {
       ...(status !== undefined ? [`status=${status}`] : []),
       ...(cause ? [`cause=${cause}`] : []),
     ].join(' ');
+  }
+  // Phase 14c: an API error prints its plain error code (for example invalid_input), never its message.
+  if (o.name === 'BuiryError') {
+    const c = (o as { code?: unknown }).code;
+    return `BuiryError code=${typeof c === 'string' && API_CODE.test(c) ? c : 'unrecognised'}`;
   }
   return typeof o.name === 'string' && NAME.test(o.name) ? o.name : 'Error';
 }
