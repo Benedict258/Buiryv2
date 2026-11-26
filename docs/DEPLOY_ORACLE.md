@@ -41,10 +41,15 @@ Boot volume: 50 GB (within the 200 GB). Add one block volume for `/var/lib/postg
 2. **Listen on the loopback only.** In `postgresql.conf` set `listen_addresses = 'localhost'`. In `pg_hba.conf` keep only:
 
    ```
-   local   all  postgres                 peer
-   host    buiry buiry      127.0.0.1/32 scram-sha-256
-   host    buiry buiry      ::1/128      scram-sha-256
+   local   all            postgres                     peer
+   host    buiry          buiry          127.0.0.1/32  scram-sha-256
+   host    buiry          buiry          ::1/128       scram-sha-256
+   host    buiry          buiry_backup   127.0.0.1/32  scram-sha-256
+   host    buiry_restore  buiry          127.0.0.1/32  scram-sha-256
    ```
+
+   - **`buiry_backup`:** lets the nightly backup connect (step 5).
+   - **`buiry_restore`:** lets the restore drill connect; the drill drops that database afterwards. These two lines were missing from the first version of this step (Phase 16c).
 
    No `0.0.0.0/0` line, and port 5432 stays closed in the security list and the host firewall (step 4).
 
@@ -444,6 +449,46 @@ Each command is listed here so nothing else runs with `sudo`. First, read-only f
      - the network `WALRUS_NETWORK` and `TATUM_NETWORK`, with `BUIRY_ALLOW_MAINNET=1` only for mainnet;
      - **empty** `TATUM_API_KEY`, `SMTP_*`, `BUIRY_BASE_URL` and `BUIRY_ALLOWED_ORIGINS` for the owner to fill.
    - **`/etc/buiry/backup.env`:** the `buiry_backup` `DATABASE_URL`, `BACKUP_DIR=/var/backups/buiry`, `BACKUP_RETENTION_DAYS=14`, `BUIRY_SRC=/opt/buiry/app/ops` and an empty `OCI_BACKUP_BUCKET`.
+
+   Exact commands, in the **same shell session as step 5**, so `DBPW` and `BKPW` carry over and no value is ever printed. Use the mainnet lines only for a mainnet preview; otherwise set `testnet` and leave `BUIRY_ALLOW_MAINNET` out.
+
+   ```sh
+   KEY=$(openssl rand -base64 48 | tr -d '\n'); DOMAIN=<your preview domain>
+   sudo install -d -m 755 /etc/buiry
+   sudo install -m 600 -o root -g root /dev/null /etc/buiry/buiry.env
+   sudo install -m 600 -o root -g root /dev/null /etc/buiry/backup.env
+   sudo tee /etc/buiry/buiry.env >/dev/null <<EOF
+   DATABASE_URL=postgres://buiry:$DBPW@127.0.0.1:5432/buiry
+   BUIRY_SECRET_KEY=$KEY
+   BUIRY_BASE_URL=https://$DOMAIN
+   BUIRY_ALLOWED_ORIGINS=https://$DOMAIN
+   BUIRY_TRUSTED_PROXY_HOPS=1
+   BUIRY_PREVIEW=1
+   BUIRY_MANAGED=off
+   WALRUS_NETWORK=mainnet
+   TATUM_NETWORK=mainnet
+   BUIRY_ALLOW_MAINNET=1
+   TATUM_API_KEY=
+   BUIRY_MAILER=smtp
+   SMTP_HOST=
+   SMTP_PORT=
+   SMTP_SECURE=
+   SMTP_USER=
+   SMTP_PASSWORD=
+   SMTP_FROM=
+   EOF
+   sudo tee /etc/buiry/backup.env >/dev/null <<EOF
+   DATABASE_URL=postgres://buiry_backup:$BKPW@127.0.0.1:5432/buiry
+   BACKUP_DIR=/var/backups/buiry
+   BACKUP_RETENTION_DAYS=14
+   BUIRY_SRC=/opt/buiry/app/ops
+   OCI_BACKUP_BUCKET=
+   EOF
+   unset DBPW BKPW KEY
+   ```
+
+   `sudo tee` writes into the existing root-owned mode-600 files, keeping the mode. `BUIRY_TRUSTED_PROXY_HOPS=1` assumes Caddy in front.
+
 7. **Artefact:** 10.5.
 8. **Unit and timer:** copy `buiry.service`, `buiry-backup.service` and `buiry-backup.timer` from `ops/infra/oracle/` to `/etc/systemd/system/`, then `sudo systemctl daemon-reload` and `sudo systemctl enable --now buiry-backup.timer`. Do **not** enable or start `buiry` until the owner has filled the values. Until `OCI_BACKUP_BUCKET` is set, each nightly run makes the local dump and then fails on purpose (`OFF-BOX COPY NOT CONFIGURED`).
 9. **Firewall (80 and 443 only; never touch port 22).**
@@ -461,7 +506,19 @@ Each command is listed here so nothing else runs with `sudo`. First, read-only f
    - **Cloud side:** the VCN security list rules for 80 and 443 are added in the Oracle console by the owner.
    - **Port 8787:** gets no rule and stays unreachable.
 10. **Migrations** (before the first start, step 3.5): `sudo systemd-run --uid=buiry --property=EnvironmentFile=/etc/buiry/buiry.env --working-directory=/opt/buiry/app --wait --pipe /usr/local/bin/node dist-server/migrate.js`.
-11. **Restore drill** on the new database, step 5.4. The backup part runs as `sudo systemctl start buiry-backup` and makes the local dump. Its non-zero exit until off-box is configured is expected.
+11. **Restore drill** on the new database, step 5.4. The backup part runs as `sudo systemctl start buiry-backup` and makes the local dump. Its non-zero exit until off-box is configured is expected. Exact commands, with no password on a command line:
+
+    ```sh
+    sudo systemctl start buiry-backup || true            # local dump; exits 3 until OCI_BACKUP_BUCKET is set
+    sudo -u postgres createdb -O buiry buiry_restore
+    sudo install -m 600 -o root -g root /dev/null /etc/buiry/restore.env
+    sudo sh -c 'sed -n "s#^DATABASE_URL=\(.*\)/buiry\$#RESTORE_DATABASE_URL=\1/buiry_restore#p" /etc/buiry/buiry.env > /etc/buiry/restore.env; echo BACKUP_S3_URI=file:///var/backups/buiry >> /etc/buiry/restore.env'
+    sudo systemd-run --uid=buiry-backup --property=EnvironmentFile=/etc/buiry/restore.env --wait --pipe bash /opt/buiry/app/ops/scripts/backup/restore.sh
+    sudo -u postgres psql -d buiry_restore -Atc "select count(*) from schema_migrations"
+    sudo -u postgres dropdb buiry_restore
+    sudo rm -f /etc/buiry/restore.env
+    ```
+
 12. **L-TOK1 on the 1 GB profile.** The VM has no source checkout, so run the dry run from the build machine through an SSH tunnel: `ssh -i <key> -L 15432:127.0.0.1:5432 <user>@<vm>`, then `DATABASE_URL=postgres://buiry:<password>@127.0.0.1:15432/buiry pnpm tsx scripts/real-pg/token-expiry.ts` (a loopback host needs no override). UNVERIFIED: this path has not run.
 
 ### 10.7 External managed Postgres (an option, not chosen)
