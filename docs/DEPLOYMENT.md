@@ -1,5 +1,7 @@
 # Deploying Buiry on AWS
 
+**Other targets.** The private preview on one Oracle Cloud VM (Always Free): `docs/DEPLOY_ORACLE.md`, DESIGNED ONLY. On Render: `docs/DEPLOY_RENDER.md`, which remains an alternative.
+
 Prepared offline. Nothing here has been applied or deployed. The image layout and the Terraform were checked locally (see "What was verified"); the first real build, apply and deploy are the owner's steps (LOCAL_CHECKS L-AWS1 to L-AWS3).
 
 ## Shape

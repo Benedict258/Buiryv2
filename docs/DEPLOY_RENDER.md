@@ -1,5 +1,7 @@
 # Deploying the preview on Render
 
+**Other targets.** One Oracle Cloud VM (Always Free): `docs/DEPLOY_ORACLE.md`, DESIGNED ONLY. AWS: `docs/DEPLOYMENT.md`. This Render plan remains an alternative.
+
 Read-only plan for the tester preview (bring your own storage, BD36). **Nothing has been deployed.** Statements about Buiry come from the code and are tested on mocks and PGlite. Statements about Render quote Render's documentation (read 2026-11-22, URLs given). Anything about Render that those pages do not state is marked **UNVERIFIED**. "Must check on Render" at the end lists what the owner confirms before the first tester.
 
 **Network.** The preview runs on the network `WALRUS_NETWORK` names, testnet or mainnet. Nothing defaults to one. A mainnet preview also needs `BUIRY_ALLOW_MAINNET=1`. Neither has been deployed on Render; mainnet live use is UNVERIFIED.
