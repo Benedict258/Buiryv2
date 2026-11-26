@@ -37,6 +37,14 @@ const canaryText = (run: string, at: string) => `Buiry canary ${run}: a one-line
 const secondBefore = (iso: string) => new Date(Date.parse(iso) - 1000).toISOString().slice(0, 19) + 'Z';
 
 /**
+ * The canary memory's text candidates for one saved canary run (Phase 15): at the submit second and the second before,
+ * since the canary saves only its submit time. One of the two is the stored text. Used offline only; never printed.
+ */
+export function canaryMemoryCandidates(c: { run: string; submittedAt: string }): [string, string] {
+  return [canaryText(c.run, c.submittedAt), canaryText(c.run, secondBefore(c.submittedAt))];
+}
+
+/**
  * The fixed query set for one canary. The canary takes its text's time just before it submits and saves only the
  * submit time, so `exact` tries the submit second and the second before; one of the two is the exact text.
  */
