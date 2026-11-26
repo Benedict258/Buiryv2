@@ -135,7 +135,7 @@ Boot volume: 50 GB (within the 200 GB). Add one block volume for `/var/lib/postg
    sudo systemctl daemon-reload
    # Migrations, with the same environment as the service and no secret on a command line:
    sudo systemd-run --uid=buiry --property=EnvironmentFile=/etc/buiry/buiry.env \
-     --working-directory=/opt/buiry/app --wait --pipe /usr/bin/node dist-server/migrate.js
+     --working-directory=/opt/buiry/app --wait --pipe /usr/local/bin/node dist-server/migrate.js
    sudo systemctl enable --now buiry
    ```
 
@@ -208,7 +208,7 @@ Both accept a local `file:///dir` store as well as `s3://`. Backups and restore 
    # UNVERIFIED: whether migrate.js needs settings beyond DATABASE_URL.
    sudo systemd-run --uid=buiry \
      --property=Environment=DATABASE_URL=postgres://buiry:<password>@127.0.0.1:5432/buiry_restore \
-     --working-directory=/opt/buiry/app --wait --pipe /usr/bin/node dist-server/migrate.js
+     --working-directory=/opt/buiry/app --wait --pipe /usr/local/bin/node dist-server/migrate.js
    sudo -u postgres dropdb buiry_restore
    ```
 
@@ -294,3 +294,218 @@ Every item is **NOT RUN**. Mark each PASS or FAIL when it has run on the VM, wit
 | 17  | Upgrade and rollback rehearsed once                                                                                                          | NOT RUN |
 | 18  | Owner's own account connected on the server's network and one memory written end to end; on mainnet only after a canary passed               | NOT RUN |
 | 19  | Owner decision recorded on the idle-reclaim risk (section 0)                                                                                 | NOT RUN |
+| 20  | 1 GB profile: 2 GB swap active, swappiness 10 (10.2)                                                                                         | NOT RUN |
+| 21  | 1 GB profile: Postgres settings from 10.3 in effect (`show shared_buffers`, `max_connections`, `listen_addresses`)                           | NOT RUN |
+| 22  | 1 GB profile: unit runs with `--max-old-space-size=256`, `MemoryHigh=400M`, `MemoryMax=450M` (10.4)                                          | NOT RUN |
+| 23  | Artefact built off the VM; checksum verified on the VM; MANIFEST commit matches (10.5)                                                       | NOT RUN |
+| 24  | First checks recorded: free memory, swap, Postgres memory, idle service memory (10.9)                                                        | NOT RUN |
+| 25  | Firewall: only ACCEPT rules for 80 and 443 added; port 22 rules untouched; 8787 unreachable from outside (10.6.9)                            | NOT RUN |
+| 26  | Rebuild-from-backup rehearsed on a fresh VM (10.8)                                                                                           | NOT RUN |
+
+## 10. The 1 core, 1 GB profile
+
+The AMD micro shape (1/8 OCPU, 1 GB) is too small to **build** on (section 1), but it can **run** Buiry if the build happens elsewhere and the limits below hold. Everything in this section is DESIGNED ONLY, except the numbers labelled LOCAL MEASUREMENT.
+
+### 10.1 Memory budget
+
+| Part                                                                 | Figure                                                                                                                                                                       | Label                                                                                                                                                              |
+| -------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| Buiry server, every role in one process (`BUIRY_ROLE` unset = `all`) | JS heap 35 to 55 MB; process RSS 319 to 392 MB idle, of which 240 to 480 MB is the in-process test database (PGlite); the server's own share is therefore about 90 to 150 MB | LOCAL MEASUREMENT (Windows x64, Node 24, built `dist-server/server.js`, PGlite, 500 requests of smoke load added 2 to 4 MB); the server's own share is an estimate |
+| Startup peak with PGlite                                             | 1.02 to 1.15 GB                                                                                                                                                              | LOCAL MEASUREMENT; PGlite's start, not present with a real Postgres                                                                                                |
+| Buiry server with `--max-old-space-size=256`                         | served the same load; heap about 35 MB                                                                                                                                       | LOCAL MEASUREMENT                                                                                                                                                  |
+| Postgres 16 with 10.3's settings                                     | about 150 to 250 MB (128 MB shared buffers plus up to 10 connections)                                                                                                        | estimate                                                                                                                                                           |
+| Operating system                                                     | about 150 to 250 MB                                                                                                                                                          | estimate; measure with 10.8                                                                                                                                        |
+| Caddy                                                                | about 30 MB, or none while there is no domain                                                                                                                                | estimate                                                                                                                                                           |
+| Swap                                                                 | 2 GB file, a buffer for spikes                                                                                                                                               | 10.2                                                                                                                                                               |
+
+**Worker in the API process.** It already is one process: `BUIRY_ROLE` defaults to `all`, which runs the HTTP server and the background jobs together. No new mode is needed.
+
+**Dashboard.** The built preview dashboard is 594 KB in 9 files (LOCAL MEASUREMENT). A proxy could serve it as static files, with a fallback to `index.html` for client routes. The server already does this, adding its security headers (CSP), so a proxy serving the files itself would have to set the same headers. Keep the server serving it.
+
+**Native modules.** The production dependencies (`pnpm deploy --prod`, 75 MB, 8,625 files) contain no `.node` file, no `binding.gyp`, no prebuilds and no OS or CPU restriction. The only install script is `protobufjs`'s, which prints a version notice (LOCAL MEASUREMENT). So one artefact runs on x86_64 and arm64.
+
+### 10.2 Swap
+
+`infra/oracle/swap.sh` (run once with `sudo bash`):
+
+- creates a 2 GB `/swapfile` only if no swap is active;
+- makes it permanent in `/etc/fstab`;
+- sets `vm.swappiness=10`, so swap absorbs spikes rather than holding working memory.
+
+Two GB is twice RAM: enough for one spike in each of the server and Postgres, small against the 47 to 50 GB boot volume.
+
+### 10.3 Postgres 16 tuned for 1 GB
+
+`infra/oracle/postgresql-1gb.conf.template`, installed as `/etc/postgresql/16/main/conf.d/90-buiry-1gb.conf`:
+
+| Setting                                        | Value          | Reason                                                                                             |
+| ---------------------------------------------- | -------------- | -------------------------------------------------------------------------------------------------- |
+| `listen_addresses`                             | `localhost`    | no remote client, no public port                                                                   |
+| `max_connections`                              | 20             | the server's pool opens at most 10 (the `pg` default); the rest for migrations, backups and `psql` |
+| `shared_buffers`                               | 128MB          | about 1/8 of RAM                                                                                   |
+| `effective_cache_size`                         | 384MB          | planner hint: the OS page cache is small too                                                       |
+| `work_mem`                                     | 4MB            | per sort or hash; small queries                                                                    |
+| `maintenance_work_mem`                         | 32MB           | vacuum and index builds without crowding the server                                                |
+| `huge_pages`                                   | off            | none reserved on a small VM                                                                        |
+| `jit`                                          | off            | costs memory and start-up time; no gain for small queries                                          |
+| `autovacuum_max_workers`                       | 2              | one core                                                                                           |
+| `max_wal_size` / `min_wal_size`                | 256MB / 64MB   | small disk budget                                                                                  |
+| `log_statement` / `log_min_duration_statement` | none / 2000 ms | no statement text in logs (it can carry data); slow statements only                                |
+
+### 10.4 Node limits
+
+`infra/oracle/buiry.service` runs `/usr/local/bin/node --max-old-space-size=256 dist-server/server.js`. Memory limits:
+
+- `MemoryHigh=400M` throttles the service above 400 MB;
+- `MemoryMax=450M` kills it there, and `Restart=on-failure` brings it back.
+
+That stops the server from pushing Postgres into swap. On a larger shape, raise all three.
+
+### 10.5 Build off the VM: the artefact
+
+**Never build on the 1 GB VM.** On the build machine, from a clean checkout of the commit to deploy:
+
+```sh
+bash infra/oracle/build-artifact.sh          # writes .artifact/buiry-<commit>.tar.gz and .sha256
+```
+
+**What it contains:**
+
+- production dependencies only (`pnpm deploy --prod`, hoisted);
+- the built server, protos and preview dashboard;
+- `pnpm-lock.yaml`;
+- `ops/` (`scripts/backup` and these templates);
+- a `MANIFEST` (commit, build Node version, file count).
+
+It refuses a dirty tree, any env file or key in the artefact, and any dev dependency.
+
+**On the VM:**
+
+```sh
+scp -i <key> .artifact/buiry-<commit>.tar.gz .artifact/buiry-<commit>.tar.gz.sha256 <user>@<vm>:/tmp/
+# on the VM:
+cd /tmp && sha256sum -c buiry-<commit>.tar.gz.sha256
+sudo rm -rf /opt/buiry/app.new && sudo mkdir -p /opt/buiry/app.new
+sudo tar -xzf /tmp/buiry-<commit>.tar.gz -C /opt/buiry/app.new --strip-components=1
+sudo chown -R root:buiry /opt/buiry/app.new && sudo chmod -R g+rX,o-rwx /opt/buiry/app.new
+[ -d /opt/buiry/app ] && sudo mv /opt/buiry/app /opt/buiry/app.prev; sudo mv /opt/buiry/app.new /opt/buiry/app
+```
+
+The app files are owned by root and readable by the `buiry` group, so the service cannot change its own code.
+
+### 10.6 Install on the VM (Ubuntu), in order
+
+Each command is listed here so nothing else runs with `sudo`. First, read-only facts: `cat /etc/os-release`, `uname -m`, `free -m`, `df -h /`, `swapon --show`, `command -v psql node caddy`.
+
+1. **Swap:** copy `ops/infra/oracle/swap.sh` from the artefact, or the repo, then `sudo bash swap.sh`.
+2. **Postgres 16:**
+   - **Ubuntu 24.04:** `sudo apt-get update && sudo apt-get install -y postgresql-16`.
+   - **Ubuntu 22.04:** add PostgreSQL's own repository first: `sudo apt-get install -y postgresql-common && sudo /usr/share/postgresql-common/pgdg/apt.postgresql.org.sh`, then the same install. UNVERIFIED: the script's prompts.
+
+   Then:
+   - `sudo install -m 644 ops/infra/oracle/postgresql-1gb.conf.template /etc/postgresql/16/main/conf.d/90-buiry-1gb.conf`;
+   - in `/etc/postgresql/16/main/pg_hba.conf`, keep only the lines in step 2.2;
+   - `sudo systemctl restart postgresql`.
+
+3. **Node 20** from nodejs.org, checked against its published checksum (no third-party apt repository):
+
+   ```sh
+   NA=$(case "$(dpkg --print-architecture)" in amd64) echo x64;; arm64) echo arm64;; esac)
+   cd /tmp && curl -fsSLO https://nodejs.org/dist/latest-v20.x/SHASUMS256.txt
+   F=$(grep -oE "node-v20\.[0-9]+\.[0-9]+-linux-$NA\.tar\.xz" SHASUMS256.txt | head -1)
+   curl -fsSLO "https://nodejs.org/dist/latest-v20.x/$F" && grep " $F\$" SHASUMS256.txt | sha256sum -c -
+   sudo tar -xJf "$F" -C /opt && sudo ln -sfn "/opt/${F%.tar.xz}" /opt/node && sudo ln -sfn /opt/node/bin/node /usr/local/bin/node
+   ```
+
+   The checksum file's signature is not checked: UNVERIFIED beyond the HTTPS download.
+
+4. **Users and directories:** as in step 3.1, with `/opt/buiry` owned by root (the app is not writable by `buiry`).
+5. **Database and roles:** step 2.3. Generate each password on the VM and pass it to `psql` as a variable, never on screen:
+
+   ```sh
+   DBPW=$(openssl rand -hex 24); BKPW=$(openssl rand -hex 24)
+   sudo -u postgres psql -v ON_ERROR_STOP=1 -v pw="$DBPW" -v bkpw="$BKPW" <<'SQL'
+   CREATE ROLE buiry_app NOLOGIN;
+   CREATE ROLE buiry LOGIN PASSWORD :'pw' NOSUPERUSER NOCREATEDB NOCREATEROLE NOREPLICATION;
+   GRANT buiry_app TO buiry;
+   CREATE DATABASE buiry OWNER buiry;
+   REVOKE ALL ON DATABASE buiry FROM PUBLIC;
+   GRANT CONNECT ON DATABASE buiry TO buiry;
+   CREATE ROLE buiry_backup LOGIN PASSWORD :'bkpw' NOSUPERUSER NOCREATEDB NOCREATEROLE;
+   GRANT CONNECT ON DATABASE buiry TO buiry_backup;
+   GRANT pg_read_all_data TO buiry_backup;
+   SQL
+   ```
+
+6. **Env files,** created on the VM, root-owned, mode 600, outside the app directory:
+   - **`/etc/buiry/buiry.env`:**
+     - the generated `DATABASE_URL` and `BUIRY_SECRET_KEY` (`openssl rand -base64 48`);
+     - the preview settings `BUIRY_PREVIEW=1`, `BUIRY_MANAGED=off` and `BUIRY_MAILER=smtp`;
+     - the network `WALRUS_NETWORK` and `TATUM_NETWORK`, with `BUIRY_ALLOW_MAINNET=1` only for mainnet;
+     - **empty** `TATUM_API_KEY`, `SMTP_*`, `BUIRY_BASE_URL` and `BUIRY_ALLOWED_ORIGINS` for the owner to fill.
+   - **`/etc/buiry/backup.env`:** the `buiry_backup` `DATABASE_URL`, `BACKUP_DIR=/var/backups/buiry`, `BACKUP_RETENTION_DAYS=14`, `BUIRY_SRC=/opt/buiry/app/ops` and an empty `OCI_BACKUP_BUCKET`.
+7. **Artefact:** 10.5.
+8. **Unit and timer:** copy `buiry.service`, `buiry-backup.service` and `buiry-backup.timer` from `ops/infra/oracle/` to `/etc/systemd/system/`, then `sudo systemctl daemon-reload` and `sudo systemctl enable --now buiry-backup.timer`. Do **not** enable or start `buiry` until the owner has filled the values. Until `OCI_BACKUP_BUCKET` is set, each nightly run makes the local dump and then fails on purpose (`OFF-BOX COPY NOT CONFIGURED`).
+9. **Firewall (80 and 443 only; never touch port 22).**
+   - **Read-only look first:** `sudo iptables -S INPUT` and `sudo ufw status`.
+   - **If `ufw` is inactive and `INPUT` ends in a `REJECT` rule** (the layout this step assumes, UNVERIFIED until seen), insert the two accepts just before that rule and save:
+
+     ```sh
+     N=$(sudo iptables -L INPUT --line-numbers -n | awk '$2=="REJECT" {print $1; exit}')
+     sudo iptables -I INPUT "$N" -p tcp -m state --state NEW --dport 443 -j ACCEPT
+     sudo iptables -I INPUT "$N" -p tcp -m state --state NEW --dport 80 -j ACCEPT
+     sudo netfilter-persistent save
+     ```
+
+   - **Any other layout:** stop and ask.
+   - **Cloud side:** the VCN security list rules for 80 and 443 are added in the Oracle console by the owner.
+   - **Port 8787:** gets no rule and stays unreachable.
+10. **Migrations** (before the first start, step 3.5): `sudo systemd-run --uid=buiry --property=EnvironmentFile=/etc/buiry/buiry.env --working-directory=/opt/buiry/app --wait --pipe /usr/local/bin/node dist-server/migrate.js`.
+11. **Restore drill** on the new database, step 5.4. The backup part runs as `sudo systemctl start buiry-backup` and makes the local dump. Its non-zero exit until off-box is configured is expected.
+12. **L-TOK1 on the 1 GB profile.** The VM has no source checkout, so run the dry run from the build machine through an SSH tunnel: `ssh -i <key> -L 15432:127.0.0.1:5432 <user>@<vm>`, then `DATABASE_URL=postgres://buiry:<password>@127.0.0.1:15432/buiry pnpm tsx scripts/real-pg/token-expiry.ts` (a loopback host needs no override). UNVERIFIED: this path has not run.
+
+### 10.7 External managed Postgres (an option, not chosen)
+
+Postgres can run off the VM, at a managed provider, reached over TLS (`sslmode=require` in `DATABASE_URL`).
+
+|                  | On the VM (this guide)       | Managed, elsewhere                                             |
+| ---------------- | ---------------------------- | -------------------------------------------------------------- |
+| Memory on the VM | about 150 to 250 MB          | none                                                           |
+| Backups          | this guide's timer and drill | the provider's, plus this guide's dumps if wanted              |
+| Latency          | loopback                     | network round trip per query                                   |
+| Dependencies     | none                         | a second provider, its limits and terms (UNVERIFIED)           |
+| Least privilege  | step 2.3                     | depends on what the provider allows (for example `CREATEROLE`) |
+
+Oracle's Always Free list includes Autonomous AI Database, not PostgreSQL.
+
+### 10.8 Reclaim risk on the micro shape, and the disposable VM
+
+**Thresholds.** For the AMD micro shape, the idle thresholds that apply are CPU (95th percentile under 20%) and network (under 20%) over 7 days. The memory threshold applies to A1 shapes only. A quiet preview may meet both, so the VM may be reclaimed. What reclaiming does is UNVERIFIED.
+
+**Treat the VM as disposable.** Everything needed to rebuild it is:
+
+- this repository at a known commit, which builds the artefact;
+- the two env files' values, which the owner keeps outside the VM;
+- the latest off-box dump.
+
+**Rebuild from backup** (DESIGNED ONLY, NOT RUN):
+
+1. Create a new VM.
+2. Run 10.6 steps 1 to 9.
+3. Download the newest dump, `.sha256` and `.json` from Object Storage into `/var/backups/buiry`.
+4. Run `restore.sh` into the new `buiry` database (`RESTORE_DATABASE_URL`, `BACKUP_S3_URI=file:///var/backups/buiry`).
+5. Run the migrations (10.6.10).
+6. Start the service.
+7. Check health.
+8. Point DNS at the new address.
+
+### 10.9 First checks on the VM (names and numbers only)
+
+| Check                                           | Command                                                                                         |
+| ----------------------------------------------- | ----------------------------------------------------------------------------------------------- |
+| Memory                                          | `free -m`                                                                                       |
+| Swap                                            | `swapon --show` and `cat /proc/sys/vm/swappiness`                                               |
+| Postgres memory                                 | `ps -o rss= -C postgres \| awk '{s+=$1} END {print s/1024 " MB"}'`                              |
+| Postgres settings                               | `sudo -u postgres psql -Atc "show shared_buffers; show max_connections; show listen_addresses"` |
+| Idle service memory (after the owner starts it) | `systemctl show buiry -p MemoryCurrent`                                                         |
+| Listening ports                                 | `sudo ss -ltn` (5432 on 127.0.0.1 only; 8787 only while the service runs)                       |
