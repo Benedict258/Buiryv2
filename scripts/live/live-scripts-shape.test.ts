@@ -133,3 +133,20 @@ describe.each([
     expect(body).not.toMatch(/deps\.networks\s*=/);
   });
 });
+
+// Phase 14d: the isolation run's writes happen only through the health gate, and queue events print only through
+// writeEventLine (behaviour tested in health-gate.test.ts).
+describe('byo-isolation health gate and event lines', () => {
+  const body = code(read('./byo-isolation.ts'));
+  it('runs runSequentialWrites only inside gatedWrites, after waitForHealthyRelayers', () => {
+    expect(body.match(/runSequentialWrites\(/g)).toHaveLength(1);
+    expect(body).toMatch(/gatedWrites\(\s*\(\) =>\s*waitForHealthyRelayers\(/);
+    expect(body).toMatch(/\(\) =>\s*runSequentialWrites\(/);
+    expect(body).toMatch(/if \(!gated\.result\) \{/);
+  });
+  it('prints queue events through writeEventLine and never the reason text', () => {
+    expect(body).toContain('writeEventLine(line,');
+    // The queue's reason text (`j.reason`) is never printed; the gate's own reason is built through errorText.
+    expect(body).not.toMatch(/\bj\.reason\b|reason\?: string/);
+  });
+});

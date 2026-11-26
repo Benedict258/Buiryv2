@@ -49,6 +49,8 @@ export interface RelayerHealth {
   reachable: boolean;
   writeState: WriteState;
   version?: string;
+  /** Phase 14d: why the relayer was unreachable: kind, HTTP status and network cause code only, never a value. */
+  error?: { kind: RelayerErrorKind; status?: number; cause?: string };
 }
 
 export interface RelayerVersion {

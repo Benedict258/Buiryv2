@@ -129,8 +129,9 @@ The script also records a control: each side finds its own memory. The control d
    Its first output line names the network and relayer host.
 
 3. **Guards before the first write.** For each account it reads the relayer's `/config` and refuses a network other than the one checked. It reads both owner wallets (read-only `POST /api/stats`) and refuses if they are the same.
-4. **Unchanged.** The write etiquette, pacing, one attempt per account, the I1 to I4 criteria and the control.
-5. **A go per run.** Each live run needs its own go from the owner, after a mainnet canary has passed (BD49).
+4. **Health gate (Phase 14d).** Before the first write, both relayers' `/health` are polled read-only, at most 10 times and 60 s apart. Writing starts only after two consecutive polls in which both report writes ok. Otherwise the run stops with no write queued or sent, names the relayer that failed, and saves outcome `not_started_unhealthy`.
+5. **Unchanged.** The write etiquette, pacing, one attempt per account, the I1 to I4 criteria and the control.
+6. **A go per run.** Each live run needs its own go from the owner, after a mainnet canary has passed (BD49).
 
 **Own-account check (L-BYO1, `scripts/byo-live.ts`).** It uses the same two accounts and guards: `BYO_A_*` is the project's own account, and `BYO_B_*` plays the managed account. On mainnet: `BUIRY_ALLOW_MAINNET=1 pnpm tsx scripts/with-env.ts mainnet -- pnpm tsx scripts/byo-live.ts`. It needs the chain gateway and writes two memories. Not run on mainnet. Each live run needs its own go from the owner.
 

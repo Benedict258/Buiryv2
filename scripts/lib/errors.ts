@@ -16,7 +16,8 @@ export class ScriptRefusal extends Error {
 }
 
 /** Coarse error class: where it failed. */
-export type ErrorClass = 'timeout' | 'network' | 'http' | 'parse' | 'invalid-response' | 'local';
+export type ErrorClass =
+  'timeout' | 'network' | 'http' | 'parse' | 'invalid-response' | 'relayer-job' | 'local';
 
 const KIND = /^[a-z_]{1,32}$/;
 const CAUSE = /^[A-Z][A-Z0-9_]{0,39}$/;
@@ -25,6 +26,8 @@ const API_CODE = /^[a-z_]{1,40}$/;
 
 export function errorClass(kind: string, status: number | undefined): ErrorClass {
   if (kind === 'timeout') return 'timeout';
+  // Phase 14d: the relayer accepted the job and reported it failed (not a failed HTTP call).
+  if (kind === 'job_failed') return 'relayer-job';
   if (status === undefined)
     return kind === 'unavailable' ? 'network' : kind === 'unknown' ? 'invalid-response' : 'local';
   if (status >= 200 && status < 300) return 'parse';

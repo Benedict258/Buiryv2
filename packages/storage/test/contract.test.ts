@@ -236,7 +236,8 @@ describe('MockRelayer behaviours the adapter must handle', () => {
     expect(await adapter.remember('ns', 'a').catch((e: RelayerError) => e)).toMatchObject({ kind: 'paused' });
     expect((await adapter.health()).writeState).toBe('paused');
     await mock.close();
-    expect(await adapter.health()).toMatchObject({ reachable: false });
+    // Phase 14d: an unreachable relayer's health carries the error kind (and cause code), never a value.
+    expect(await adapter.health()).toMatchObject({ reachable: false, error: { kind: 'unavailable' } });
     expect(await adapter.remember('ns', 'a').catch((e: RelayerError) => e)).toMatchObject({
       kind: 'unavailable',
     });
@@ -316,6 +317,20 @@ describe('MockRelayer behaviours the adapter must handle', () => {
         now: () => 1_700_000_000_000,
         nonce: () => NONCE,
       });
+
+    it('reports an HTTP 503 health answer as unreachable with kind and status, and no body (Phase 14d)', async () => {
+      const f = (async () =>
+        new Response(JSON.stringify({ error: 'down sk-made-up-SECRET-123' }), {
+          status: 503,
+        })) as unknown as typeof fetch;
+      const h = await make(f).health();
+      expect(h).toEqual({
+        reachable: false,
+        writeState: 'paused',
+        error: { kind: 'unavailable', status: 503 },
+      });
+      expect(JSON.stringify(h)).not.toContain('sk-made-up');
+    });
 
     it('signs {ts}.{METHOD}.{path+query}.{sha256(body)}.{nonce}.{account} and sends the documented headers', async () => {
       const { seen, f } = capture();

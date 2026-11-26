@@ -139,6 +139,27 @@ describe('write path', () => {
     expect((await queue.get(d.id))!.state).toBe('stored');
   });
 
+  it('failure events carry the error kind and HTTP status as fields, never the response text (Phase 14d)', async () => {
+    const logs: string[] = [];
+    const { svc, mkWorker, clock, mock } = await rig({
+      worker: {
+        maxAttempts: 2,
+        backoffBaseMs: 100,
+        backoffCapMs: 200,
+        log: (l: string) => void logs.push(l),
+      },
+    });
+    await svc.accept(jobInput(1));
+    mock.failNextWrites(10, 503, 'down sk-made-up-SECRET-123');
+    await drain(mkWorker(), clock, 6, 1000);
+    const events = logs.map((l) => JSON.parse(l) as { status?: string; error?: unknown });
+    const retry = events.find((e) => e.status === 'retry_scheduled');
+    const dead = events.find((e) => e.status === 'dead');
+    expect(retry?.error).toEqual({ kind: 'unavailable', status: 503 });
+    expect(dead?.error).toEqual({ kind: 'unavailable', status: 503 });
+    expect(logs.join('\n')).not.toContain('sk-made-up');
+  });
+
   it('handles failed relayer jobs as retryable', async () => {
     const { svc, mkWorker, clock, mock, queue } = await rig({ worker: { backoffBaseMs: 1000 } });
     await svc.accept(jobInput(1));

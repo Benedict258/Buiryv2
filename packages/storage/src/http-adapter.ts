@@ -240,7 +240,7 @@ export class HttpWalrusAdapter implements WalrusMemoryAdapter {
       return { reachable: true, writeState, ...(typeof v === 'string' ? { version: v } : {}) };
     } catch (e) {
       if (e instanceof RelayerError && e.kind !== 'client' && e.kind !== 'auth')
-        return { reachable: false, writeState: 'paused' };
+        return { reachable: false, writeState: 'paused', error: e.describe() };
       throw e;
     }
   }

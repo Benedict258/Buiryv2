@@ -145,9 +145,11 @@ export class WriteWorker {
     const err = e instanceof RelayerError ? e : new RelayerError('unknown', 'unexpected error');
     const now = this.w.now();
     const text = reason ?? writeErrorText(err);
+    // Phase 14d: the failure as fields (kind, HTTP status, cause code), so a log reader never needs the text.
+    const desc = reason ? { kind: 'job_failed' as const } : err.describe();
     await this.notifyFailed(job, text);
-    if (!err.retryable) return this.dead(job, text, report);
-    if (job.attempts >= this.o.maxAttempts) return this.dead(job, `retries exhausted: ${text}`, report);
+    if (!err.retryable) return this.dead(job, text, report, desc);
+    if (job.attempts >= this.o.maxAttempts) return this.dead(job, `retries exhausted: ${text}`, report, desc);
     const wait = Math.max(
       err.retryAfterMs ?? 0,
       relayerBackoffMs(job.attempts, this.o.backoffBaseMs, this.o.backoffCapMs, this.rand()),
@@ -155,6 +157,7 @@ export class WriteWorker {
     await this.w.queue.scheduleRetry(job.id, text, now + wait, now);
     this.logJob(job, 'retry_scheduled', job.relayerJobId, {
       reason: text,
+      error: desc,
       retryInSec: Math.round(wait / 1000),
     });
     report.retried++;
@@ -169,9 +172,14 @@ export class WriteWorker {
     }
   }
 
-  private async dead(job: WriteJob, error: string, report: TickReport): Promise<void> {
+  private async dead(
+    job: WriteJob,
+    error: string,
+    report: TickReport,
+    desc?: { kind: string; status?: number; cause?: string },
+  ): Promise<void> {
     await this.w.queue.markDead(job.id, error, this.w.now());
-    this.logJob(job, 'dead', job.relayerJobId, { reason: error });
+    this.logJob(job, 'dead', job.relayerJobId, { reason: error, ...(desc ? { error: desc } : {}) });
     report.dead++;
     await this.w.onDead?.(job, error);
   }
@@ -231,12 +239,12 @@ export class WriteWorker {
         if (st.state === 'done') await this.stored(job, st.blobId, report);
         else if (st.state === 'failed') {
           const reason = jobFailedReason(st.error);
-          this.logJob(job, 'failed', job.relayerJobId, { reason });
+          this.logJob(job, 'failed', job.relayerJobId, { reason, error: { kind: 'job_failed' } });
           if (st.retryable)
             await this.fail(job, new RelayerError('unavailable', 'relayer job failed'), report, reason);
           else {
             await this.notifyFailed(job, reason);
-            await this.dead(job, reason, report);
+            await this.dead(job, reason, report, { kind: 'job_failed' });
           }
         } else {
           this.logJob(job, st.state, job.relayerJobId);
@@ -247,7 +255,7 @@ export class WriteWorker {
           // The relayer lost the job: resubmit through the normal retry path.
           await this.fail(job, new RelayerError('unavailable', 'relayer job vanished'), report);
         } else if (e instanceof RelayerError && !e.retryable) {
-          await this.dead(job, writeErrorText(e), report);
+          await this.dead(job, writeErrorText(e), report, e.describe());
         } else {
           const now = this.w.now();
           await this.w.queue.schedulePoll(job.id, now + this.o.pollIntervalMs * 2, now);

@@ -41,6 +41,7 @@ import {
 } from '../lib/live-guard.js';
 import { ScriptRefusal, errorText } from '../lib/errors.js';
 import { applyLiveNetwork, setUpTester } from '../lib/own-account-setup.js';
+import { gatedWrites, healthText, waitForHealthyRelayers, writeEventLine } from './health-gate.js';
 
 const env = process.env as Record<string, string | undefined>;
 // Phase 14 A: both accounts present and different (names only), then the network guard; the network line is the first
@@ -159,20 +160,22 @@ try {
   const drains = createAccountDrains(s.deps, registry, ISOLATION_DRAIN_OPTIONS);
   const startedAt = new Map<string, { label: string; at: number }>();
   // Job ids and every status change, with UTC time and seconds since that account's write started. Content-free.
+  // Phase 14d: failures print their error fields through errorText (class, kind, status, cause), never the reason text.
   s.deps.eventLog = (line) => {
-    const j = JSON.parse(line) as {
-      event?: string;
-      memory?: string;
-      relayerJob?: string;
-      status?: string;
-      attempt?: number;
-      reason?: string;
-    };
-    if (j.event !== 'write_job' || !j.memory) return;
-    const st = startedAt.get(j.memory);
-    step(
-      `${utc()} account ${st?.label ?? '?'} job ${j.relayerJob ?? '-'} status ${j.status} attempt ${j.attempt} +${st ? Math.round((Date.now() - st.at) / 1000) : '?'}s${j.reason ? ` (${j.reason})` : ''}`,
-    );
+    const memory = (() => {
+      try {
+        return (JSON.parse(line) as { memory?: unknown }).memory;
+      } catch {
+        return undefined;
+      }
+    })();
+    const st = typeof memory === 'string' ? startedAt.get(memory) : undefined;
+    const out = writeEventLine(line, {
+      label: st?.label ?? '?',
+      elapsedSec: st ? Math.round((Date.now() - st.at) / 1000) : '?',
+      at: utc(),
+    });
+    if (out) step(out);
   };
   const state = async (id: string) =>
     (
@@ -192,113 +195,145 @@ try {
       },
       gateway,
     );
-  const writes = await runSequentialWrites(
-    (['A', 'B'] as const).map((label) => ({
-      label,
-      health: async () => {
-        const h = await adapterFor(label)
-          .health()
-          .catch(() => ({ reachable: false, writeState: 'paused' as const }));
-        step(`${utc()} account ${label} health before write: ${h.reachable ? h.writeState : 'unreachable'}`);
-        return h;
-      },
-      write: async () => {
-        const id = await (label === 'A' ? tA : tB).write();
-        startedAt.set(id, { label, at: Date.now() });
-        step(`${utc()} account ${label} write accepted: memory ${id}`);
-        return id;
-      },
-    })),
-    {
-      now: () => Date.now(),
-      sleep: (ms) => new Promise((r) => setTimeout(r, ms)),
-      tick: async () => void (await drains.tick()),
-      terminal: async (id) => {
-        const r = await state(id);
-        return r?.write_state === 'stored' ? 'stored' : r?.write_state === 'failed' ? 'dead' : null;
-      },
-    },
-    // Wait for the single attempt to reach a terminal state; I1 is still scored at the fixed 4 minutes below.
-    { deadlineMs: TERMINAL_WAIT_MS, pollMs: 15_000 },
+  // Phase 14d: both relayers healthy on two consecutive read-only polls (at most 10, 60 s apart) before the first
+  // write; otherwise the run stops here with no write queued or sent.
+  const gated = await gatedWrites(
+    () =>
+      waitForHealthyRelayers(
+        (['A', 'B'] as const).map((label) => ({ label, health: () => adapterFor(label).health() })),
+        { sleep: (ms) => new Promise((r) => setTimeout(r, ms)), say: (l) => step(`${utc()} ${l}`) },
+      ),
+    () =>
+      runSequentialWrites(
+        (['A', 'B'] as const).map((label) => ({
+          label,
+          health: async () => {
+            const h = await adapterFor(label)
+              .health()
+              .catch(() => ({ reachable: false, writeState: 'paused' as const }));
+            step(`${utc()} account ${label} health before write: ${healthText(h)}`);
+            return h;
+          },
+          write: async () => {
+            const id = await (label === 'A' ? tA : tB).write();
+            startedAt.set(id, { label, at: Date.now() });
+            step(`${utc()} account ${label} write accepted: memory ${id}`);
+            return id;
+          },
+        })),
+        {
+          now: () => Date.now(),
+          sleep: (ms) => new Promise((r) => setTimeout(r, ms)),
+          tick: async () => void (await drains.tick()),
+          terminal: async (id) => {
+            const r = await state(id);
+            return r?.write_state === 'stored' ? 'stored' : r?.write_state === 'failed' ? 'dead' : null;
+          },
+        },
+        // Wait for the single attempt to reach a terminal state; I1 is still scored at the fixed 4 minutes below.
+        { deadlineMs: TERMINAL_WAIT_MS, pollMs: 15_000 },
+      ),
   );
-  for (const a of writes.accounts) step(`account ${a.label}: ${a.final}`);
-  if (writes.outcome === 'skipped_degraded') {
-    step(
-      'SKIPPED: the relayer did not report writes ok before a write; this run is not counted as pass or fail',
-    );
+  if (!gated.result) {
+    if (!gated.gate.ok) step(`NOT STARTED: ${gated.gate.reason}`);
     mkdirSync('.buiry-local/proof', { recursive: true });
     writeFileSync(
       `.buiry-local/proof/byo-isolation-${run}.json`,
-      JSON.stringify({ run, commit, network, outcome: 'skipped_degraded', writes }, null, 2),
+      JSON.stringify(
+        {
+          run,
+          commit,
+          network,
+          outcome: 'not_started_unhealthy',
+          healthPolls: gated.gate.history,
+          writes: 0,
+        },
+        null,
+        2,
+      ),
     );
     process.exitCode = 3;
   } else {
-    // I1 at the fixed 4-minute window (criteria unchanged): a blob counts only if it was stored within 4 minutes.
-    const within = (label: 'A' | 'B') => storedWithin(writes.accounts.find((a) => a.label === label)!);
-    const storedA = (await state(A.memoryId))?.walrus_blob_id ?? null;
-    const storedB = (await state(B.memoryId))?.walrus_blob_id ?? null;
-    const blobA = within('A') ? storedA : null;
-    const blobB = within('B') ? storedB : null;
-    step(
-      `blobs: A ${storedA ?? 'not stored'}${storedA && !blobA ? ' (stored after the 4-minute window: not counted for I1)' : ''}, B ${storedB ?? 'not stored'}${storedB && !blobB ? ' (stored after the 4-minute window: not counted for I1)' : ''}`,
-    );
+    const writes = gated.result;
+    for (const a of writes.accounts) step(`account ${a.label}: ${a.final}`);
+    if (writes.outcome === 'skipped_degraded') {
+      step(
+        'SKIPPED: the relayer did not report writes ok before a write; this run is not counted as pass or fail',
+      );
+      mkdirSync('.buiry-local/proof', { recursive: true });
+      writeFileSync(
+        `.buiry-local/proof/byo-isolation-${run}.json`,
+        JSON.stringify({ run, commit, network, outcome: 'skipped_degraded', writes }, null, 2),
+      );
+      process.exitCode = 3;
+    } else {
+      // I1 at the fixed 4-minute window (criteria unchanged): a blob counts only if it was stored within 4 minutes.
+      const within = (label: 'A' | 'B') => storedWithin(writes.accounts.find((a) => a.label === label)!);
+      const storedA = (await state(A.memoryId))?.walrus_blob_id ?? null;
+      const storedB = (await state(B.memoryId))?.walrus_blob_id ?? null;
+      const blobA = within('A') ? storedA : null;
+      const blobB = within('B') ? storedB : null;
+      step(
+        `blobs: A ${storedA ?? 'not stored'}${storedA && !blobA ? ' (stored after the 4-minute window: not counted for I1)' : ''}, B ${storedB ?? 'not stored'}${storedB && !blobB ? ' (stored after the 4-minute window: not counted for I1)' : ''}`,
+      );
 
-    const tokenRefused = {
-      aReadsB: await refused(() => A.agent.backend.getMemory(B.memoryId), B.marker),
-      bReadsA: await refused(() => B.agent.backend.getMemory(A.memoryId), A.marker),
-      aWritesB: await refused(() => A.agent.backend.connect({ project: B.prj.id }), B.marker),
-      bWritesA: await refused(() => B.agent.backend.connect({ project: A.prj.id }), A.marker),
-    };
-    // Give the relayer time to index, then search each side for the other's marker (and its own, as a control).
-    await new Promise((r) => setTimeout(r, 30_000));
-    const recallHas = async (side: typeof A, marker: string) =>
-      JSON.stringify(
-        await side.agent.backend.recall({ query: `Isolation check ${marker}` }).catch(() => null),
-      ).includes(marker);
-    const lookupClean = { aFindsB: await recallHas(A, B.marker), bFindsA: await recallHas(B, A.marker) };
-    const controls = { aFindsA: await recallHas(A, A.marker), bFindsB: await recallHas(B, B.marker) };
-    const recallPath = gateway
-      ? 'relayer with a Seal session'
-      : 'Buiry index (no chain gateway: no Seal session, A23)';
-    step(`recall path: ${recallPath}`);
+      const tokenRefused = {
+        aReadsB: await refused(() => A.agent.backend.getMemory(B.memoryId), B.marker),
+        bReadsA: await refused(() => B.agent.backend.getMemory(A.memoryId), A.marker),
+        aWritesB: await refused(() => A.agent.backend.connect({ project: B.prj.id }), B.marker),
+        bWritesA: await refused(() => B.agent.backend.connect({ project: A.prj.id }), A.marker),
+      };
+      // Give the relayer time to index, then search each side for the other's marker (and its own, as a control).
+      await new Promise((r) => setTimeout(r, 30_000));
+      const recallHas = async (side: typeof A, marker: string) =>
+        JSON.stringify(
+          await side.agent.backend.recall({ query: `Isolation check ${marker}` }).catch(() => null),
+        ).includes(marker);
+      const lookupClean = { aFindsB: await recallHas(A, B.marker), bFindsA: await recallHas(B, A.marker) };
+      const controls = { aFindsA: await recallHas(A, A.marker), bFindsB: await recallHas(B, B.marker) };
+      const recallPath = gateway
+        ? 'relayer with a Seal session'
+        : 'Buiry index (no chain gateway: no Seal session, A23)';
+      step(`recall path: ${recallPath}`);
 
-    const ns = async (pid: string) =>
-      (
-        await s.db.system((tx) =>
-          tx.query<{ namespace: string }>(
-            `select namespace from branches where project_id = $1 and slug = 'main'`,
-            [pid],
-          ),
-        )
-      ).rows[0]!.namespace;
-    const [nsA, nsB] = [await ns(A.prj.id), await ns(B.prj.id)];
-    const adA = (await registry.byoAdapter(s.deps, A.prj.id))!;
-    const adB = (await registry.byoAdapter(s.deps, B.prj.id))!;
-    const listed = async (ad: WalrusMemoryAdapter) =>
-      [
-        ...(await ad.list({ namespace: nsA, limit: 100 })).items,
-        ...(await ad.list({ namespace: nsB, limit: 100 })).items,
-      ].map((i) => i.blobId);
-    const obs: IsolationObservation = {
-      a: { memoryId: A.memoryId, blobId: blobA },
-      b: { memoryId: B.memoryId, blobId: blobB },
-      tokenRefused,
-      lookupClean,
-      storage: { aAccountBlobs: await listed(adA), bAccountBlobs: await listed(adB) },
-    };
-    const criteria = evaluateIsolation(obs);
-    for (const c of criteria) step(`${c.pass ? 'PASS' : 'FAIL'} ${c.id} ${c.what}: ${c.detail}`);
-    step(
-      `controls (each side finds its own memory; not a pass condition, a recall sanity check): ${JSON.stringify(controls)}`,
-    );
-    const pass = criteria.every((c) => c.pass);
-    mkdirSync('.buiry-local/proof', { recursive: true });
-    writeFileSync(
-      `.buiry-local/proof/byo-isolation-${run}.json`,
-      JSON.stringify({ run, commit, network, pass, recallPath, writes, obs, controls, criteria }, null, 2),
-    );
-    step(pass ? 'PASS' : 'FAIL');
-    process.exitCode = pass ? 0 : 1;
+      const ns = async (pid: string) =>
+        (
+          await s.db.system((tx) =>
+            tx.query<{ namespace: string }>(
+              `select namespace from branches where project_id = $1 and slug = 'main'`,
+              [pid],
+            ),
+          )
+        ).rows[0]!.namespace;
+      const [nsA, nsB] = [await ns(A.prj.id), await ns(B.prj.id)];
+      const adA = (await registry.byoAdapter(s.deps, A.prj.id))!;
+      const adB = (await registry.byoAdapter(s.deps, B.prj.id))!;
+      const listed = async (ad: WalrusMemoryAdapter) =>
+        [
+          ...(await ad.list({ namespace: nsA, limit: 100 })).items,
+          ...(await ad.list({ namespace: nsB, limit: 100 })).items,
+        ].map((i) => i.blobId);
+      const obs: IsolationObservation = {
+        a: { memoryId: A.memoryId, blobId: blobA },
+        b: { memoryId: B.memoryId, blobId: blobB },
+        tokenRefused,
+        lookupClean,
+        storage: { aAccountBlobs: await listed(adA), bAccountBlobs: await listed(adB) },
+      };
+      const criteria = evaluateIsolation(obs);
+      for (const c of criteria) step(`${c.pass ? 'PASS' : 'FAIL'} ${c.id} ${c.what}: ${c.detail}`);
+      step(
+        `controls (each side finds its own memory; not a pass condition, a recall sanity check): ${JSON.stringify(controls)}`,
+      );
+      const pass = criteria.every((c) => c.pass);
+      mkdirSync('.buiry-local/proof', { recursive: true });
+      writeFileSync(
+        `.buiry-local/proof/byo-isolation-${run}.json`,
+        JSON.stringify({ run, commit, network, pass, recallPath, writes, obs, controls, criteria }, null, 2),
+      );
+      step(pass ? 'PASS' : 'FAIL');
+      process.exitCode = pass ? 0 : 1;
+    }
   }
 } catch (e) {
   // Phase 14b: class, kind, HTTP status and network cause code only; a script refusal as written.
