@@ -1,5 +1,6 @@
 # One backup run (docs/DEPLOY_ORACLE.md, step 5). DESIGNED ONLY: not run on Oracle.
-# Install as /etc/systemd/system/buiry-backup.service, with buiry-backup.timer.
+# Install as /etc/systemd/system/buiry-backup.service, with buiry-backup.timer. The scripts come from the artefact
+# (ops/), so the VM needs no source checkout.
 
 [Unit]
 Description=Buiry database backup (pg_dump, local and off-box)
@@ -11,6 +12,6 @@ Type=oneshot
 User=buiry-backup
 Group=buiry-backup
 EnvironmentFile=/etc/buiry/backup.env
-ExecStart=/bin/bash /opt/buiry/src/infra/oracle/backup-local.sh
+ExecStart=/bin/bash /opt/buiry/app/ops/infra/oracle/backup-local.sh
 NoNewPrivileges=yes
 PrivateTmp=yes

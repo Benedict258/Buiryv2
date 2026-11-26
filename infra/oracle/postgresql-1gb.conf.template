@@ -1,0 +1,31 @@
+# Postgres 16 settings for the 1 core, 1 GB profile (docs/DEPLOY_ORACLE.md, 1 GB profile). DESIGNED ONLY: not run on
+# Oracle. Install as /etc/postgresql/16/main/conf.d/90-buiry-1gb.conf (Debian and Ubuntu layout; the main file
+# includes conf.d). Each value has its reason. Placeholders only: no host, password or address.
+
+# Loopback only: no remote client, no public port.
+listen_addresses = 'localhost'
+port = 5432
+
+# The server's pool opens at most 10 connections (pg default); 20 leaves room for migrations, backups and psql.
+max_connections = 20
+superuser_reserved_connections = 2
+
+# Memory. About 1/8 of RAM for the buffer cache (the default, sized for this box), small per-operation memory, and a
+# planner hint that the OS page cache is small too.
+shared_buffers = 128MB
+effective_cache_size = 384MB
+work_mem = 4MB
+maintenance_work_mem = 32MB
+# Huge pages are not reserved on a small VM.
+huge_pages = off
+# JIT costs memory and start-up time and does not help this workload's small queries.
+jit = off
+
+# Background work. Fewer autovacuum workers on one core; WAL kept small on a small disk budget.
+autovacuum_max_workers = 2
+max_wal_size = 256MB
+min_wal_size = 64MB
+
+# Logging: no statement text (it can carry data), only slow statements by duration.
+log_min_duration_statement = 2000
+log_statement = 'none'

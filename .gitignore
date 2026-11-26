@@ -15,3 +15,6 @@ coverage
 *.tfstate.*
 *.tfvars
 !.env.production.example
+
+# Phase 16b: deployable artefacts built by infra/oracle/build-artifact.sh
+.artifact/

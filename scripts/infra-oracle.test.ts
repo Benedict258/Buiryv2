@@ -13,13 +13,16 @@ const files = readdirSync(dir).filter((f) => !f.startsWith('.'));
 const read = (f: string) => readFileSync(join(dir, f), 'utf8');
 
 describe('infra/oracle templates: placeholders only', () => {
-  it('has the five templates the guide installs', () => {
+  it('has the templates the guide installs', () => {
     expect(files.sort()).toEqual([
       'Caddyfile.template',
       'backup-local.sh',
+      'build-artifact.sh',
       'buiry-backup.service',
       'buiry-backup.timer',
       'buiry.service',
+      'postgresql-1gb.conf.template',
+      'swap.sh',
     ]);
   });
 
@@ -80,12 +83,69 @@ describe('Caddyfile.template', () => {
 
 describe('backup-local.sh', () => {
   const sh = read('backup-local.sh');
-  it("reuses the repo's backup.sh with a local store and requires an off-box copy", () => {
+  it("reuses the repo's backup.sh with a local store, and fails loudly while the off-box copy is not configured", () => {
     expect(sh).toContain('set -euo pipefail');
     expect(sh).toContain('BACKUP_S3_URI="file://$BACKUP_DIR" bash "$BUIRY_SRC/scripts/backup/backup.sh"');
-    expect(sh).toMatch(/: "\$\{OCI_BACKUP_BUCKET:\?/);
+    // The local dump comes first; an unset bucket then ends the run with a non-zero exit, never a silent skip.
+    expect(sh.indexOf('scripts/backup/backup.sh')).toBeLessThan(
+      sh.indexOf('if [ -z "${OCI_BACKUP_BUCKET:-}" ]'),
+    );
+    expect(sh).toMatch(
+      /if \[ -z "\$\{OCI_BACKUP_BUCKET:-\}" \]; then\n[^\n]*OFF-BOX COPY NOT CONFIGURED[^\n]*\n\s+exit 3/,
+    );
   });
-  it('is valid bash', () => {
-    expect(() => execFileSync('bash', ['-n', join(dir, 'backup-local.sh')], { stdio: 'pipe' })).not.toThrow();
+  it('the backup service runs the ops copy shipped in the artefact', () => {
+    expect(read('buiry-backup.service')).toMatch(
+      /^ExecStart=\/bin\/bash \/opt\/buiry\/app\/ops\/infra\/oracle\/backup-local\.sh$/m,
+    );
+  });
+  it.each(['backup-local.sh', 'swap.sh', 'build-artifact.sh'])('%s is valid bash', (f) => {
+    expect(() => execFileSync('bash', ['-n', join(dir, f)], { stdio: 'pipe' })).not.toThrow();
+  });
+});
+
+// Phase 16b: the 1 core, 1 GB profile.
+describe('1 GB profile limits', () => {
+  it('caps the JS heap and the whole service', () => {
+    const unit = read('buiry.service');
+    expect(unit).toMatch(
+      /^ExecStart=\/usr\/local\/bin\/node --max-old-space-size=256 dist-server\/server\.js$/m,
+    );
+    expect(unit).toMatch(/^MemoryMax=450M$/m);
+    expect(unit).toMatch(/^MemoryHigh=400M$/m);
+  });
+  it('tunes Postgres for 1 GB on the loopback only', () => {
+    const pg = read('postgresql-1gb.conf.template');
+    for (const line of [
+      "listen_addresses = 'localhost'",
+      'max_connections = 20',
+      'shared_buffers = 128MB',
+      'work_mem = 4MB',
+      'maintenance_work_mem = 32MB',
+      'jit = off',
+    ])
+      expect(pg).toContain(line);
+    expect(pg).not.toMatch(/listen_addresses\s*=\s*'\*'/);
+  });
+  it('creates a 2 GB swap file only when no swap is active', () => {
+    const sw = read('swap.sh');
+    expect(sw).toContain('SWAP_SIZE_MB=2048');
+    expect(sw.indexOf('swapon --noheadings --show=NAME')).toBeLessThan(sw.indexOf('fallocate'));
+    expect(sw).toContain('vm.swappiness=10');
+  });
+});
+
+describe('build-artifact.sh', () => {
+  const b = read('build-artifact.sh');
+  it('builds off the VM from a clean tree, with production dependencies only', () => {
+    expect(b).toMatch(/git status --porcelain/);
+    expect(b).toMatch(/deploy --prod --legacy --config\.node-linker=hoisted/);
+    expect(b).toMatch(/node_modules\/vitest.*node_modules\/typescript.*node_modules\/tsx/s);
+  });
+  it('ships the built output, the lockfile and a checksum, and refuses any env file or key', () => {
+    for (const s of ['dist-server', 'proto', 'dashboard', 'cp pnpm-lock.yaml', 'sha256sum', 'MANIFEST'])
+      expect(b).toContain(s);
+    expect(b).toMatch(/-name '\.env' -o -name '\.env\.\*' -o -name '\*\.pem' -o -name '\*\.key'/);
+    expect(b).toMatch(/refusing" >&2\n\s+exit 3/);
   });
 });

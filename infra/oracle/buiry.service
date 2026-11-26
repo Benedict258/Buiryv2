@@ -1,6 +1,9 @@
 # Buiry server on one VM: API, MCP endpoint, dashboard and background worker (BUIRY_ROLE unset = all).
-# docs/DEPLOY_ORACLE.md, step 3. DESIGNED ONLY: not run on Oracle. Install as /etc/systemd/system/buiry.service.
-# Every value is a placeholder path; secrets live only in /etc/buiry/buiry.env (mode 600, owned by root), never here.
+# docs/DEPLOY_ORACLE.md, step 3 and the 1 core, 1 GB profile. DESIGNED ONLY: not run on Oracle.
+# Install as /etc/systemd/system/buiry.service. Every value is a placeholder path; secrets live only in
+# /etc/buiry/buiry.env (mode 600, owned by root), never here.
+# Limits are set for the 1 GB profile: the JS heap is capped at 256 MB and the whole service at 450 MB. On a larger
+# shape raise both (for example 768 and 1200M).
 
 [Unit]
 Description=Buiry server (API, MCP, dashboard, worker)
@@ -22,9 +25,12 @@ Environment=NODE_ENV=production
 Environment=PORT=8787
 Environment=BUIRY_PROTO_ROOT=/opt/buiry/app/proto
 Environment=DASHBOARD_DIR=/opt/buiry/app/dashboard
-ExecStart=/usr/bin/node dist-server/server.js
+ExecStart=/usr/local/bin/node --max-old-space-size=256 dist-server/server.js
 Restart=on-failure
 RestartSec=5
+# Memory: throttle above MemoryHigh, kill and restart above MemoryMax, rather than pushing Postgres into swap.
+MemoryHigh=400M
+MemoryMax=450M
 # Hardening. The server writes nothing to disk (logs go to the journal).
 NoNewPrivileges=yes
 PrivateTmp=yes
